@@ -9,11 +9,8 @@ window.Echo = new Echo({
     wsHost: import.meta.env.VITE_REVERB_HOST,
     wsPort: import.meta.env.VITE_REVERB_PORT,
     wssPort: import.meta.env.VITE_REVERB_PORT,
-    forceTLS: true,
+    forceTLS: (import.meta.env.VITE_REVERB_SCHEME ?? 'https') === 'https',
     enabledTransports: ['ws', 'wss'],
-    debug: true, // ДОБАВЬ ЭТУ СТРОКУ
 });
-window.Echo.channel('test-channel')
-    .listen('TestEvent', (e) => {
-        console.log('Событие пришло!', e);
-    });
+
+console.log("Echo инициализирован с хостом:", import.meta.env.VITE_REVERB_HOST);

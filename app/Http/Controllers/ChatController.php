@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Matchmaking;
 use App\Events\MatchFoundEvent;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class ChatController extends Controller
 {
@@ -12,16 +13,16 @@ class ChatController extends Controller
     {
         $user = $request->user();
 
-        // 1. Пытаемся найти кого-то, кто уже ищет
+        // 1. Пытаемся найти другого пользователя в очереди
         $opponent = Matchmaking::where('status', 'searching')
             ->where('user_id', '!=', $user->id)
             ->first();
 
         if ($opponent) {
-            // Мэтч найден! 
+            // Мэтч найден!
             $opponent->update(['status' => 'matched']);
             
-            // Оповещаем обоих
+            // Отправляем события
             broadcast(new MatchFoundEvent($user->id, $opponent->user_id));
             broadcast(new MatchFoundEvent($opponent->user_id, $user->id));
             
@@ -29,7 +30,11 @@ class ChatController extends Controller
         }
 
         // 2. Никого нет — встаем в очередь
-        Matchmaking::updateOrCreate(['user_id' => $user->id], ['status' => 'searching']);
+        Matchmaking::updateOrCreate(
+            ['user_id' => $user->id], 
+            ['status' => 'searching']
+        );
+        
         return response()->json(['status' => 'searching']);
     }
 }

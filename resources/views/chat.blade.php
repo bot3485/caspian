@@ -21,6 +21,11 @@
         navigator.mediaDevices.getUserMedia({ video: true, audio: true })
             .then(s => document.getElementById('localVideo').srcObject = s);
 
+        console.log("Скрипт загружен!");
+        document.getElementById('startSearch').addEventListener('click', () => {
+        console.log("Кнопка нажата!");
+        });
+
         document.getElementById('startSearch').addEventListener('click', async () => {
             document.getElementById('connectionStatus').innerText = "Ищем пару...";
             

@@ -25,6 +25,6 @@ class MatchFoundEvent implements ShouldBroadcast
     {
         // ВАЖНО: Мы используем приватный канал пользователя, 
         // чтобы сообщение пришло только конкретному человеку
-        return new PrivateChannel('user.' . $this->myId);
+        new PrivateChannel('user.' . $this->partnerId);
     }
 }

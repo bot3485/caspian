@@ -33,3 +33,6 @@
         </div>
     </body>
 </html>
+<script>
+    console.log("ТЕСТ ЗАГРУЗКИ: Я нахожусь прямо в HTML!");
+</script>

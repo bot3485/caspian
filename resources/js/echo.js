@@ -5,9 +5,10 @@ window.Pusher = Pusher;
 
 window.Echo = new Echo({
     broadcaster: 'reverb',
-    key: import.meta.env.VITE_REVERB_APP_KEY,
-    wsHost: '10.1.0.8', // Твой IP
-    wsPort: 8080,
-    forceTLS: false,
-    enabledTransports: ['ws'],
+    key: 'vyks9t0oswy3jofj2wvl',
+    wsHost: '10.1.0.8',
+    wsPort: 8443,         // МЕНЯЕМ НА ТВОЙ ПОРТ HTTPS
+    wssPort: 8443,        // МЕНЯЕМ НА ТВОЙ ПОРТ HTTPS
+    forceTLS: true,       // Оставляем true, так как сайт на HTTPS
+    enabledTransports: ['ws', 'wss'],
 });

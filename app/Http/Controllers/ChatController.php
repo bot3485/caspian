@@ -5,36 +5,51 @@ namespace App\Http\Controllers;
 use App\Models\Matchmaking;
 use App\Events\MatchFoundEvent;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 
 class ChatController extends Controller
 {
     public function startSearching(Request $request)
     {
-        $user = $request->user();
+        $userId = Auth::id();
+        Log::info("Пользователь {$userId} начал поиск партнера.");
 
-        // 1. Пытаемся найти другого пользователя в очереди
-        $opponent = Matchmaking::where('status', 'searching')
-            ->where('user_id', '!=', $user->id)
+        // Ищем пользователя, который уже ждет в очереди
+        $waitingUser = Matchmaking::where('user_id', '!=', $userId)
+            ->where('status', 'waiting')
             ->first();
 
-        if ($opponent) {
-            // Мэтч найден!
-            $opponent->update(['status' => 'matched']);
-            
-            // Отправляем события
-            broadcast(new MatchFoundEvent($user->id, $opponent->user_id));
-            broadcast(new MatchFoundEvent($opponent->user_id, $user->id));
-            
-            return response()->json(['status' => 'matched', 'partner_id' => $opponent->user_id]);
+        if ($waitingUser) {
+            $partnerId = $waitingUser->user_id;
+
+            // Обновляем статусы в базе данных
+            $waitingUser->update(['status' => 'matched']);
+            Matchmaking::create([
+                'user_id' => $userId,
+                'status' => 'matched'
+            ]);
+
+            Log::info("Мэтч найден! Пара: User {$userId} и User {$partnerId}");
+
+            // Отправляем WebSocket-события обоим участникам
+            broadcast(new MatchFoundEvent($partnerId));
+            broadcast(new MatchFoundEvent($userId));
+
+            return response()->json([
+                'status' => 'matched',
+                'partnerId' => $partnerId
+            ]);
         }
 
-        // 2. Никого нет — встаем в очередь
+        // Если никого нет, добавляем текущего пользователя в очередь ожидания
         Matchmaking::updateOrCreate(
-            ['user_id' => $user->id], 
-            ['status' => 'searching']
+            ['user_id' => $userId],
+            ['status' => 'waiting']
         );
-        
-        return response()->json(['status' => 'searching']);
+
+        return response()->json([
+            'status' => 'searching'
+        ]);
     }
 }

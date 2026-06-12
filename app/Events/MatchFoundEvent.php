@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Events;
 
 use Illuminate\Broadcasting\Channel;
@@ -13,18 +14,24 @@ class MatchFoundEvent implements ShouldBroadcast
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
     public $partnerId;
-    public $myId;
 
-    public function __construct($myId, $partnerId)
+    /**
+     * Create a new event instance.
+     */
+    public function __construct($partnerId)
     {
-        $this->myId = $myId;
         $this->partnerId = $partnerId;
     }
 
-    public function broadcastOn(): Channel
+    /**
+     * Get the channels the event should broadcast on.
+     *
+     * @return array<int, \Illuminate\Broadcasting\Channel>
+     */
+    public function broadcastOn(): array
     {
-        // ВАЖНО: Мы используем приватный канал пользователя, 
-        // чтобы сообщение пришло только конкретному человеку
-        new PrivateChannel('user.' . $this->partnerId);
+        return [
+            new PrivateChannel('user.' . $this->partnerId),
+        ];
     }
 }

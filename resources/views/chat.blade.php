@@ -27,20 +27,15 @@
         });
 
         document.getElementById('startSearch').addEventListener('click', async () => {
-            document.getElementById('connectionStatus').innerText = "Ищем пару...";
+            console.log("Кнопка 'Начать поиск' была нажата!"); // Этот лог должен появиться в консоли F12
+            document.getElementById('connectionStatus').innerText = "Поиск...";
             
             try {
-                const res = await fetch('/chat/search', {
-                    method: 'POST',
-                    headers: { 
-                        'X-CSRF-TOKEN': '{{ csrf_token() }}',
-                        'Content-Type': 'application/json' 
-                    }
-                });
-                const data = await res.json();
-                console.log("Ответ от сервера:", data);
-            } catch (err) {
-                console.error("Ошибка запроса:", err);
+                const response = await window.axios.post('/chat/search');
+                console.log("Ответ от сервера:", response.data);
+            } catch (error) {
+                // Если ошибка 419 — значит CSRF-токен не прошел
+                console.error("Ошибка запроса (детали):", error.response?.data || error.message);
             }
         });
 

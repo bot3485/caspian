@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\ChatController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -24,3 +25,5 @@ Route::get('/chat', function () {
 })->middleware(['auth'])->name('chat');
 
 Route::post('/chat/search', [ChatController::class, 'startSearching'])->middleware('auth');
+use Illuminate\Support\Facades\Broadcast;
+Broadcast::routes();

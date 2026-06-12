@@ -5,32 +5,31 @@ namespace App\Events;
 use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 
-class WebRTCSignalEvent implements ShouldBroadcast
+class MessageSentEvent implements ShouldBroadcast
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
-    public $partnerId;
-    public $data;
+    public $messageData;
 
-    public function __construct($partnerId, $data)
+    public function __construct($messageData)
     {
-        $this->partnerId = $partnerId;
-        $this->data = $data;
+        $this->messageData = $messageData;
     }
 
     public function broadcastOn(): array
     {
+        // Отправляем сообщение в приватный канал получателя
         return [
-            new PrivateChannel('user.' . $this->partnerId),
+            new PrivateChannel('user.' . $this->messageData['receiver_id']),
         ];
     }
 
     public function broadcastAs(): string
     {
-        return 'WebRTCSignalEvent';
+        return 'MessageSentEvent';
     }
 }

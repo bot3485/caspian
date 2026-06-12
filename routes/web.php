@@ -27,3 +27,5 @@ Route::get('/chat', function () {
 Route::post('/chat/search', [ChatController::class, 'startSearching'])->middleware('auth');
 use Illuminate\Support\Facades\Broadcast;
 Broadcast::routes();
+
+Route::post('/chat/signal', [ChatController::class, 'sendSignal'])->middleware('auth');

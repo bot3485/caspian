@@ -13,25 +13,26 @@ class MatchFoundEvent implements ShouldBroadcast
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
+    private $targetUserId;
     public $partnerId;
 
-    /**
-     * Create a new event instance.
-     */
-    public function __construct($partnerId)
+    // Конструктор принимает: 1. Кому доставить, 2. ID собеседника для фронтенда
+    public function __construct($targetUserId, $partnerId)
     {
+        $this->targetUserId = $targetUserId;
         $this->partnerId = $partnerId;
     }
 
-    /**
-     * Get the channels the event should broadcast on.
-     *
-     * @return array<int, \Illuminate\Broadcasting\Channel>
-     */
     public function broadcastOn(): array
     {
+        // Отправляем строго в приватный канал конкретного получателя
         return [
-            new PrivateChannel('user.' . $this->partnerId),
+            new PrivateChannel('user.' . $this->targetUserId),
         ];
+    }
+
+    public function broadcastAs(): string
+    {
+        return 'MatchFoundEvent';
     }
 }

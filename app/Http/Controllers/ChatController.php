@@ -32,9 +32,12 @@ class ChatController extends Controller
 
             Log::info("Мэтч найден! Пара: User {$userId} и User {$partnerId}");
 
-            // Отправляем WebSocket-события обоим участникам
-            broadcast(new MatchFoundEvent($partnerId));
-            broadcast(new MatchFoundEvent($userId));
+            // ОТПРАВЛЯЕМ WebSocket-события правильно:
+            // 1. Отправляем ПАРТНЕРУ (partnerId), что его собеседник — МЫ (userId)
+            broadcast(new MatchFoundEvent($partnerId, $userId));
+
+            // 2. Отправляем НАМ (userId), что наш собеседник — ПАРТНЕР (partnerId)
+            broadcast(new MatchFoundEvent($userId, $partnerId));
 
             return response()->json([
                 'status' => 'matched',
@@ -42,7 +45,7 @@ class ChatController extends Controller
             ]);
         }
 
-        // Если никого нет, добавляем текущего пользователя в очередь ожидания
+        // Если никого нет, добавляем текущего пользователя в queue ожидания
         Matchmaking::updateOrCreate(
             ['user_id' => $userId],
             ['status' => 'waiting']
@@ -51,5 +54,18 @@ class ChatController extends Controller
         return response()->json([
             'status' => 'searching'
         ]);
+    }
+
+    // Метод для ретрансляции WebRTC сигналов (SDP и ICE)
+    public function sendSignal(Request $request)
+    {
+        $request->validate([
+            'partnerId' => 'required|integer',
+            'data' => 'required|array'
+        ]);
+
+        broadcast(new \App\Events\WebRTCSignalEvent($request->partnerId, $request->data))->toOthers();
+
+        return response()->json(['status' => 'signal_sent']);
     }
 }

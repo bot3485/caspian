@@ -24,6 +24,12 @@
                         
                         <div id="remoteVideoContainer" class="bg-gray-900 rounded-2xl overflow-hidden shadow-lg h-[450px] flex items-center justify-center relative border border-gray-800">
                             <video id="remoteVideo" autoplay playsinline class="w-full h-full object-cover"></video>
+                            
+                            <div id="remoteMediaAlerts" class="absolute flex flex-col gap-2 items-center justify-center pointer-events-none z-10">
+                                <span id="alertRemoteCam" class="hidden bg-red-600 bg-opacity-90 text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-md border border-red-500">Stranger disabled camera</span>
+                                <span id="alertRemoteMic" class="hidden bg-amber-600 bg-opacity-90 text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-md border border-amber-500">Stranger muted microphone</span>
+                            </div>
+
                             <div id="remoteStatus" class="absolute text-gray-400 font-medium text-sm bg-gray-900 bg-opacity-80 px-4 py-2 rounded-full border border-gray-800">
                                 Camera Feed Offline
                             </div>
@@ -117,6 +123,10 @@
         const micStatusText = document.getElementById('micStatusText');
         const camStatusText = document.getElementById('camStatusText');
 
+        // Overlay Alert Elements
+        const alertRemoteCam = document.getElementById('alertRemoteCam');
+        const alertRemoteMic = document.getElementById('alertRemoteMic');
+
         // Roulette Chat Elements
         const rouletteChatBox = document.getElementById('rouletteChatBox');
         const rouletteMessages = document.getElementById('rouletteMessages');
@@ -130,6 +140,9 @@
         let activeChatContactId = null;
         let onlineUserIds = new Set();
         let typingTimeout = null;
+        
+        // Хранилище для счетчика непрочитанных сообщений в разрезе ID друзей
+        let unreadCounters = {}; 
 
         const rtcConfig = {
             iceServers: [
@@ -146,15 +159,18 @@
                 if (state === 'connected') {
                     rouletteChatBox.classList.remove('hidden');
                     rouletteChatBox.classList.add('flex');
-                    messengerBox.classList.add('hidden'); // прячем мессенджер друзей
+                    messengerBox.classList.add('hidden'); 
                 }
-            } else { // idle / disconnected
+            } else { 
                 startSearchBtn.classList.remove('hidden');
                 skipActionBtn.classList.add('hidden');
                 stopSearchBtn.classList.add('hidden');
                 rouletteChatBox.classList.add('hidden');
                 rouletteChatBox.classList.remove('flex');
                 rouletteMessages.innerHTML = "";
+                // Скрываем алерты мута при уходе в idle
+                alertRemoteCam.classList.add('hidden');
+                alertRemoteMic.classList.add('hidden');
             }
         }
 
@@ -174,13 +190,20 @@
         toggleUIState('idle');
         initCamera();
 
-        // HARDWARE MUTE LOGIC
+        // HARDWARE MUTE LOGIC + SOCKET SIGNALING
         toggleMicBtn.addEventListener('click', () => {
             if (localStream && localStream.getAudioTracks().length > 0) {
                 const track = localStream.getAudioTracks()[0];
                 track.enabled = !track.enabled;
                 micStatusText.innerText = track.enabled ? "Mute Mic" : "Unmute Mic";
                 toggleMicBtn.className = track.enabled ? "bg-gray-900 bg-opacity-80 p-2.5 rounded-xl border border-gray-700 text-white hover:bg-gray-800 transition" : "bg-red-600 bg-opacity-90 p-2.5 rounded-xl border border-red-500 text-white hover:bg-red-700 transition";
+                
+                // Отправляем сигнал собеседнику об изменении состояния микрофона
+                sendSignalMessage({
+                    type: 'peer-media-status',
+                    mediaType: 'audio',
+                    enabled: track.enabled
+                });
             }
         });
 
@@ -190,10 +213,18 @@
                 track.enabled = !track.enabled;
                 camStatusText.innerText = track.enabled ? "Mute Cam" : "Unmute Cam";
                 toggleCamBtn.className = track.enabled ? "bg-gray-900 bg-opacity-80 p-2.5 rounded-xl border border-gray-700 text-white hover:bg-gray-800 transition" : "bg-red-600 bg-opacity-90 p-2.5 rounded-xl border border-red-500 text-white hover:bg-red-700 transition";
+                
+                // Отправляем сигнал собеседнику об изменении состояния камеры
+                sendSignalMessage({
+                    type: 'peer-media-status',
+                    mediaType: 'video',
+                    enabled: track.enabled
+                });
             }
         });
 
-        // ROULETTE IN-CALL LIVE CHAT LOGIC
+        // ROULETTE LIVE CHAT LOGIC
+        sendRouletteMessage
         sendRouletteBtn.addEventListener('click', () => sendRouletteMessage());
         rouletteInput.addEventListener('keypress', (e) => { if(e.key === 'Enter') sendRouletteMessage(); });
 
@@ -201,12 +232,7 @@
             const text = rouletteInput.value.trim();
             if (!text || !globalPartnerId) return;
 
-            // Шлем сообщение текстом через WebRTC сигнальный репитер
-            sendSignalMessage({
-                type: 'roulette-text-msg',
-                text: text
-            });
-
+            sendSignalMessage({ type: 'roulette-text-msg', text: text });
             appendRouletteMessageNode(true, text);
             rouletteInput.value = "";
         }
@@ -262,20 +288,16 @@
         sendMessageBtn.addEventListener('click', () => sendTextMessage());
         textMessageInput.addEventListener('keypress', (e) => { if(e.key === 'Enter') sendTextMessage(); });
 
-        // FRIENDS TYPING SIGNAL (Debounced)
         textMessageInput.addEventListener('input', () => {
             if (!activeChatContactId) return;
-            
-            // Сразу уведомляем сокет, что юзер начал печатать
             if (!typingTimeout) {
                 window.axios.post('/chat/message/typing', { receiver_id: activeChatContactId, is_typing: true });
             }
-
             clearTimeout(typingTimeout);
             typingTimeout = setTimeout(() => {
                 window.axios.post('/chat/message/typing', { receiver_id: activeChatContactId, is_typing: false });
                 typingTimeout = null;
-            }, 1500); // если юзер замолчал на 1.5 секунды, снимаем плашку typing
+            }, 1500);
         });
 
         async function startNewSearch() {
@@ -335,13 +357,16 @@
                 }
                 res.data.contacts.forEach(friend => {
                     const isOnline = onlineUserIds.has(Number(friend.id));
+                    const badgeCount = unreadCounters[friend.id] || 0;
+                    
                     const node = document.createElement('div');
-                    node.className = "p-2.5 bg-gray-50 rounded-xl border border-gray-150 flex items-center justify-between hover:bg-gray-100 transition duration-150";
+                    node.className = "p-2.5 bg-gray-50 rounded-xl border border-gray-150 flex items-center justify-between hover:bg-gray-100 transition duration-150 relative";
                     node.innerHTML = `
                         <div class="cursor-pointer flex-1" onclick="window.openFriendChat(${friend.id}, '${friend.name}')">
                             <div class="font-bold text-xs text-gray-800 flex items-center gap-1.5">
                                 <span class="w-2 h-2 rounded-full ${isOnline ? 'bg-green-500' : 'bg-gray-300'}"></span>
                                 ${friend.name}
+                                ${badgeCount > 0 ? `<span class="bg-red-500 text-white text-[9px] font-extrabold px-1.5 py-0.5 rounded-full animate-bounce">${badgeCount}</span>` : ''}
                             </div>
                             <span class="text-[10px] text-gray-400">${isOnline ? 'Online' : 'Offline'}</span>
                         </div>
@@ -356,7 +381,11 @@
             activeChatContactId = id;
             chatWithLabel.innerText = `${name} (ID: ${id})`;
             
-            rouletteChatBox.classList.add('hidden'); // прячем анонимный чат, если открыли друга
+            // Сбрасываем счетчик непрочитанных при открытии чата с этим другом
+            unreadCounters[id] = 0;
+            loadContacts();
+
+            rouletteChatBox.classList.add('hidden'); 
             messengerBox.classList.remove('hidden');
             messengerBox.classList.add('flex');
             
@@ -364,6 +393,7 @@
             window.axios.get(`/chat/history/${id}`).then(res => {
                 chatMessages.innerHTML = "";
                 res.data.messages.forEach(msg => { appendMessageNode(msg.sender_id === currentUserId, msg.message); });
+                // Принудительный скролл вниз
                 chatMessages.scrollTop = chatMessages.scrollHeight;
             });
         };
@@ -391,6 +421,7 @@
             msgNode.className = `p-2 rounded-xl max-w-[80%] w-fit ${isMe ? 'bg-indigo-600 text-white ml-auto' : 'bg-gray-150 text-gray-800'}`;
             msgNode.innerText = text;
             chatMessages.appendChild(msgNode);
+            // Скроллим блок вниз при добавлении сообщения
             chatMessages.scrollTop = chatMessages.scrollHeight;
         }
 
@@ -405,7 +436,6 @@
                 window.Echo.private(`user.${currentUserId}`)
                     .listen('.MatchFoundEvent', (e) => { handleMatchFound(e.partnerId); })
                     .listen('.WebRTCSignalEvent', async (e) => {
-                        // Кастомный перехват: Входящий звонок от друга
                         if (e.data.type === 'incoming-direct-call') {
                             if(confirm(`Incoming direct call from ${e.data.callerName}. Accept?`)) {
                                 closePeerConnection();
@@ -417,20 +447,28 @@
                             return;
                         }
 
-                        // Кастомный перехват: Живой текст от незнакомца внутри рулетки
                         if (e.data.type === 'roulette-text-msg') {
                             appendRouletteMessageNode(false, e.data.text);
                             return;
                         }
 
-                        // Кастомный перехват: Статус "Друг пишет текст..."
+                        // ПЕРЕХВАТ: Изменение статуса медиа-устройств собеседника (Mute/Unmute)
+                        if (e.data.type === 'peer-media-status') {
+                            if (e.data.mediaType === 'video') {
+                                if (e.data.enabled) alertRemoteCam.classList.add('hidden');
+                                else alertRemoteCam.classList.remove('hidden');
+                            }
+                            if (e.data.mediaType === 'audio') {
+                                if (e.data.enabled) alertRemoteMic.classList.add('hidden');
+                                else alertRemoteMic.classList.remove('hidden');
+                            }
+                            return;
+                        }
+
                         if (e.data.type === 'friend-typing') {
                             if (activeChatContactId === e.data.sender_id) {
-                                if (e.data.is_typing) {
-                                    typingIndicator.classList.remove('hidden');
-                                } else {
-                                    typingIndicator.classList.add('hidden');
-                                }
+                                if (e.data.is_typing) typingIndicator.classList.remove('hidden');
+                                else typingIndicator.classList.add('hidden');
                             }
                             return;
                         }
@@ -438,10 +476,14 @@
                         await handleSignalingMessage(e.data);
                     })
                     .listen('.MessageSentEvent', (e) => {
+                        // Если открыт чат именно с этим другом — рендерим сразу
                         if (activeChatContactId === e.messageData.sender_id) {
                             appendMessageNode(false, e.messageData.message);
                         } else {
-                            alert(`New message received from user ID ${e.messageData.sender_id}!`);
+                            // Иначе инкрементируем счетчик непрочитанных в сайдбаре
+                            const senderId = e.messageData.sender_id;
+                            unreadCounters[senderId] = (unreadCounters[senderId] || 0) + 1;
+                            loadContacts(); // обновляем сайдбар, зажжется бейдж
                         }
                     });
             }
@@ -561,6 +603,10 @@
             remoteVideo.load();
             remoteStatus.classList.remove('hidden'); 
             remoteStatus.innerText = "Camera Feed Offline";
+            
+            // Затираем алерты мута при закрытии пира
+            alertRemoteCam.classList.add('hidden');
+            alertRemoteMic.classList.add('hidden');
         }
     </script>
 </x-app-layout>

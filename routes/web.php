@@ -35,7 +35,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/chat/contacts', [ChatController::class, 'getContacts']);
     Route::get('/chat/history/{contactId}', [ChatController::class, 'getChatHistory']);
     Route::post('/chat/message/send', [ChatController::class, 'sendMessage']);
+    Route::post('/chat/message/typing', [ChatController::class, 'sendTypingSignal']);
     Route::post('/chat/contact/call', [ChatController::class, 'callContact']);
+    
 });
 
 require __DIR__.'/auth.php';

@@ -7,6 +7,16 @@
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div class="bg-gray-900 rounded-2xl overflow-hidden shadow-lg h-[450px] flex items-center justify-center relative border border-gray-800">
                             <video id="localVideo" autoplay muted playsinline class="w-full h-full object-cover"></video>
+                            
+                            <div class="absolute top-4 right-4 flex gap-2 z-10">
+                                <button id="toggleMicBtn" class="bg-gray-900 bg-opacity-80 p-2.5 rounded-xl border border-gray-700 text-white hover:bg-gray-800 transition">
+                                    🎤 <span id="micStatusText" class="text-xs ml-1">Mute Mic</span>
+                                </button>
+                                <button id="toggleCamBtn" class="bg-gray-900 bg-opacity-80 p-2.5 rounded-xl border border-gray-700 text-white hover:bg-gray-800 transition">
+                                    📷 <span id="camStatusText" class="text-xs ml-1">Mute Cam</span>
+                                </button>
+                            </div>
+
                             <div class="absolute bottom-4 left-4 bg-gray-900 bg-opacity-70 backdrop-blur-md text-white px-3 py-1 text-xs font-semibold rounded-full border border-gray-700">
                                 You (ID: {{ auth()->id() }})
                             </div>
@@ -24,7 +34,7 @@
                     </div>
 
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between md:col-span-1">
+                        <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between md:col-span-1 h-[250px]">
                             <div>
                                 <h3 class="text-lg font-bold text-gray-800 mb-2">Roulette Controller</h3>
                                 <div class="p-3.5 bg-gray-50 rounded-xl border border-gray-150 mb-3">
@@ -42,9 +52,23 @@
                             </div>
                         </div>
 
-                        <div id="messengerBox" class="hidden bg-white rounded-2xl shadow-sm border border-gray-100 md:col-span-2 flex-col h-[220px]">
+                        <div id="rouletteChatBox" class="hidden bg-white rounded-2xl shadow-sm border border-gray-100 md:col-span-2 flex-col h-[250px]">
+                            <div class="p-3 border-b border-gray-100 bg-gray-50 rounded-t-2xl flex items-center">
+                                <span class="text-xs font-bold text-gray-700">💬 Live Chat with Stranger</span>
+                            </div>
+                            <div id="rouletteMessages" class="p-3 overflow-y-auto flex-1 space-y-2 text-xs"></div>
+                            <div class="p-2 border-t border-gray-100 flex gap-2">
+                                <input type="text" id="rouletteInput" placeholder="Send a message to stranger..." class="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:border-blue-500">
+                                <button id="sendRouletteBtn" class="bg-blue-600 text-white px-4 py-1.5 rounded-xl text-xs font-semibold hover:bg-blue-700 transition">Send</button>
+                            </div>
+                        </div>
+
+                        <div id="messengerBox" class="hidden bg-white rounded-2xl shadow-sm border border-gray-100 md:col-span-2 flex-col h-[250px]">
                             <div class="p-3 border-b border-gray-100 flex justify-between items-center bg-gray-50 rounded-t-2xl">
-                                <span class="text-xs font-bold text-gray-700">Chat with: <span id="chatWithLabel" class="text-indigo-600">None</span></span>
+                                <div class="flex flex-col">
+                                    <span class="text-xs font-bold text-gray-700">Chat with: <span id="chatWithLabel" class="text-indigo-600">None</span></span>
+                                    <span id="typingIndicator" class="text-[10px] text-green-500 font-semibold hidden animate-pulse">typing...</span>
+                                </div>
                                 <button id="closeChatBtn" class="text-gray-400 hover:text-gray-600 text-xs font-bold">✕ Close</button>
                             </div>
                             <div id="chatMessages" class="p-3 overflow-y-auto flex-1 space-y-2 text-xs"></div>
@@ -56,7 +80,7 @@
                     </div>
                 </div>
 
-                <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col h-[690px]">
+                <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col h-[716px]">
                     <h2 class="text-base font-bold text-gray-800 mb-3 tracking-tight">My Contacts</h2>
                     <div id="contactListContainer" class="flex-1 overflow-y-auto space-y-2 pr-1">
                         <div class="text-xs text-gray-400 text-center py-6">Loading friend list...</div>
@@ -85,6 +109,19 @@
         const textMessageInput = document.getElementById('textMessageInput');
         const sendMessageBtn = document.getElementById('sendMessageBtn');
         const closeChatBtn = document.getElementById('closeChatBtn');
+        const typingIndicator = document.getElementById('typingIndicator');
+
+        // Hardware Controls Elements
+        const toggleMicBtn = document.getElementById('toggleMicBtn');
+        const toggleCamBtn = document.getElementById('toggleCamBtn');
+        const micStatusText = document.getElementById('micStatusText');
+        const camStatusText = document.getElementById('camStatusText');
+
+        // Roulette Chat Elements
+        const rouletteChatBox = document.getElementById('rouletteChatBox');
+        const rouletteMessages = document.getElementById('rouletteMessages');
+        const rouletteInput = document.getElementById('rouletteInput');
+        const sendRouletteBtn = document.getElementById('sendRouletteBtn');
 
         const currentUserId = {{ auth()->id() }};
         let localStream = null;
@@ -92,6 +129,7 @@
         let globalPartnerId = null;
         let activeChatContactId = null;
         let onlineUserIds = new Set();
+        let typingTimeout = null;
 
         const rtcConfig = {
             iceServers: [
@@ -100,16 +138,23 @@
             ]
         };
 
-        // Централизованное управление кнопками интерфейса
         function toggleUIState(state) {
             if (state === 'searching' || state === 'connected') {
                 startSearchBtn.classList.add('hidden');
                 skipActionBtn.classList.remove('hidden');
                 stopSearchBtn.classList.remove('hidden');
+                if (state === 'connected') {
+                    rouletteChatBox.classList.remove('hidden');
+                    rouletteChatBox.classList.add('flex');
+                    messengerBox.classList.add('hidden'); // прячем мессенджер друзей
+                }
             } else { // idle / disconnected
                 startSearchBtn.classList.remove('hidden');
                 skipActionBtn.classList.add('hidden');
                 stopSearchBtn.classList.add('hidden');
+                rouletteChatBox.classList.add('hidden');
+                rouletteChatBox.classList.remove('flex');
+                rouletteMessages.innerHTML = "";
             }
         }
 
@@ -126,10 +171,55 @@
                 });
         }
 
-        // Первичный сброс интерфейса и запуск камеры
         toggleUIState('idle');
         initCamera();
 
+        // HARDWARE MUTE LOGIC
+        toggleMicBtn.addEventListener('click', () => {
+            if (localStream && localStream.getAudioTracks().length > 0) {
+                const track = localStream.getAudioTracks()[0];
+                track.enabled = !track.enabled;
+                micStatusText.innerText = track.enabled ? "Mute Mic" : "Unmute Mic";
+                toggleMicBtn.className = track.enabled ? "bg-gray-900 bg-opacity-80 p-2.5 rounded-xl border border-gray-700 text-white hover:bg-gray-800 transition" : "bg-red-600 bg-opacity-90 p-2.5 rounded-xl border border-red-500 text-white hover:bg-red-700 transition";
+            }
+        });
+
+        toggleCamBtn.addEventListener('click', () => {
+            if (localStream && localStream.getVideoTracks().length > 0) {
+                const track = localStream.getVideoTracks()[0];
+                track.enabled = !track.enabled;
+                camStatusText.innerText = track.enabled ? "Mute Cam" : "Unmute Cam";
+                toggleCamBtn.className = track.enabled ? "bg-gray-900 bg-opacity-80 p-2.5 rounded-xl border border-gray-700 text-white hover:bg-gray-800 transition" : "bg-red-600 bg-opacity-90 p-2.5 rounded-xl border border-red-500 text-white hover:bg-red-700 transition";
+            }
+        });
+
+        // ROULETTE IN-CALL LIVE CHAT LOGIC
+        sendRouletteBtn.addEventListener('click', () => sendRouletteMessage());
+        rouletteInput.addEventListener('keypress', (e) => { if(e.key === 'Enter') sendRouletteMessage(); });
+
+        function sendRouletteMessage() {
+            const text = rouletteInput.value.trim();
+            if (!text || !globalPartnerId) return;
+
+            // Шлем сообщение текстом через WebRTC сигнальный репитер
+            sendSignalMessage({
+                type: 'roulette-text-msg',
+                text: text
+            });
+
+            appendRouletteMessageNode(true, text);
+            rouletteInput.value = "";
+        }
+
+        function appendRouletteMessageNode(isMe, text) {
+            const msgNode = document.createElement('div');
+            msgNode.className = `p-1.5 rounded-lg max-w-[85%] w-fit ${isMe ? 'bg-blue-600 text-white ml-auto' : 'bg-gray-150 text-gray-800'}`;
+            msgNode.innerText = text;
+            rouletteMessages.appendChild(msgNode);
+            rouletteMessages.scrollTop = rouletteMessages.scrollHeight;
+        }
+
+        // CORES ACTIONS
         startSearchBtn.addEventListener('click', () => startNewSearch());
 
         skipActionBtn.addEventListener('click', async () => {
@@ -171,6 +261,22 @@
 
         sendMessageBtn.addEventListener('click', () => sendTextMessage());
         textMessageInput.addEventListener('keypress', (e) => { if(e.key === 'Enter') sendTextMessage(); });
+
+        // FRIENDS TYPING SIGNAL (Debounced)
+        textMessageInput.addEventListener('input', () => {
+            if (!activeChatContactId) return;
+            
+            // Сразу уведомляем сокет, что юзер начал печатать
+            if (!typingTimeout) {
+                window.axios.post('/chat/message/typing', { receiver_id: activeChatContactId, is_typing: true });
+            }
+
+            clearTimeout(typingTimeout);
+            typingTimeout = setTimeout(() => {
+                window.axios.post('/chat/message/typing', { receiver_id: activeChatContactId, is_typing: false });
+                typingTimeout = null;
+            }, 1500); // если юзер замолчал на 1.5 секунды, снимаем плашку typing
+        });
 
         async function startNewSearch() {
             closePeerConnection();
@@ -249,8 +355,11 @@
         window.openFriendChat = function(id, name) {
             activeChatContactId = id;
             chatWithLabel.innerText = `${name} (ID: ${id})`;
+            
+            rouletteChatBox.classList.add('hidden'); // прячем анонимный чат, если открыли друга
             messengerBox.classList.remove('hidden');
             messengerBox.classList.add('flex');
+            
             chatMessages.innerHTML = "Loading history...";
             window.axios.get(`/chat/history/${id}`).then(res => {
                 chatMessages.innerHTML = "";
@@ -285,6 +394,7 @@
             chatMessages.scrollTop = chatMessages.scrollHeight;
         }
 
+        // WEBSOCKETS ECHO LISTENERS
         window.addEventListener('load', () => {
             if (typeof window.Echo !== 'undefined') {
                 window.Echo.join('online-status')
@@ -295,6 +405,7 @@
                 window.Echo.private(`user.${currentUserId}`)
                     .listen('.MatchFoundEvent', (e) => { handleMatchFound(e.partnerId); })
                     .listen('.WebRTCSignalEvent', async (e) => {
+                        // Кастомный перехват: Входящий звонок от друга
                         if (e.data.type === 'incoming-direct-call') {
                             if(confirm(`Incoming direct call from ${e.data.callerName}. Accept?`)) {
                                 closePeerConnection();
@@ -305,6 +416,25 @@
                             }
                             return;
                         }
+
+                        // Кастомный перехват: Живой текст от незнакомца внутри рулетки
+                        if (e.data.type === 'roulette-text-msg') {
+                            appendRouletteMessageNode(false, e.data.text);
+                            return;
+                        }
+
+                        // Кастомный перехват: Статус "Друг пишет текст..."
+                        if (e.data.type === 'friend-typing') {
+                            if (activeChatContactId === e.data.sender_id) {
+                                if (e.data.is_typing) {
+                                    typingIndicator.classList.remove('hidden');
+                                } else {
+                                    typingIndicator.classList.add('hidden');
+                                }
+                            }
+                            return;
+                        }
+
                         await handleSignalingMessage(e.data);
                     })
                     .listen('.MessageSentEvent', (e) => {
@@ -337,9 +467,7 @@
             createPeerConnection();
 
             if (myId < peerId) {
-                setTimeout(() => {
-                    sendSignalMessage({ type: 'peer-ready' });
-                }, 300);
+                setTimeout(() => { sendSignalMessage({ type: 'peer-ready' }); }, 300);
             }
         }
 

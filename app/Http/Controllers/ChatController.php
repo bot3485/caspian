@@ -176,4 +176,20 @@ class ChatController extends Controller
 
         return response()->json(['status' => 'calling']);
     }
+    
+    public function sendTypingSignal(Request $request)
+    {
+        $request->validate([
+            'receiver_id' => 'required|integer',
+            'is_typing' => 'required|boolean'
+        ]);
+
+        broadcast(new \App\Events\WebRTCSignalEvent($request->receiver_id, [
+            'type' => 'friend-typing',
+            'sender_id' => Auth::id(),
+            'is_typing' => $request->is_typing
+        ]))->toOthers();
+
+        return response()->json(['status' => 'typing_signaled']);
+    }
 }

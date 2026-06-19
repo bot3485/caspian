@@ -7,33 +7,24 @@ use App\Events\{MatchFoundEvent, MessageSentEvent, WebRTCSignalEvent};
 use Illuminate\Http\{Request, JsonResponse};
 use Illuminate\Support\Facades\{Auth, DB};
 use Illuminate\Database\Query\Builder;
+use App\Actions\FindPartner;
 
 class ChatController extends Controller
 {
     /**
      * Старт поиска собеседника в рулетке
      */
-    public function startSearching(Request $request): JsonResponse
+    public function startSearching(Request $request, FindPartner $action): JsonResponse
     {
-        $userId = Auth::id();
-        Matchmaking::where('user_id', $userId)->delete();
+        $partnerId = $action->execute(Auth::id());
 
-        $waitingUser = Matchmaking::where('user_id', '!=', $userId)
-            ->where('status', 'waiting')
-            ->first();
-
-        if ($waitingUser instanceof Matchmaking) {
-            $partnerId = $waitingUser->user_id;
-            $waitingUser->update(['status' => 'matched']);
-            Matchmaking::create(['user_id' => $userId, 'status' => 'matched']);
-
-            broadcast(new MatchFoundEvent(targetUserId: $partnerId, partnerId: $userId));
-            broadcast(new MatchFoundEvent(targetUserId: $userId, partnerId: $partnerId));
-
-            return response()->json(['status' => 'matched', 'partnerId' => $partnerId]);
+        if ($partnerId) {
+            return response()->json([
+                'status' => 'matched', 
+                'partnerId' => $partnerId
+            ]);
         }
 
-        Matchmaking::updateOrCreate(['user_id' => $userId], ['status' => 'waiting']);
         return response()->json(['status' => 'searching']);
     }
 

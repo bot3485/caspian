@@ -3,15 +3,17 @@
 namespace App\Http\Controllers;
 
 use App\Models\Matchmaking;
-use App\Events\MatchFoundEvent;
-use App\Events\MessageSentEvent;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
+use App\Events\{MatchFoundEvent, MessageSentEvent, WebRTCSignalEvent};
+use Illuminate\Http\{Request, JsonResponse};
+use Illuminate\Support\Facades\{Auth, DB};
+use Illuminate\Database\Query\Builder;
 
 class ChatController extends Controller
 {
-    public function startSearching(Request $request)
+    /**
+     * Старт поиска собеседника в рулетке
+     */
+    public function startSearching(Request $request): JsonResponse
     {
         $userId = Auth::id();
         Matchmaking::where('user_id', $userId)->delete();
@@ -20,13 +22,13 @@ class ChatController extends Controller
             ->where('status', 'waiting')
             ->first();
 
-        if ($waitingUser) {
+        if ($waitingUser instanceof Matchmaking) {
             $partnerId = $waitingUser->user_id;
             $waitingUser->update(['status' => 'matched']);
             Matchmaking::create(['user_id' => $userId, 'status' => 'matched']);
 
-            broadcast(new MatchFoundEvent($partnerId, $userId));
-            broadcast(new MatchFoundEvent($userId, $partnerId));
+            broadcast(new MatchFoundEvent(targetUserId: $partnerId, partnerId: $userId));
+            broadcast(new MatchFoundEvent(targetUserId: $userId, partnerId: $partnerId));
 
             return response()->json(['status' => 'matched', 'partnerId' => $partnerId]);
         }
@@ -35,13 +37,16 @@ class ChatController extends Controller
         return response()->json(['status' => 'searching']);
     }
 
-    public function leaveChat(Request $request)
+    /**
+     * Выход из чата
+     */
+    public function leaveChat(Request $request): JsonResponse
     {
         $userId = Auth::id();
         $partnerId = $request->input('partnerId');
 
         if ($partnerId) {
-            broadcast(new \App\Events\WebRTCSignalEvent($partnerId, [
+            broadcast(new WebRTCSignalEvent($partnerId, [
                 'type' => 'peer-disconnected',
                 'oldPartnerId' => $userId
             ]))->toOthers();
@@ -51,26 +56,26 @@ class ChatController extends Controller
         return response()->json(['status' => 'left']);
     }
 
-    public function sendSignal(Request $request)
+    /**
+     * Передача WebRTC сигналов (офферы, кандидаты)
+     */
+    public function sendSignal(Request $request): JsonResponse
     {
-        $request->validate([
+        $validated = $request->validate([
             'partnerId' => 'required|integer',
             'data' => 'required|array'
         ]);
-        broadcast(new \App\Events\WebRTCSignalEvent($request->partnerId, $request->data))->toOthers();
+
+        broadcast(new WebRTCSignalEvent($validated['partnerId'], $validated['data']))->toOthers();
         return response()->json(['status' => 'signal_sent']);
     }
 
     // --- ЛОГИКА КОНТАКТОВ И МЕССЕНДЖЕРА ---
 
-    // Получить список друзей
-    public function getContacts()
+    public function getContacts(): JsonResponse
     {
-        $userId = Auth::id();
-        
-        // Достаем пользователей, которые сохранены в таблице contacts
         $contacts = DB::table('contacts')
-            ->where('contacts.user_id', $userId)
+            ->where('contacts.user_id', Auth::id())
             ->join('users', 'users.id', '=', 'contacts.contact_id')
             ->select('users.id', 'users.name', 'users.updated_at as last_seen')
             ->get();
@@ -78,97 +83,97 @@ class ChatController extends Controller
         return response()->json(['contacts' => $contacts]);
     }
 
-    // Проверка статуса контакта
-    public function checkContact(Request $request)
+    public function checkContact(Request $request): JsonResponse
     {
         $request->validate(['contactId' => 'required|integer']);
-        $isContact = DB::table('contacts')->where('user_id', Auth::id())->where('contact_id', $request->contactId)->exists();
+        
+        $isContact = DB::table('contacts')
+            ->where('user_id', Auth::id())
+            ->where('contact_id', $request->contactId)
+            ->exists();
+
         return response()->json(['isContact' => $isContact]);
     }
 
-    // Добавить/Удалить из контактов
-    public function toggleContact(Request $request)
+    public function toggleContact(Request $request): JsonResponse
     {
         $request->validate(['contactId' => 'required|integer']);
+        
         $userId = Auth::id();
         $contactId = $request->contactId;
 
-        $exists = DB::table('contacts')->where('user_id', $userId)->where('contact_id', $contactId)->exists();
+        $exists = DB::table('contacts')
+            ->where('user_id', $userId)
+            ->where('contact_id', $contactId)
+            ->exists();
 
         if ($exists) {
-            DB::table('contacts')->where('user_id', $userId)->where('contact_id', $contactId)->delete();
+            DB::table('contacts')
+                ->where('user_id', $userId)
+                ->where('contact_id', $contactId)
+                ->delete();
             return response()->json(['action' => 'removed']);
-        } else {
-            DB::table('contacts')->insert([
-                'user_id' => $userId,
-                'contact_id' => $contactId,
-                'created_at' => now(),
-                'updated_at' => now()
-            ]);
-            return response()->json(['action' => 'added']);
         }
+
+        DB::table('contacts')->insert([
+            'user_id' => $userId,
+            'contact_id' => $contactId,
+            'created_at' => now(),
+            'updated_at' => now()
+        ]);
+
+        return response()->json(['action' => 'added']);
     }
 
-    // Получить историю сообщений с конкретным контактом
-    public function getChatHistory($contactId)
+    public function getChatHistory(int $contactId): JsonResponse
     {
         $userId = Auth::id();
 
         $messages = DB::table('messages')
-            ->where(function($q) use ($userId, $contactId) {
-                $q->where('sender_id', $userId)->where('receiver_id', $contactId);
-            })->orWhere(function($q) use ($userId, $contactId) {
-                $q->where('sender_id', $contactId)->where('receiver_id', $userId);
-            })
+            ->where(fn(Builder $q) => $q->where('sender_id', $userId)->where('receiver_id', $contactId))
+            ->orWhere(fn(Builder $q) => $q->where('sender_id', $contactId)->where('receiver_id', $userId))
             ->orderBy('created_at', 'asc')
             ->get();
 
-        // Помечаем входящие как прочитанные
-        DB::table('messages')->where('sender_id', $contactId)->where('receiver_id', $userId)->update(['is_read' => true]);
+        // Помечаем как прочитанные
+        DB::table('messages')
+            ->where('sender_id', $contactId)
+            ->where('receiver_id', $userId)
+            ->update(['is_read' => true]);
 
         return response()->json(['messages' => $messages]);
     }
 
-    // Сохранить и отправить текстовое сообщение другу
-    public function sendMessage(Request $request)
+    public function sendMessage(Request $request): JsonResponse
     {
-        $request->validate([
+        $validated = $request->validate([
             'receiver_id' => 'required|integer',
             'message' => 'required|string'
         ]);
 
         $userId = Auth::id();
 
-        $messageId = DB::table('messages')->insertGetId([
-            'sender_id' => $userId,
-            'receiver_id' => $request->receiver_id,
-            'message' => $request->message,
-            'is_read' => false,
-            'created_at' => now(),
-            'updated_at' => now()
-        ]);
-
         $messageData = [
-            'id' => $messageId,
             'sender_id' => $userId,
-            'receiver_id' => $request->receiver_id,
-            'message' => $request->message,
-            'created_at' => now()->toIso8601String()
+            'receiver_id' => $validated['receiver_id'],
+            'message' => $validated['message'],
+            'is_read' => false,
+            'created_at' => now()->toIso8601String(),
+            'updated_at' => now()->toIso8601String()
         ];
 
-        // Вещаем событие в сокет получателя
+        $messageData['id'] = DB::table('messages')->insertGetId($messageData);
+
         broadcast(new MessageSentEvent($messageData))->toOthers();
 
         return response()->json(['status' => 'sent', 'message' => $messageData]);
     }
 
-    // Прямой вызов другу из списка контактов
-    public function callContact(Request $request)
+    public function callContact(Request $request): JsonResponse
     {
         $request->validate(['contactId' => 'required|integer']);
         
-        // Отправляем системное сокет-уведомление другу о том, что мы ему звоним прямо сейчас
-        broadcast(new \App\Events\WebRTCSignalEvent($request->contactId, [
+        broadcast(new WebRTCSignalEvent($request->contactId, [
             'type' => 'incoming-direct-call',
             'callerId' => Auth::id(),
             'callerName' => Auth::user()->name
@@ -177,14 +182,14 @@ class ChatController extends Controller
         return response()->json(['status' => 'calling']);
     }
     
-    public function sendTypingSignal(Request $request)
+    public function sendTypingSignal(Request $request): JsonResponse
     {
         $request->validate([
             'receiver_id' => 'required|integer',
             'is_typing' => 'required|boolean'
         ]);
 
-        broadcast(new \App\Events\WebRTCSignalEvent($request->receiver_id, [
+        broadcast(new WebRTCSignalEvent($request->receiver_id, [
             'type' => 'friend-typing',
             'sender_id' => Auth::id(),
             'is_typing' => $request->is_typing

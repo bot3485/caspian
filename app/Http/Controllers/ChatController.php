@@ -7,30 +7,33 @@ use App\Events\{MatchFoundEvent, MessageSentEvent, WebRTCSignalEvent};
 use Illuminate\Http\{Request, JsonResponse};
 use Illuminate\Support\Facades\{Auth, DB};
 use Illuminate\Database\Query\Builder;
-use App\Actions\FindPartner;
 
 class ChatController extends Controller
 {
-    /**
-     * Старт поиска собеседника в рулетке
-     */
-    public function startSearching(Request $request, FindPartner $action): JsonResponse
+    public function startSearching(Request $request): JsonResponse
     {
-        $partnerId = $action->execute(Auth::id());
+        $userId = Auth::id();
+        Matchmaking::where('user_id', $userId)->delete();
 
-        if ($partnerId) {
-            return response()->json([
-                'status' => 'matched', 
-                'partnerId' => $partnerId
-            ]);
+        $waitingUser = Matchmaking::where('user_id', '!=', $userId)
+            ->where('status', 'waiting')
+            ->first();
+
+        if ($waitingUser instanceof Matchmaking) {
+            $partnerId = $waitingUser->user_id;
+            $waitingUser->update(['status' => 'matched']);
+            Matchmaking::create(['user_id' => $userId, 'status' => 'matched']);
+
+            broadcast(new MatchFoundEvent(targetUserId: $partnerId, partnerId: $userId));
+            broadcast(new MatchFoundEvent(targetUserId: $userId, partnerId: $partnerId));
+
+            return response()->json(['status' => 'matched', 'partnerId' => $partnerId]);
         }
 
+        Matchmaking::updateOrCreate(['user_id' => $userId], ['status' => 'waiting']);
         return response()->json(['status' => 'searching']);
     }
 
-    /**
-     * Выход из чата
-     */
     public function leaveChat(Request $request): JsonResponse
     {
         $userId = Auth::id();
@@ -47,9 +50,6 @@ class ChatController extends Controller
         return response()->json(['status' => 'left']);
     }
 
-    /**
-     * Передача WebRTC сигналов (офферы, кандидаты)
-     */
     public function sendSignal(Request $request): JsonResponse
     {
         $validated = $request->validate([
@@ -61,14 +61,12 @@ class ChatController extends Controller
         return response()->json(['status' => 'signal_sent']);
     }
 
-    // --- ЛОГИКА КОНТАКТОВ И МЕССЕНДЖЕРА ---
-
     public function getContacts(): JsonResponse
     {
         $contacts = DB::table('contacts')
             ->where('contacts.user_id', Auth::id())
             ->join('users', 'users.id', '=', 'contacts.contact_id')
-            ->select('users.id', 'users.name', 'users.updated_at as last_seen')
+            ->select('users.id', 'users.name', 'users.last_seen') // Убедитесь, что last_seen тут есть
             ->get();
 
         return response()->json(['contacts' => $contacts]);
@@ -76,72 +74,44 @@ class ChatController extends Controller
 
     public function checkContact(Request $request): JsonResponse
     {
-        $request->validate(['contactId' => 'required|integer']);
-        
         $isContact = DB::table('contacts')
             ->where('user_id', Auth::id())
             ->where('contact_id', $request->contactId)
             ->exists();
-
         return response()->json(['isContact' => $isContact]);
     }
 
     public function toggleContact(Request $request): JsonResponse
     {
-        $request->validate(['contactId' => 'required|integer']);
-        
         $userId = Auth::id();
         $contactId = $request->contactId;
-
-        $exists = DB::table('contacts')
-            ->where('user_id', $userId)
-            ->where('contact_id', $contactId)
-            ->exists();
+        $exists = DB::table('contacts')->where('user_id', $userId)->where('contact_id', $contactId)->exists();
 
         if ($exists) {
-            DB::table('contacts')
-                ->where('user_id', $userId)
-                ->where('contact_id', $contactId)
-                ->delete();
+            DB::table('contacts')->where('user_id', $userId)->where('contact_id', $contactId)->delete();
             return response()->json(['action' => 'removed']);
         }
 
-        DB::table('contacts')->insert([
-            'user_id' => $userId,
-            'contact_id' => $contactId,
-            'created_at' => now(),
-            'updated_at' => now()
-        ]);
-
+        DB::table('contacts')->insert(['user_id' => $userId, 'contact_id' => $contactId, 'created_at' => now(), 'updated_at' => now()]);
         return response()->json(['action' => 'added']);
     }
 
     public function getChatHistory(int $contactId): JsonResponse
     {
         $userId = Auth::id();
-
         $messages = DB::table('messages')
-            ->where(fn(Builder $q) => $q->where('sender_id', $userId)->where('receiver_id', $contactId))
-            ->orWhere(fn(Builder $q) => $q->where('sender_id', $contactId)->where('receiver_id', $userId))
+            ->where(fn($q) => $q->where('sender_id', $userId)->where('receiver_id', $contactId))
+            ->orWhere(fn($q) => $q->where('sender_id', $contactId)->where('receiver_id', $userId))
             ->orderBy('created_at', 'asc')
             ->get();
 
-        // Помечаем как прочитанные
-        DB::table('messages')
-            ->where('sender_id', $contactId)
-            ->where('receiver_id', $userId)
-            ->update(['is_read' => true]);
-
+        DB::table('messages')->where('sender_id', $contactId)->where('receiver_id', $userId)->update(['is_read' => true]);
         return response()->json(['messages' => $messages]);
     }
 
     public function sendMessage(Request $request): JsonResponse
     {
-        $validated = $request->validate([
-            'receiver_id' => 'required|integer',
-            'message' => 'required|string'
-        ]);
-
+        $validated = $request->validate(['receiver_id' => 'required|integer', 'message' => 'required|string']);
         $userId = Auth::id();
 
         $messageData = [
@@ -154,7 +124,6 @@ class ChatController extends Controller
         ];
 
         $messageData['id'] = DB::table('messages')->insertGetId($messageData);
-
         broadcast(new MessageSentEvent($messageData))->toOthers();
 
         return response()->json(['status' => 'sent', 'message' => $messageData]);
@@ -162,8 +131,6 @@ class ChatController extends Controller
 
     public function callContact(Request $request): JsonResponse
     {
-        $request->validate(['contactId' => 'required|integer']);
-        
         broadcast(new WebRTCSignalEvent($request->contactId, [
             'type' => 'incoming-direct-call',
             'callerId' => Auth::id(),
@@ -171,21 +138,5 @@ class ChatController extends Controller
         ]))->toOthers();
 
         return response()->json(['status' => 'calling']);
-    }
-    
-    public function sendTypingSignal(Request $request): JsonResponse
-    {
-        $request->validate([
-            'receiver_id' => 'required|integer',
-            'is_typing' => 'required|boolean'
-        ]);
-
-        broadcast(new WebRTCSignalEvent($request->receiver_id, [
-            'type' => 'friend-typing',
-            'sender_id' => Auth::id(),
-            'is_typing' => $request->is_typing
-        ]))->toOthers();
-
-        return response()->json(['status' => 'typing_signaled']);
     }
 }

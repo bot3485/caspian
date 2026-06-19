@@ -16,7 +16,9 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware) {
         // Здесь можно добавить глобальные Middleware в новом стиле
         $middleware->statefulApi(); // Если планируете использовать Sanctum
-        $middleware->append(UpdateLastSeen::class);
+        $middleware->web(append: [
+        \App\Http\Middleware\UpdateLastSeen::class,
+    ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
         $exceptions->shouldRenderJsonWhen(

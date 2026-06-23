@@ -1,6 +1,8 @@
 <?php
 
 use Illuminate\Support\Facades\Broadcast;
+use App\Models\Room;
+
 
 
 Broadcast::channel('user.{id}', function ($user, $id) {
@@ -17,4 +19,11 @@ Broadcast::channel('online-status', function ($user) {
         'id' => $user->id,
         'name' => $user->name
     ];
+});
+
+Broadcast::channel('room.{uuid}', function ($user, $uuid) {
+    if (Room::where('uuid', $uuid)->exists()) {
+        return ['id' => $user->id, 'name' => $user->name];
+    }
+    return false;
 });

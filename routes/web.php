@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ChatController;
+use App\Http\Controllers\RoomController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -37,6 +38,14 @@ Route::middleware('auth')->group(function () {
     Route::post('/chat/message/send', [ChatController::class, 'sendMessage']);
     Route::post('/chat/message/typing', [ChatController::class, 'sendTypingSignal']);
     Route::post('/chat/contact/call', [ChatController::class, 'callContact']);
+
+    //room
+    Route::controller(RoomController::class)->group(function () {
+        Route::get('/rooms', 'index')->name('rooms.index');
+        Route::post('/rooms', 'store')->name('rooms.store');
+        Route::get('/rooms/{uuid}', 'show')->name('rooms.show');
+        Route::post('/rooms/{uuid}/join', 'join')->name('rooms.join');
+    });
     
 });
 

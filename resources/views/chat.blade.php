@@ -3,30 +3,36 @@
         <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
             <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
                 
-                <!-- ВИДЕО-БЛОК -->
+                <!-- ЛЕВАЯ КОЛОНКА (ВИДЕО) -->
                 <div class="lg:col-span-3 space-y-4">
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <!-- Локальное видео -->
+                        <!-- Вы -->
                         <div class="bg-gray-900 rounded-2xl overflow-hidden shadow-lg h-[450px] flex items-center justify-center relative border border-gray-800">
                             <video id="localVideo" autoplay muted playsinline class="w-full h-full object-cover"></video>
                             <div class="absolute top-4 right-4 flex gap-2 z-10">
-                                <button id="toggleMicBtn" class="bg-gray-900/80 p-2.5 rounded-xl text-white hover:bg-gray-800 transition">🎤 <span id="micStatusText" class="text-xs">Mute</span></button>
-                                <button id="toggleCamBtn" class="bg-gray-900/80 p-2.5 rounded-xl text-white hover:bg-gray-800 transition">📷 <span id="camStatusText" class="text-xs">Mute</span></button>
+                                <button id="toggleMicBtn" class="bg-gray-900/80 p-2.5 rounded-xl border border-gray-700 text-white hover:bg-gray-800 transition">
+                                    🎤 <span id="micStatusText" class="text-xs ml-1">Mute</span>
+                                </button>
+                                <button id="toggleCamBtn" class="bg-gray-900/80 p-2.5 rounded-xl border border-gray-700 text-white hover:bg-gray-800 transition">
+                                    📷 <span id="camStatusText" class="text-xs ml-1">Mute</span>
+                                </button>
                             </div>
-                            <div class="absolute bottom-4 left-4 bg-gray-900/70 text-white px-3 py-1 text-xs rounded-full border border-gray-700">Вы (ID: {{ auth()->id() }})</div>
+                            <div class="absolute bottom-4 left-4 bg-gray-900/70 backdrop-blur-md text-white px-3 py-1 text-xs font-semibold rounded-full border border-gray-700">Вы</div>
                         </div>
                         
-                        <!-- Удаленное видео -->
+                        <!-- Собеседник -->
                         <div id="remoteVideoContainer" class="bg-gray-900 rounded-2xl overflow-hidden shadow-lg h-[450px] flex items-center justify-center relative border border-gray-800">
                             <video id="remoteVideo" autoplay playsinline class="w-full h-full object-cover"></video>
-                            <div id="remoteStatus" class="absolute text-gray-400 text-sm font-medium">Ожидание...</div>
-                            <div id="partnerLabel" class="hidden absolute bottom-4 left-4 bg-indigo-600/90 text-white px-3 py-1 text-xs rounded-full shadow-lg">Собеседник</div>
                             
-                            <!-- Алерты (Mute/Cam) -->
                             <div id="remoteMediaAlerts" class="absolute flex flex-col gap-2 items-center justify-center pointer-events-none z-10">
-                                <span id="alertRemoteCam" class="hidden bg-red-600/90 text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-md border border-red-500">Собеседник выключил камеру</span>
-                                <span id="alertRemoteMic" class="hidden bg-amber-600/90 text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-md border border-amber-500">Собеседник выключил звук</span>
+                                <span id="alertRemoteCam" class="hidden bg-red-600/90 text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-md">Камера партнера выключена</span>
+                                <span id="alertRemoteMic" class="hidden bg-amber-600/90 text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-md">Звук партнера выключен</span>
                             </div>
+
+                            <div id="remoteStatus" class="absolute text-gray-400 font-medium text-sm bg-gray-900/80 px-4 py-2 rounded-full border border-gray-800">
+                                Камера офлайн
+                            </div>
+                            <div id="partnerLabel" class="hidden absolute bottom-4 left-4 bg-indigo-600/80 backdrop-blur-md text-white px-3 py-1 text-xs font-semibold rounded-full">Собеседник</div>
                         </div>
                     </div>
 
@@ -35,42 +41,42 @@
                         <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between h-[250px]">
                             <div>
                                 <h3 class="text-lg font-bold text-gray-800 mb-2">Управление</h3>
-                                <div class="p-3 bg-gray-50 rounded-xl mb-3 border border-gray-100">
-                                    <span class="text-[10px] font-semibold text-gray-400 block uppercase tracking-wider">Статус</span>
+                                <div class="p-3.5 bg-gray-50 rounded-xl border border-gray-150 mb-3">
+                                    <span class="text-[10px] font-semibold text-gray-400 block uppercase tracking-wider mb-0.5">Статус</span>
                                     <div id="connectionStatus" class="text-gray-600 font-bold text-sm leading-tight">Готов</div>
                                 </div>
                             </div>
                             <div class="space-y-1.5">
-                                <button id="startSearch" class="w-full bg-blue-600 text-white py-2.5 rounded-xl font-bold hover:bg-blue-700 transition">Начать поиск</button>
-                                <button id="skipAction" class="hidden w-full bg-gray-950 text-white py-2.5 rounded-xl font-bold hover:bg-black transition">Далее ➔</button>
-                                <button id="hangUpBtn" class="hidden w-full bg-red-600 text-white py-2.5 rounded-xl font-bold shadow-lg shadow-red-100">Положить трубку 📞</button>
-                                <button id="stopSearch" class="hidden w-full bg-red-50 text-red-600 py-2.5 rounded-xl font-bold hover:bg-red-100 transition">Стоп</button>
+                                <button id="startSearch" class="w-full bg-blue-600 text-white text-sm font-semibold py-2.5 px-4 rounded-xl hover:bg-blue-700 transition">Начать поиск</button>
+                                <button id="skipAction" class="hidden w-full bg-gray-950 text-white text-sm font-semibold py-2.5 px-4 rounded-xl hover:bg-black transition">Далее ➔</button>
+                                <button id="hangUpBtn" class="hidden w-full bg-red-600 text-white py-2.5 rounded-xl font-bold shadow-lg">Завершить звонок 📞</button>
+                                <button id="stopSearch" class="hidden w-full bg-red-50 text-red-600 text-xs font-semibold py-2 rounded-xl hover:bg-red-100 transition">Стоп</button>
                             </div>
                         </div>
 
                         <!-- Чат Рулетки -->
-                        <div id="rouletteChatBox" class="hidden bg-white rounded-2xl shadow-sm border border-gray-100 flex-col h-[250px]">
-                            <div class="p-3 border-b bg-gray-50 rounded-t-2xl font-bold text-xs text-gray-700">💬 Чат с незнакомцем</div>
+                        <div id="rouletteChatBox" class="hidden bg-white rounded-2xl shadow-sm border border-gray-100 md:col-span-2 flex-col h-[250px]">
+                            <div class="p-3 border-b border-gray-100 bg-gray-50 rounded-t-2xl font-bold text-xs text-gray-700">💬 Быстрый чат</div>
                             <div id="rouletteMessages" class="p-3 overflow-y-auto flex-1 space-y-2 text-xs"></div>
-                            <div class="p-2 border-t flex gap-2">
-                                <input type="text" id="rouletteInput" placeholder="Написать..." class="flex-1 bg-gray-50 border-none rounded-xl text-xs focus:ring-2 focus:ring-blue-500">
-                                <button id="sendRouletteBtn" class="bg-blue-600 text-white px-4 py-1.5 rounded-xl font-bold">OK</button>
+                            <div class="p-2 border-t border-gray-100 flex gap-2">
+                                <input type="text" id="rouletteInput" placeholder="Написать..." class="flex-1 bg-gray-50 border-none rounded-xl px-3 py-1.5 text-xs focus:ring-2 focus:ring-blue-500">
+                                <button id="sendRouletteBtn" class="bg-blue-600 text-white px-4 py-1.5 rounded-xl text-xs font-semibold">Send</button>
                             </div>
                         </div>
 
                         <!-- Мессенджер -->
-                        <div id="messengerBox" class="hidden bg-white rounded-2xl shadow-sm border border-gray-100 flex-col h-[250px]">
-                            <div class="p-3 border-b bg-gray-50 rounded-t-2xl flex justify-between items-center">
+                        <div id="messengerBox" class="hidden bg-white rounded-2xl shadow-sm border border-gray-100 md:col-span-2 flex-col h-[250px]">
+                            <div class="p-3 border-b border-gray-100 flex justify-between items-center bg-gray-50 rounded-t-2xl">
                                 <div class="flex flex-col">
-                                    <span class="text-xs font-bold text-gray-700">Друг: <span id="chatWithLabel" class="text-indigo-600">...</span></span>
+                                    <span class="text-xs font-bold text-gray-700">Чат: <span id="chatWithLabel" class="text-indigo-600">...</span></span>
                                     <span id="typingIndicator" class="text-[10px] text-green-500 font-semibold hidden animate-pulse">печатает...</span>
                                 </div>
-                                <button id="closeChatBtn" class="text-gray-400">✕</button>
+                                <button id="closeChatBtn" class="text-gray-400 hover:text-gray-600 text-xs font-bold">✕</button>
                             </div>
                             <div id="chatMessages" class="p-3 overflow-y-auto flex-1 space-y-2 text-xs"></div>
-                            <div class="p-2 border-t flex gap-2">
-                                <input type="text" id="textMessageInput" placeholder="Сообщение..." class="flex-1 bg-gray-50 border-none rounded-xl text-xs focus:ring-2 focus:ring-indigo-500">
-                                <button id="sendMessageBtn" class="bg-indigo-600 text-white px-4 py-1.5 rounded-xl font-bold text-xs">SEND</button>
+                            <div class="p-2 border-t border-gray-100 flex gap-2">
+                                <input type="text" id="textMessageInput" placeholder="Текст..." class="flex-1 bg-gray-50 border-none rounded-xl px-3 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500">
+                                <button id="sendMessageBtn" class="bg-indigo-600 text-white px-4 py-1.5 rounded-xl text-xs font-semibold">SEND</button>
                             </div>
                         </div>
                     </div>
@@ -99,6 +105,7 @@
         let onlineUserIds = new Set();
         let unreadCounters = {};
         let isInCall = false;
+        let isDirectCall = false;
 
         const connectionStatus = document.getElementById('connectionStatus');
         const remoteVideo = document.getElementById('remoteVideo');
@@ -109,9 +116,9 @@
         const hangUpBtn = document.getElementById('hangUpBtn');
         const contactListContainer = document.getElementById('contactListContainer');
 
-        // --- 2. ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ---
+        // --- 2. УТИЛИТАРНЫЕ ФУНКЦИИ (В САМОМ ВЕРХУ) ---
 
-        function formatLastSeen(dateString) {
+        const formatLastSeen = (dateString) => {
             if (!dateString) return 'давно';
             const date = new Date(dateString);
             const now = new Date();
@@ -121,7 +128,13 @@
             const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             if (date.getDate() === now.getDate()) return `сегодня в ${timeStr}`;
             return date.toLocaleDateString() + ' ' + timeStr;
-        }
+        };
+
+        const sanitizeSdp = (sdp) => {
+            return sdp.trim().split('\n').map(line => line.trim()).join('\r\n') + '\r\n';
+        };
+
+        // --- 3. ЛОГИКА КОНТАКТОВ ---
 
         window.loadContacts = async function() {
             try {
@@ -140,7 +153,7 @@
                                 ${unread > 0 ? `<span class="bg-red-500 text-white text-[9px] px-1.5 py-0.5 rounded-full">${unread}</span>` : ''}
                             </div>
                             <div class="text-[10px] text-gray-400 mt-0.5">
-                                ${isOnline ? '<span class="text-green-600 font-medium">В сети</span>' : formatLastSeen(c.last_seen)}
+                                ${isOnline ? '<span class="text-green-600 font-medium">Online</span>' : formatLastSeen(c.last_seen)}
                             </div>
                         </div>
                         ${isOnline ? `
@@ -151,18 +164,19 @@
                     `;
                     contactListContainer.appendChild(node);
                 });
-            } catch (e) { console.error("Contacts loading error", e); }
+            } catch (e) { console.error("Contacts loading failed", e); }
         }
 
-        // --- 3. WebRTC ЯДРО ---
+        // --- 4. WebRTC ЯДРО ---
 
         async function initCamera() {
+            if (localStream) return true;
             try {
                 localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
                 document.getElementById('localVideo').srcObject = localStream;
                 return true;
             } catch (e) {
-                connectionStatus.innerText = "Ошибка камеры";
+                connectionStatus.innerText = "Ошибка: Камера не найдена";
                 return false;
             }
         }
@@ -170,10 +184,7 @@
         function createPeerConnection() {
             if (peerConnection) return;
             peerConnection = new RTCPeerConnection(window.rtcConfig);
-
-            if (localStream) {
-                localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
-            }
+            localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
 
             peerConnection.ontrack = (event) => {
                 remoteVideo.srcObject = event.streams[0];
@@ -195,65 +206,43 @@
             };
         }
 
-        function sanitizeSdp(sdp) {
-            return sdp.trim().split('\n').map(line => line.trim()).join('\r\n') + '\r\n';
-        }
-
         async function handleSignalingMessage(message) {
-            // Реакция на готовность партнера
             if (message.type === 'peer-ready') {
                 sendOffer();
                 return;
             }
-
             try {
                 if (message.type === 'webrtc-offer' || message.type === 'webrtc-answer') {
                     if (!peerConnection) createPeerConnection();
-                    
                     await peerConnection.setRemoteDescription({
                         type: message.sdpType,
                         sdp: sanitizeSdp(message.sdpString)
                     });
-
                     if (message.type === 'webrtc-offer') {
                         const answer = await peerConnection.createAnswer();
                         await peerConnection.setLocalDescription(answer);
-                        sendSignalMessage({
-                            type: 'webrtc-answer',
-                            sdpType: answer.type,
-                            sdpString: answer.sdp
-                        });
+                        sendSignalMessage({ type: 'webrtc-answer', sdpType: answer.type, sdpString: answer.sdp });
                     }
-                    drainIceQueue();
-                } 
-                else if (message.type === 'ice-candidate') {
+                    while (iceCandidatesQueue.length > 0) {
+                        const c = iceCandidatesQueue.shift();
+                        peerConnection.addIceCandidate(new RTCIceCandidate(c)).catch(() => {});
+                    }
+                } else if (message.type === 'ice-candidate') {
                     if (peerConnection?.remoteDescription?.type) {
                         await peerConnection.addIceCandidate(new RTCIceCandidate(message.candidate));
                     } else {
                         iceCandidatesQueue.push(message.candidate);
                     }
-                } 
-                // --- НОВОЕ: ОБРАБОТКА ТЕКСТА В РУЛЕТКЕ ---
-                else if (message.type === 'roulette-text-msg') {
+                } else if (message.type === 'roulette-text-msg') {
                     appendRouletteMessage(false, message.text);
-                }
-                // --- НОВОЕ: ОБРАБОТКА СТАТУСОВ КАМЕРЫ ---
-                else if (message.type === 'peer-media-status') {
+                } else if (message.type === 'hang-up') {
+                    resetToIdle();
+                    alert("Собеседник завершил вызов");
+                } else if (message.type === 'peer-media-status') {
                     if (message.mediaType === 'video') document.getElementById('alertRemoteCam').classList.toggle('hidden', message.enabled);
                     if (message.mediaType === 'audio') document.getElementById('alertRemoteMic').classList.toggle('hidden', message.enabled);
                 }
-                else if (message.type === 'hang-up') {
-                    resetToIdle();
-                    alert("Собеседник завершил вызов");
-                }
-            } catch (e) { console.error("WebRTC Error:", e); }
-        }
-
-        function drainIceQueue() {
-            while (iceCandidatesQueue.length > 0) {
-                const c = iceCandidatesQueue.shift();
-                peerConnection.addIceCandidate(new RTCIceCandidate(c)).catch(() => {});
-            }
+            } catch (e) { console.error(e); }
         }
 
         async function sendOffer() {
@@ -268,7 +257,52 @@
             window.axios.post('/chat/signal', { partnerId: globalPartnerId, data: payload });
         }
 
-        // --- 4. ДЕЙСТВИЯ (КНОПКИ) ---
+        // --- 5. УПРАВЛЕНИЕ UI ---
+
+        function toggleUIState(state) {
+            const rouletteBox = document.getElementById('rouletteChatBox');
+            if (state === 'connected') {
+                isInCall = true;
+                startSearchBtn.classList.add('hidden');
+                stopSearchBtn.classList.add('hidden');
+                hangUpBtn.classList.remove('hidden');
+                if (!isDirectCall) {
+                    skipActionBtn.classList.remove('hidden');
+                    rouletteBox.classList.replace('hidden', 'flex');
+                }
+            } else if (state === 'searching') {
+                isInCall = false;
+                startSearchBtn.classList.add('hidden');
+                skipActionBtn.classList.remove('hidden');
+                stopSearchBtn.classList.remove('hidden');
+                hangUpBtn.classList.add('hidden');
+            } else {
+                isInCall = false;
+                isDirectCall = false;
+                startSearchBtn.classList.remove('hidden');
+                skipActionBtn.classList.add('hidden');
+                stopSearchBtn.classList.add('hidden');
+                hangUpBtn.classList.add('hidden');
+                rouletteBox.classList.replace('flex', 'hidden');
+                connectionStatus.innerText = "Ожидание";
+            }
+        }
+
+        function resetToIdle() {
+            if (peerConnection) { peerConnection.close(); peerConnection = null; }
+            remoteVideo.srcObject = null;
+            iceCandidatesQueue = [];
+            isInCall = false;
+            isDirectCall = false;
+            globalPartnerId = null;
+            remoteStatus.classList.remove('hidden');
+            document.getElementById('partnerLabel').classList.add('hidden');
+            document.getElementById('alertRemoteCam').classList.add('hidden');
+            document.getElementById('alertRemoteMic').classList.add('hidden');
+            toggleUIState('idle');
+        }
+
+        // --- 6. ОБРАБОТЧИКИ СОБЫТИЙ ---
 
         window.startNewSearch = async function() {
             resetToIdle();
@@ -279,55 +313,44 @@
         }
 
         window.directCall = async function(id) {
-            if (!confirm('Начать видеозвонок?')) return;
+            if (!confirm('Позвонить другу?')) return;
             resetToIdle();
+            isDirectCall = true;
             if (!localStream) await initCamera();
-            
             globalPartnerId = Number(id);
             connectionStatus.innerText = "Вызов...";
+            toggleUIState('connected'); 
             window.axios.post('/chat/contact/call', { contactId: id });
             createPeerConnection();
         }
 
-        function resetToIdle() {
-            if (peerConnection) { peerConnection.close(); peerConnection = null; }
-            remoteVideo.srcObject = null;
-            iceCandidatesQueue = [];
-            isInCall = false;
-            globalPartnerId = null;
-            remoteStatus.classList.remove('hidden');
-            document.getElementById('partnerLabel').classList.add('hidden');
-            document.getElementById('alertRemoteCam').classList.add('hidden');
-            document.getElementById('alertRemoteMic').classList.add('hidden');
-            toggleUIState('idle');
-        }
+        startSearchBtn.onclick = window.startNewSearch;
+        stopSearchBtn.onclick = () => { window.axios.post('/chat/leave', {partnerId: globalPartnerId}); resetToIdle(); };
+        skipActionBtn.onclick = () => window.startNewSearch();
+        hangUpBtn.onclick = () => { sendSignalMessage({ type: 'hang-up' }); resetToIdle(); };
 
-        function toggleUIState(state) {
-            if (state === 'connected') {
-                startSearchBtn.classList.add('hidden');
-                stopSearchBtn.classList.add('hidden');
-                skipActionBtn.classList.remove('hidden');
-                hangUpBtn.classList.remove('hidden');
-                document.getElementById('rouletteChatBox').classList.replace('hidden', 'flex');
-            } else if (state === 'searching') {
-                startSearchBtn.classList.add('hidden');
-                skipActionBtn.classList.remove('hidden');
-                stopSearchBtn.classList.remove('hidden');
-                hangUpBtn.classList.add('hidden');
-            } else {
-                startSearchBtn.classList.remove('hidden');
-                skipActionBtn.classList.add('hidden');
-                stopSearchBtn.classList.add('hidden');
-                hangUpBtn.classList.add('hidden');
-                document.getElementById('rouletteChatBox').classList.replace('flex', 'hidden');
-                connectionStatus.innerText = "Ожидание";
-            }
-        }
+        window.openFriendChat = (id, name) => {
+            activeChatContactId = id;
+            unreadCounters[id] = 0;
+            document.getElementById('chatWithLabel').innerText = name;
+            document.getElementById('messengerBox').classList.replace('hidden', 'flex');
+            document.getElementById('rouletteChatBox').classList.add('hidden');
+            window.axios.get(`/chat/history/${id}`).then(res => {
+                document.getElementById('chatMessages').innerHTML = "";
+                res.data.messages.forEach(m => {
+                    const msgDiv = document.createElement('div');
+                    msgDiv.className = `p-2 rounded-xl max-w-[85%] ${m.sender_id === currentUserId ? 'bg-indigo-600 text-white ml-auto' : 'bg-gray-100 text-gray-800'}`;
+                    msgDiv.innerText = m.message;
+                    document.getElementById('chatMessages').appendChild(msgDiv);
+                });
+                document.getElementById('chatMessages').scrollTop = document.getElementById('chatMessages').scrollHeight;
+                window.loadContacts();
+            });
+        };
 
-        // --- 5. СОКЕТЫ ECHO ---
-
+        // --- 7. СОКЕТЫ ECHO ---
         window.addEventListener('load', async () => {
-            await initCamera(); // Включаем камеру сразу
+            await initCamera();
             
             window.Echo.join('online-status')
                 .here(users => { users.forEach(u => onlineUserIds.add(Number(u.id))); window.loadContacts(); })
@@ -348,6 +371,7 @@
                             window.axios.post('/chat/signal', { partnerId: e.data.callerId, data: { type: 'call-rejected', reason: 'busy' } });
                         } else if (confirm(`Звонит ${e.data.callerName}. Принять?`)) {
                             resetToIdle();
+                            isDirectCall = true;
                             globalPartnerId = Number(e.data.callerId);
                             toggleUIState('connected');
                             createPeerConnection();
@@ -364,7 +388,11 @@
                 })
                 .listen('.MessageSentEvent', (e) => {
                     if (activeChatContactId === e.messageData.sender_id) {
-                        appendMessage(false, e.messageData.message);
+                        const msgDiv = document.createElement('div');
+                        msgDiv.className = "p-2 rounded-xl max-w-[85%] bg-gray-100 text-gray-800";
+                        msgDiv.innerText = e.messageData.message;
+                        document.getElementById('chatMessages').appendChild(msgDiv);
+                        document.getElementById('chatMessages').scrollTop = document.getElementById('chatMessages').scrollHeight;
                     } else {
                         unreadCounters[e.messageData.sender_id] = (unreadCounters[e.messageData.sender_id] || 0) + 1;
                         window.loadContacts();
@@ -372,30 +400,7 @@
                 });
         });
 
-        // --- 6. ЧАТ И СООБЩЕНИЯ ---
-
-        window.openFriendChat = (id, name) => {
-            activeChatContactId = id;
-            unreadCounters[id] = 0;
-            document.getElementById('chatWithLabel').innerText = name;
-            messengerBox.classList.replace('hidden', 'flex');
-            rouletteChatBox.classList.add('hidden');
-            window.axios.get(`/chat/history/${id}`).then(res => {
-                document.getElementById('chatMessages').innerHTML = "";
-                res.data.messages.forEach(m => appendMessage(m.sender_id === currentUserId, m.message));
-                window.loadContacts();
-            });
-        };
-
-        function appendMessage(isMe, text) {
-            const div = document.createElement('div');
-            div.className = `p-2 rounded-xl max-w-[85%] ${isMe ? 'bg-indigo-600 text-white ml-auto' : 'bg-gray-100 text-gray-800'}`;
-            div.innerText = text;
-            const container = document.getElementById('chatMessages');
-            container.appendChild(div);
-            container.scrollTop = container.scrollHeight;
-        }
-
+        // --- СООБЩЕНИЯ ---
         function appendRouletteMessage(isMe, text) {
             const div = document.createElement('div');
             div.className = `p-1.5 rounded-lg max-w-[90%] ${isMe ? 'bg-blue-600 text-white ml-auto' : 'bg-gray-100 text-gray-800'}`;
@@ -405,27 +410,24 @@
             container.scrollTop = container.scrollHeight;
         }
 
-        // Кнопки
-        startSearchBtn.onclick = window.startNewSearch;
-        stopSearchBtn.onclick = () => { window.axios.post('/chat/leave', {partnerId: globalPartnerId}); resetToIdle(); };
-        skipActionBtn.onclick = () => window.startNewSearch();
-        hangUpBtn.onclick = () => { sendSignalMessage({ type: 'hang-up' }); resetToIdle(); };
-        document.getElementById('closeChatBtn').onclick = () => { messengerBox.classList.add('hidden'); activeChatContactId = null; };
-
         document.getElementById('sendRouletteBtn').onclick = () => {
-            const inp = document.getElementById('rouletteInput');
-            if(!inp.value.trim() || !globalPartnerId) return;
-            sendSignalMessage({ type: 'roulette-text-msg', text: inp.value });
-            appendRouletteMessage(true, inp.value);
-            inp.value = "";
+            const val = document.getElementById('rouletteInput').value;
+            if(!val || !globalPartnerId) return;
+            sendSignalMessage({ type: 'roulette-text-msg', text: val });
+            appendRouletteMessage(true, val);
+            document.getElementById('rouletteInput').value = "";
         };
 
         document.getElementById('sendMessageBtn').onclick = () => {
-            const inp = document.getElementById('textMessageInput');
-            if(!inp.value.trim() || !activeChatContactId) return;
-            window.axios.post('/chat/message/send', { receiver_id: activeChatContactId, message: inp.value }).then(() => {
-                appendMessage(true, inp.value);
-                inp.value = "";
+            const val = document.getElementById('textMessageInput').value;
+            if(!val || !activeChatContactId) return;
+            window.axios.post('/chat/message/send', { receiver_id: activeChatContactId, message: val }).then(() => {
+                const msgDiv = document.createElement('div');
+                msgDiv.className = "p-2 rounded-xl max-w-[85%] bg-indigo-600 text-white ml-auto";
+                msgDiv.innerText = val;
+                document.getElementById('chatMessages').appendChild(msgDiv);
+                document.getElementById('chatMessages').scrollTop = document.getElementById('chatMessages').scrollHeight;
+                document.getElementById('textMessageInput').value = "";
             });
         };
 

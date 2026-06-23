@@ -50,16 +50,17 @@ class ChatController extends Controller
         return response()->json(['status' => 'left']);
     }
 
-    public function sendSignal(Request $request): JsonResponse
-    {
-        $validated = $request->validate([
-            'partnerId' => 'required|integer',
-            'data' => 'required|array'
-        ]);
+public function sendSignal(Request $request): JsonResponse
+{
+    $validated = $request->validate([
+        'partnerId' => 'required|integer',
+        'data' => 'required|array'
+    ]);
 
-        broadcast(new WebRTCSignalEvent($validated['partnerId'], $validated['data']))->toOthers();
-        return response()->json(['status' => 'signal_sent']);
-    }
+    // Убираем toOthers(), так как мы шлем в приватный канал конкретного партнера
+    broadcast(new WebRTCSignalEvent($validated['partnerId'], $validated['data']));
+    return response()->json(['status' => 'signal_sent']);
+}
 
     public function getContacts(): JsonResponse
     {

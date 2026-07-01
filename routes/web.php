@@ -3,11 +3,13 @@
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ChatController;
 use App\Http\Controllers\RoomController;
+use App\Http\Controllers\BrowserLogController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
     return view('welcome');
 });
+Route::post('_boost/browser-logs', [BrowserLogController::class, 'store']);
 
 Route::get('/dashboard', function () {
     return view('dashboard');

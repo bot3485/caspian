@@ -6,7 +6,7 @@ use App\Enums\MatchmakingStatus;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Attributes\{Fillable, Casts};
 
-#[Fillable(['user_id', 'status'])]
+#[Fillable(['user_id', 'status', 'partner_id'])] // Добавили partner_id
 #[Casts(['status' => MatchmakingStatus::class])] // Авто-преобразование строки в Enum
 class Matchmaking extends Model
 {

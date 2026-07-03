@@ -9,25 +9,18 @@ class BrowserLogController extends Controller
 {
     public function store(Request $request)
     {
-        // 1. Валидация входящих данных
-        $validated = $request->validate([
-            'message' => 'required|string',
-            'level'   => 'nullable|string',
-            'url'     => 'nullable|url',
-        ]);
+        // Убираем все правила 'required', чтобы запрос никогда не падал с 422
+        $data = $request->all();
 
-        // 2. Логирование полученных данных в файл storage/logs/laravel.log
-        Log::channel('single')->info('Браузерный лог:', [
-            'message' => $validated['message'],
-            'level'   => $validated['level'] ?? 'info',
-            'url'     => $validated['url'] ?? 'unknown',
+        Log::channel('single')->info('BrowserLog:', [
+            'message' => $data['message'] ?? 'no message',
+            'level'   => $data['level'] ?? 'info',
+            'url'     => $data['url'] ?? $request->header('referer'),
             'ip'      => $request->ip(),
+            'user_id' => auth()->id(),
+            'agent'   => $request->header('User-Agent'),
         ]);
 
-        // 3. Возвращаем успешный ответ
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Лог успешно записан'
-        ], 200);
+        return response()->json(['status' => 'ok']);
     }
 }

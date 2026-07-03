@@ -3,6 +3,7 @@
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ChatController;
 use App\Http\Controllers\RoomController;
+use App\Http\Controllers\ReportController;
 use App\Http\Controllers\BrowserLogController;
 use Illuminate\Support\Facades\Route;
 
@@ -26,6 +27,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/chat', function () {
         return view('chat');
     })->name('chat');
+    Route::post('/report', [ReportController::class, 'store'])->name('report.store');
 
     Route::post('/chat/search', [ChatController::class, 'startSearching']);
     Route::post('/chat/leave', [ChatController::class, 'leaveChat']);

@@ -9,6 +9,7 @@ use App\Events\{MatchFoundEvent, MessageSentEvent, WebRTCSignalEvent};
 use Illuminate\Http\{Request, JsonResponse};
 use Illuminate\Support\Facades\{Auth, DB, Redis};
 use App\Enums\MatchmakingStatus;
+use Carbon\Carbon; 
 
 class ChatController extends Controller
 {
@@ -165,6 +166,25 @@ class ChatController extends Controller
             ->join('users', 'users.id', '=', 'contacts.contact_id')
             ->select('users.id', 'users.name', 'users.last_seen')
             ->get();
+
+        $redisData = \Illuminate\Support\Facades\Redis::hgetall('users_last_seen');
+
+        $contacts = $contacts->map(function ($contact) use ($redisData) {
+            $userIdStr = (string)$contact->id;
+
+            // Определяем финальный Timestamp
+            if (isset($redisData[$userIdStr])) {
+                // Если есть в Redis — берем оттуда
+                $contact->last_seen_timestamp = (int)$redisData[$userIdStr];
+            } elseif ($contact->last_seen) {
+                // Если нет в Redis — берем из БД и переводим в секунды (UTC)
+                $contact->last_seen_timestamp = \Carbon\Carbon::parse($contact->last_seen)->timestamp;
+            } else {
+                $contact->last_seen_timestamp = null;
+            }
+
+            return $contact;
+        });
 
         return response()->json(['contacts' => $contacts]);
     }

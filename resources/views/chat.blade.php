@@ -30,7 +30,7 @@
                             <!-- Настройки устройств -->
                             <div x-show="showSettings" x-transition x-cloak @click.away="showSettings = false"
                                  class="absolute top-20 right-4 w-64 bg-white rounded-3xl shadow-2xl p-5 z-30 border border-gray-100 text-gray-800">
-                                <h4 class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4">Медиа-устройства</h4>
+                                <h4 class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4">Настройки медиа</h4>
                                 <div class="space-y-4">
                                     <div>
                                         <label class="text-[9px] font-bold text-gray-400 block mb-1 uppercase">Камера</label>
@@ -58,7 +58,7 @@
                             <!-- Overlay при блюре -->
                             <div x-show="isInCall && isBlurred" class="absolute inset-0 z-30 flex items-center justify-center">
                                 <button @click="isBlurred = false; if(autoBlurTimer) clearTimeout(autoBlurTimer)" 
-                                        class="bg-white/20 backdrop-blur-md border border-white/30 text-white px-8 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-white/40 transition-all">
+                                        class="bg-white/20 backdrop-blur-md border border-white/30 text-white px-8 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-white/40">
                                     Открыть видео
                                 </button>
                             </div>
@@ -75,7 +75,7 @@
                                     <div class="space-y-3">
                                         <button @click="reportPartner('nudity')" class="w-full bg-white/10 hover:bg-white/20 py-4 rounded-2xl text-xs font-bold transition-all">Непотребство</button>
                                         <button @click="reportPartner('harassment')" class="w-full bg-white/10 hover:bg-white/20 py-4 rounded-2xl text-xs font-bold transition-all">Оскорбления</button>
-                                        <button @click="showReportModal = false" class="block w-full mt-4 text-gray-500 text-[10px] font-black uppercase tracking-widest">Отмена</button>
+                                        <button @click="showReportModal = false" class="block w-full mt-4 text-gray-500 text-[10px] font-black uppercase">Отмена</button>
                                     </div>
                                 </div>
                             </div>
@@ -100,12 +100,12 @@
                                 <button x-show="state === 'idle'" @click="startSearch()" class="w-full bg-indigo-600 text-white py-5 rounded-2xl font-black shadow-lg text-xs hover:bg-indigo-700 transition-all">НАЧАТЬ ПОИСК</button>
                                 
                                 <div x-show="state === 'connected' && !isDirectCall" class="flex gap-2">
-                                    <button @click="addPartnerToContacts()" class="flex-1 bg-amber-400 text-amber-900 py-5 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-amber-500 transition-all">⭐️ В друзья</button>
-                                    <button @click="startSearch()" class="flex-[2] bg-gray-900 text-white py-5 rounded-2xl font-black text-xs hover:bg-black transition-all">СЛЕДУЮЩИЙ ➔</button>
+                                    <button @click="addPartnerToContacts()" class="flex-1 bg-amber-400 text-amber-900 py-5 rounded-2xl font-black text-[10px] uppercase hover:bg-amber-500 transition-all">⭐️ В друзья</button>
+                                    <button @click="startSearch()" class="flex-[2] bg-gray-900 text-white py-5 rounded-2xl font-black text-xs">СЛЕДУЮЩИЙ ➔</button>
                                 </div>
 
                                 <button x-show="isInCall" @click="hangUp()" class="w-full bg-red-100 text-red-600 py-5 rounded-2xl font-black text-xs hover:bg-red-200 transition-all">ЗАВЕРШИТЬ 📞</button>
-                                <button x-show="state === 'searching'" @click="stopSearch()" class="w-full bg-gray-100 text-gray-500 py-5 rounded-2xl font-black text-xs transition-all">ОТМЕНА</button>
+                                <button x-show="state === 'searching'" @click="stopSearch()" class="w-full bg-gray-100 text-gray-500 py-5 rounded-2xl font-black text-xs">ОТМЕНА</button>
                             </div>
                         </div>
 
@@ -118,16 +118,16 @@
                             <div class="flex-1 overflow-y-auto p-4 space-y-2 scrollbar-hide" x-ref="rouletteChat">
                                 <template x-for="msg in rouletteMessages">
                                     <div :class="msg.isMe ? 'bg-indigo-600 text-white ml-auto rounded-l-2xl rounded-tr-2xl' : 'bg-gray-100 text-gray-800 mr-auto rounded-r-2xl rounded-tl-2xl'" 
-                                         class="p-3 text-xs font-bold max-w-[80%] shadow-sm" x-text="msg.text"></div>
+                                         class="p-3 text-xs font-bold max-w-[80%]" x-text="msg.text"></div>
                                 </template>
                             </div>
                             <div class="p-3 bg-gray-50 flex gap-2">
-                                <input type="text" x-model="rouletteInput" @keyup.enter="sendRouletteMsg()" placeholder="Текст..." class="flex-1 bg-white border-none rounded-xl px-5 text-xs font-bold focus:ring-2 focus:ring-indigo-500">
+                                <input type="text" x-model="rouletteInput" @keyup.enter="sendRouletteMsg()" placeholder="Текст..." class="flex-1 bg-white border-none rounded-xl px-5 text-xs font-bold">
                                 <button @click="sendRouletteMsg()" class="bg-indigo-600 text-white p-3 rounded-xl hover:bg-indigo-700 transition-all">➔</button>
                             </div>
                         </div>
 
-                        <!-- МЕССЕНДЖЕР -->
+                        <!-- МЕССЕНДЖЕР (С подгрузкой истории) -->
                         <div x-show="messengerOpen" x-data="messengerComponent({{ auth()->id() }})" 
                              class="bg-white rounded-[2.5rem] shadow-2xl border border-indigo-100 md:col-span-2 flex flex-col h-[350px] overflow-hidden transition-all">
                             <div class="p-4 border-b border-indigo-50 bg-indigo-50/30 flex items-center justify-between">
@@ -140,7 +140,7 @@
                                  @scroll="handleScroll">
                                 <template x-for="m in messages" :key="m.id">
                                     <div :class="Number(m.sender_id) === {{ auth()->id() }} ? 'bg-indigo-500 text-white ml-auto rounded-l-2xl rounded-tr-2xl' : 'bg-gray-100 text-gray-800 rounded-r-2xl rounded-tl-2xl'" 
-                                         class="p-3 text-xs font-bold max-w-[85%] shadow-sm" x-text="m.message"></div>
+                                         class="p-3 text-xs font-bold max-w-[85%]" x-text="m.message"></div>
                                 </template>
                             </div>
 
@@ -152,7 +152,7 @@
                             </div>
 
                             <div class="p-3 bg-white border-t border-gray-100 flex gap-2">
-                                <input type="text" x-model="newMessage" @input="sendTyping()" @keyup.enter="send()" placeholder="Текст..." class="flex-1 bg-gray-50 border-none rounded-xl px-5 text-xs font-bold focus:ring-2 focus:ring-indigo-500">
+                                <input type="text" x-model="newMessage" @input="sendTyping()" @keyup.enter="send()" placeholder="Текст..." class="flex-1 bg-gray-50 border-none rounded-xl px-5 text-xs font-bold">
                                 <button @click="send()" class="bg-indigo-600 text-white px-6 rounded-xl text-xs font-black hover:bg-indigo-700 transition-all">SEND</button>
                             </div>
                         </div>
@@ -184,7 +184,7 @@
                                         <div class="text-xs font-black text-gray-800" x-text="c.name"></div>
                                         <div class="text-[9px] font-bold uppercase tracking-tighter">
                                             <template x-if="$store.online.has(c.id)"><span class="text-green-500">● Online</span></template>
-                                            <template x-if="!$store.online.has(c.id)"><span class="text-gray-400" x-text="'Был: ' + formatLastSeen(c.last_seen)"></span></template>
+                                            <template x-if="!$store.online.has(c.id)"><span class="text-gray-400" x-text="'Был: ' + formatLastSeen(c.last_seen_timestamp)"></span></template>
                                         </div>
                                     </div>
                                 </div>
@@ -200,7 +200,7 @@
     <script>
         window.rtcConfig = { iceServers: @json(config('webrtc.ice_servers')) };
 
-        // 1. GLOBAL STORES
+        // 1. GLOBAL STORES (ONLINE & SOUNDS)
         document.addEventListener('alpine:init', () => {
             Alpine.store('online', {
                 users: new Set(),
@@ -352,19 +352,11 @@
                         await this.loadHistory(); this.scrollToBottom(); 
                     });
                     window.Echo.private(`user.${myId}`).listen('.MessageSentEvent', (e) => { 
-                        // ДОБАВЬ ЭТИ ЛОГИ:
-                        console.log("Входящее сообщение поймано сокетом!", e.messageData);
-                        console.log("Пытаюсь воспроизвести звук...");
-
-                        Alpine.store('sounds').playMsg(); 
-
+                        Alpine.store('sounds').playMsg();
                         if (Number(this.chatPartnerId) === Number(e.messageData.sender_id)) { 
                             this.messages.push(e.messageData); 
-                            this.isPartnerTyping = false; 
-                            this.scrollToBottom(); 
-                        } else {
-                            window.dispatchEvent(new CustomEvent('contacts-updated'));
-                        }
+                            this.isPartnerTyping = false; this.scrollToBottom(); 
+                        } else { window.dispatchEvent(new CustomEvent('contacts-updated')); }
                     }).listen('.WebRTCSignalEvent', (e) => { 
                         if (e.data.type === 'typing' && Number(e.data.from) === Number(this.chatPartnerId)) { 
                             this.isPartnerTyping = true; 
@@ -387,11 +379,7 @@
                 },
                 handleScroll() { if (this.$refs.msgContainer.scrollTop < 50) this.loadHistory(); },
                 sendTyping() { if (Date.now() - this.lastTypingSent > 2000) { this.lastTypingSent = Date.now(); window.axios.post('/chat/message/typing', { receiver_id: this.chatPartnerId }); } },
-                async send() {
-                    if (!this.newMessage.trim()) return;
-                    const res = await window.axios.post('/chat/message/send', { receiver_id: this.chatPartnerId, message: this.newMessage });
-                    this.messages.push(res.data.message); this.newMessage = ''; this.scrollToBottom();
-                },
+                async send() { if (!this.newMessage.trim()) return; const res = await window.axios.post('/chat/message/send', { receiver_id: this.chatPartnerId, message: this.newMessage }); this.messages.push(res.data.message); this.newMessage = ''; this.scrollToBottom(); },
                 scrollToBottom() { this.$nextTick(() => { if(this.$refs.msgContainer) this.$refs.msgContainer.scrollTop = 99999; }); }
             }
         }
@@ -401,10 +389,15 @@
                 contacts: [], initialLoaded: false,
                 init() { this.load(); window.addEventListener('contacts-updated', () => this.load()); setInterval(() => this.load(), 60000); },
                 async load() { const res = await window.axios.get('/chat/contacts'); this.contacts = res.data.contacts; this.initialLoaded = true; },
-                formatLastSeen(d) { 
-                    if(!d) return 'давно'; const diff = Math.floor((new Date() - new Date(d)) / 1000); 
-                    if(diff < 60) return 'только что'; if(diff < 3600) return Math.floor(diff/60) + 'м назад'; 
-                    if(diff < 86400) return Math.floor(diff/3600) + 'ч назад'; return new Date(d).toLocaleDateString(); 
+                formatLastSeen(timestamp) { 
+                    if(!timestamp) return 'давно'; 
+                    const now = Math.floor(Date.now() / 1000);
+                    const diff = now - timestamp;
+                    if(diff < 15) return 'только что'; 
+                    if(diff < 60) return diff + ' сек. назад'; 
+                    if(diff < 3600) return Math.floor(diff/60) + ' мин. назад'; 
+                    if(diff < 86400) return Math.floor(diff/3600) + ' час. назад'; 
+                    return new Date(timestamp * 1000).toLocaleDateString(); 
                 },
                 callPartner(id, name) { if(confirm(`Позвонить ${name}?`)) window.dispatchEvent(new CustomEvent('start-direct-call', { detail: {id, name} })); }
             }

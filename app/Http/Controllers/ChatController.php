@@ -4,22 +4,23 @@ namespace App\Http\Controllers;
 
 use App\Models\Matchmaking;
 use App\Models\User;
+use App\Actions\FindPartner;
 use App\Events\{MatchFoundEvent, MessageSentEvent, WebRTCSignalEvent};
 use Illuminate\Http\{Request, JsonResponse};
-use Illuminate\Support\Facades\{Auth, DB};
+use Illuminate\Support\Facades\{Auth, DB, Redis};
 use App\Enums\MatchmakingStatus;
 
 class ChatController extends Controller
 {
     /**
      * Старт поиска партнера (Roulette).
-     * Оптимизировано: используется транзакция и запись связки партнеров.
+     * Теперь использует Redis для очереди и MySQL для фиксации активной пары.
      */
     public function startSearching(Request $request): JsonResponse
     {
         $user = Auth::user();
         
-        // ПРОВЕРКА НА БАН
+        // 1. ПРОВЕРКА НА БАН
         if ($user->banned_until && $user->banned_until > now()) {
             return response()->json([
                 'error' => 'Доступ заблокирован за нарушение правил.',
@@ -29,52 +30,36 @@ class ChatController extends Controller
 
         $userId = $user->id;
 
-        return DB::transaction(function () use ($userId) {
-            // 1. Удаляем старые записи этого пользователя
-            Matchmaking::where('user_id', $userId)->delete();
+        // 2. Очищаем старые записи в БД (фактически завершаем старые сессии)
+        Matchmaking::where('user_id', $userId)->delete();
 
-            // 2. Ищем того, кто уже ждет (Waiting)
-            $waitingUser = Matchmaking::where('status', MatchmakingStatus::Waiting)
-                ->where('user_id', '!=', $userId)
-                ->lockForUpdate() // Блокируем строку, чтобы два юзера не подцепили одного и того же
-                ->first();
+        // 3. Вызываем логику поиска через Redis
+        $finder = new FindPartner();
+        $partnerId = $finder->execute($userId);
 
-            if ($waitingUser) {
-                $partnerId = $waitingUser->user_id;
-
-                // 3. Обновляем статус ожидающего: он теперь в паре с нами
-                $waitingUser->update([
-                    'status' => MatchmakingStatus::Matched,
-                    'partner_id' => $userId
-                ]);
-
-                // 4. Создаем свою запись: мы в паре с ним
-                Matchmaking::create([
-                    'user_id' => $userId,
-                    'status' => MatchmakingStatus::Matched,
-                    'partner_id' => $partnerId
-                ]);
-
-                // 5. Оповещаем обоих через сокеты
-                broadcast(new MatchFoundEvent(targetUserId: $partnerId, partnerId: $userId));
-                broadcast(new MatchFoundEvent(targetUserId: $userId, partnerId: $partnerId));
-
-                return response()->json(['status' => 'matched', 'partnerId' => $partnerId]);
-            }
-
-            // 6. Если никого нет, встаем в очередь
+        if ($partnerId) {
+            // 4. Если партнер найден, фиксируем связь в MySQL для безопасности сигналов
+            // Это нужно, чтобы метод sendSignal знал, что этим двоим МОЖНО общаться
             Matchmaking::create([
                 'user_id' => $userId,
-                'status' => MatchmakingStatus::Waiting
+                'status' => MatchmakingStatus::Matched,
+                'partner_id' => $partnerId
             ]);
 
-            return response()->json(['status' => 'searching']);
-        });
+            Matchmaking::create([
+                'user_id' => $partnerId,
+                'status' => MatchmakingStatus::Matched,
+                'partner_id' => $userId
+            ]);
+
+            return response()->json(['status' => 'matched', 'partnerId' => $partnerId]);
+        }
+
+        return response()->json(['status' => 'searching']);
     }
 
     /**
      * Безопасная отправка WebRTC сигнала.
-     * Проверяет, действительно ли пользователи находятся в одной "сессии".
      */
     public function sendSignal(Request $request): JsonResponse
     {
@@ -86,15 +71,12 @@ class ChatController extends Controller
         $userId = Auth::id();
         $partnerId = $validated['partnerId'];
 
-        // ПРОВЕРКА ПРАВ (Security Check)
-        // Сигнал уйдет только если в базе есть запись, что эти двое — пара.
+        // ПРОВЕРКА ПРАВ: Сигнал уйдет только если в MySQL есть запись об их паре
         $isValidPair = Matchmaking::where('user_id', $userId)
             ->where('partner_id', $partnerId)
             ->where('status', MatchmakingStatus::Matched)
             ->exists();
 
-        // Если это не рулетка, а групповая комната (в data передается roomUuid)
-        // Эту логику можно расширить здесь, проверяя участие в комнате.
         $isRoomSignal = isset($validated['data']['roomUuid']);
 
         if (!$isValidPair && !$isRoomSignal) {
@@ -107,26 +89,30 @@ class ChatController extends Controller
     }
 
     /**
-     * Выход из чата.
+     * Выход из чата / Пропуск партнера.
      */
     public function leaveChat(Request $request): JsonResponse
     {
         $userId = Auth::id();
         
-        // Находим, с кем был связан пользователь перед удалением
+        // 1. Удаляем из очереди Redis (если он там был)
+        (new FindPartner())->removeFromQueue($userId);
+
+        // 2. Находим текущего партнера в БД
         $match = Matchmaking::where('user_id', $userId)->first();
         
         if ($match && $match->partner_id) {
-            // Уведомляем партнера о разрыве
+            // Уведомляем партнера, что мы ушли
             broadcast(new WebRTCSignalEvent($match->partner_id, [
                 'type' => 'peer-disconnected',
                 'oldPartnerId' => $userId
             ]));
             
-            // Очищаем запись партнера (переводим его в idle или тоже удаляем)
+            // Удаляем связь у партнера
             Matchmaking::where('user_id', $match->partner_id)->delete();
         }
 
+        // Удаляем свою запись
         Matchmaking::where('user_id', $userId)->delete();
         
         return response()->json(['status' => 'left']);
@@ -144,7 +130,6 @@ class ChatController extends Controller
 
         $userId = Auth::id();
 
-        // Проверка: является ли получатель контактом? (Пункт 1-Б: Безопасность)
         $isContact = DB::table('contacts')
             ->where('user_id', $userId)
             ->where('contact_id', $validated['receiver_id'])
@@ -164,8 +149,6 @@ class ChatController extends Controller
         ];
 
         $messageData['id'] = DB::table('messages')->insertGetId($messageData);
-        
-        // Преобразуем дату в ISO для фронтенда
         $messageData['created_at'] = $messageData['created_at']->toIso8601String();
 
         broadcast(new MessageSentEvent($messageData))->toOthers();
@@ -189,14 +172,10 @@ class ChatController extends Controller
     public function toggleContact(Request $request): JsonResponse
     {
         $request->validate(['contactId' => 'required|integer|exists:users,id']);
-        
         $userId = Auth::id();
         $contactId = $request->contactId;
 
-        $exists = DB::table('contacts')
-            ->where('user_id', $userId)
-            ->where('contact_id', $contactId)
-            ->exists();
+        $exists = DB::table('contacts')->where('user_id', $userId)->where('contact_id', $contactId)->exists();
 
         if ($exists) {
             DB::table('contacts')->where('user_id', $userId)->where('contact_id', $contactId)->delete();
@@ -213,25 +192,36 @@ class ChatController extends Controller
         return response()->json(['action' => 'added']);
     }
 
-    public function getChatHistory(int $contactId): JsonResponse
+    public function getChatHistory(Request $request, int $contactId): JsonResponse
     {
         $userId = Auth::id();
-        
-        $messages = DB::table('messages')
-            ->where(fn($q) => $q->where('sender_id', $userId)->where('receiver_id', $contactId))
-            ->orWhere(fn($q) => $q->where('sender_id', $contactId)->where('receiver_id', $userId))
-            ->orderBy('created_at', 'asc')
-            ->take(50)
-            ->get();
+        $beforeId = $request->query('before_id');
 
-        DB::table('messages')
-            ->where('sender_id', $contactId)
-            ->where('receiver_id', $userId)
-            ->update(['is_read' => true]);
+        $query = DB::table('messages')
+            ->where(function($q) use ($userId, $contactId) {
+                $q->where('sender_id', $userId)->where('receiver_id', $contactId);
+            })
+            ->orWhere(function($q) use ($userId, $contactId) {
+                $q->where('sender_id', $contactId)->where('receiver_id', $userId);
+            });
 
-        return response()->json(['messages' => $messages]);
+        if ($beforeId) {
+            $query->where('id', '<', $beforeId);
+        }
+
+        // Берем 30 последних
+        $messages = $query->orderBy('id', 'desc')
+            ->take(30)
+            ->get()
+            ->reverse()
+            ->values();
+
+        return response()->json([
+            'messages' => $messages,
+            'has_more' => count($messages) === 30
+        ]);
     }
-
+    
     public function callContact(Request $request): JsonResponse
     {
         $request->validate(['contactId' => 'required|integer|exists:users,id']);
@@ -243,5 +233,17 @@ class ChatController extends Controller
         ]));
 
         return response()->json(['status' => 'calling']);
+    }
+
+    public function sendTypingSignal(Request $request): JsonResponse
+    {
+        $request->validate(['receiver_id' => 'required|integer']);
+        
+        broadcast(new WebRTCSignalEvent($request->receiver_id, [
+            'type' => 'typing',
+            'from' => Auth::id()
+        ]));
+
+        return response()->json(['status' => 'ok']);
     }
 }

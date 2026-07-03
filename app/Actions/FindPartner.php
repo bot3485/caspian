@@ -2,56 +2,55 @@
 
 namespace App\Actions;
 
-use App\Models\Matchmaking;
-use App\Enums\MatchmakingStatus;
 use App\Events\MatchFoundEvent;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Redis;
 
 class FindPartner
 {
-    /**
-     * Логика поиска партнера:
-     * 1. Удалить старые записи пользователя.
-     * 2. Найти кого-то, кто ждет (Waiting).
-     * 3. Если найден — соединить их.
-     * 4. Если нет — поставить текущего в очередь (Waiting).
-     */
+    private string $queueHigh = 'matchmaking_high'; // Для нормальных
+    private string $queueLow  = 'matchmaking_low';  // Для тех, у кого 3+ жалобы
+
     public function execute(int $userId): ?int
     {
-        return DB::transaction(function () use ($userId) {
-            // Очищаем очередь от текущего пользователя
-            Matchmaking::where('user_id', $userId)->delete();
+        // 1. Определяем репутацию (счетчик жалоб в Redis)
+        // Ключ 'user_reputation:{id}' мы инкрементим в ReportController
+        $reputation = (int) Redis::get("user_reputation:{$userId}") ?: 0;
+        
+        // 2. Выбираем очередь
+        $myQueue = ($reputation >= 3) ? $this->queueLow : $this->queueHigh;
 
-            // Ищем свободного кандидата (используем lockForUpdate для надежности в high-load)
-            $waitingUser = Matchmaking::where('user_id', '!=', $userId)
-                ->where('status', MatchmakingStatus::Waiting)
-                ->lockForUpdate()
-                ->first();
+        // 3. Пытаемся найти партнера в ЭТОЙ ЖЕ очереди
+        $partnerId = Redis::lpop($myQueue);
 
-            if ($waitingUser instanceof Matchmaking) {
-                $partnerId = $waitingUser->user_id;
-
-                // Обновляем статусы обоих
-                $waitingUser->update(['status' => MatchmakingStatus::Matched]);
-                Matchmaking::create([
-                    'user_id' => $userId, 
-                    'status' => MatchmakingStatus::Matched
-                ]);
-
-                // Оповещаем сокеты
-                broadcast(new MatchFoundEvent(targetUserId: $partnerId, partnerId: $userId));
-                broadcast(new MatchFoundEvent(targetUserId: $userId, partnerId: $partnerId));
-
-                return $partnerId;
-            }
-
-            // Если никто не найден, встаем в очередь сами
-            Matchmaking::create([
-                'user_id' => $userId,
-                'status' => MatchmakingStatus::Waiting
-            ]);
-
+        if (!$partnerId) {
+            $this->addToQueue($userId, $myQueue);
             return null;
-        });
+        }
+
+        if ((int)$partnerId === $userId) {
+            return $this->execute($userId);
+        }
+
+        // 4. Соединяем
+        broadcast(new MatchFoundEvent(targetUserId: (int)$partnerId, partnerId: $userId));
+        broadcast(new MatchFoundEvent(targetUserId: $userId, partnerId: (int)$partnerId));
+
+        return (int)$partnerId;
+    }
+
+    private function addToQueue(int $userId, string $queue): void
+    {
+        // Очищаем отовсюду перед добавлением
+        Redis::lrem($this->queueHigh, 0, $userId);
+        Redis::lrem($this->queueLow, 0, $userId);
+        
+        Redis::rpush($queue, $userId);
+        Redis::expire($queue, 3600); // Очередь живет час
+    }
+
+    public function removeFromQueue(int $userId): void
+    {
+        Redis::lrem($this->queueHigh, 0, $userId);
+        Redis::lrem($this->queueLow, 0, $userId);
     }
 }

@@ -6,7 +6,6 @@ use App\Events\MatchFoundEvent;
 use App\Models\Matchmaking;
 use App\Enums\MatchmakingStatus;
 use Illuminate\Support\Facades\Redis;
-use Illuminate\Support\Facades\DB;
 
 class FindPartner
 {
@@ -18,32 +17,45 @@ class FindPartner
         $reputation = (int) Redis::get("user_reputation:{$userId}") ?: 0;
         $myQueue = ($reputation >= 3) ? $this->queueLow : $this->queueHigh;
 
-        $partnerId = Redis::lpop($myQueue);
+        $partnerId = null;
+
+        // ЦИКЛ ПРОВЕРКИ: достаем из Redis пока не найдем реально ищущего партнера
+        while ($tempPartnerId = Redis::lpop($myQueue)) {
+            $tempPartnerId = (int)$tempPartnerId;
+
+            if ($tempPartnerId === $userId) continue;
+
+            // СТРОГАЯ ПРОВЕРКА: ищет ли этот партнер сейчас по данным MySQL?
+            $isSearching = Matchmaking::where('user_id', $tempPartnerId)
+                ->where('status', MatchmakingStatus::Searching)
+                ->exists();
+
+            if ($isSearching) {
+                $partnerId = $tempPartnerId;
+                break;
+            }
+            // Если партнер в Redis есть, но в MySQL статуса Searching нет - значит это "призрак", идем дальше
+        }
 
         if (!$partnerId) {
             $this->addToQueue($userId, $myQueue);
             return null;
         }
 
-        $partnerId = (int)$partnerId;
+        // СОЕДИНЯЕМ
+        Matchmaking::where('user_id', $userId)->update([
+            'status' => MatchmakingStatus::Matched, 
+            'partner_id' => $partnerId
+        ]);
+        Matchmaking::where('user_id', $partnerId)->update([
+            'status' => MatchmakingStatus::Matched, 
+            'partner_id' => $userId
+        ]);
 
-        // 1. Пишем в MySQL (без транзакции, чтобы не ждать коммита)
-        \App\Models\Matchmaking::updateOrCreate(
-            ['user_id' => $userId],
-            ['status' => \App\Enums\MatchmakingStatus::Matched, 'partner_id' => $partnerId]
-        );
-        \App\Models\Matchmaking::updateOrCreate(
-            ['user_id' => $partnerId],
-            ['status' => \App\Enums\MatchmakingStatus::Matched, 'partner_id' => $userId]
-        );
-
-        // 2. Пишем в Redis «Мгновенный пропуск» на 1 минуту
-        // Это позволит контроллеру мгновенно подтвердить пару
         Redis::setex("allow_signal:{$userId}:{$partnerId}", 60, 1);
         Redis::setex("allow_signal:{$partnerId}:{$userId}", 60, 1);
 
-        // 3. Небольшая задержка перед анонсом в сокеты (чтобы база успела записать)
-        usleep(100000); // 100ms
+        usleep(100000); // 100ms задержка для БД
 
         broadcast(new MatchFoundEvent(targetUserId: $partnerId, partnerId: $userId));
         broadcast(new MatchFoundEvent(targetUserId: $userId, partnerId: $partnerId));

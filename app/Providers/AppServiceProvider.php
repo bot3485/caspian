@@ -22,15 +22,23 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        // Слушаем событие выхода из Presence канала
         Event::listen(PresenceChannelMemberLeft::class, function (PresenceChannelMemberLeft $event) {
-            // Если пользователь ушел из глобального канала статуса или комнаты
             if ($event->channel->name === 'presence-online-status') {
-                // Важно: Reverb передает объект пользователя в $event->user
                 $userId = $event->user->id;
                 
-                // Запускаем наш Action очистки
-                app(LeaveChat::class)->execute($userId);
+                // Находим с кем он был в паре ПЕРЕД удалением
+                $match = \App\Models\Matchmaking::where('user_id', $userId)->first();
+                
+                if ($match && $match->partner_id) {
+                    // Мгновенно шлем сигнал партнеру от имени системы
+                    broadcast(new \App\Events\WebRTCSignalEvent($match->partner_id, [
+                        'type' => 'peer-disconnected',
+                        'from' => $userId, // Кто ушел
+                        'reason' => 'connection_lost'
+                    ]));
+                }
+
+                app(\App\Actions\LeaveChat::class)->execute($userId);
             }
         });
     }

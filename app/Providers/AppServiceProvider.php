@@ -6,39 +6,30 @@ use Illuminate\Support\ServiceProvider;
 use App\Actions\LeaveChat;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Broadcasting\Events\PresenceChannelMemberLeft;
+use Illuminate\Support\Facades\Log;
 
 class AppServiceProvider extends ServiceProvider
 {
-    /**
-     * Register any application services.
-     */
-    public function register(): void
-    {
-        //
-    }
+    public function register(): void {}
 
-    /**
-     * Bootstrap any application services.
-     */
     public function boot(): void
     {
         Event::listen(PresenceChannelMemberLeft::class, function (PresenceChannelMemberLeft $event) {
-            if ($event->channel->name === 'presence-online-status') {
+            // Исправлено: проверяем окончание имени канала (Laravel добавляет префикс 'presence-')
+            if (str_ends_with($event->channel->name, 'online-status')) {
                 $userId = $event->user->id;
                 
-                // Находим с кем он был в паре ПЕРЕД удалением
                 $match = \App\Models\Matchmaking::where('user_id', $userId)->first();
                 
                 if ($match && $match->partner_id) {
-                    // Мгновенно шлем сигнал партнеру от имени системы
                     broadcast(new \App\Events\WebRTCSignalEvent($match->partner_id, [
                         'type' => 'peer-disconnected',
-                        'from' => $userId, // Кто ушел
+                        'from' => $userId,
                         'reason' => 'connection_lost'
                     ]));
                 }
 
-                app(\App\Actions\LeaveChat::class)->execute($userId);
+                app(LeaveChat::class)->execute($userId);
             }
         });
     }

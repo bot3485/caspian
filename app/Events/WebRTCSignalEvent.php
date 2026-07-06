@@ -2,7 +2,6 @@
 
 namespace App\Events;
 
-use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Foundation\Events\Dispatchable;
@@ -13,19 +12,15 @@ class WebRTCSignalEvent implements ShouldBroadcastNow
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
-    public $partnerId;
-    public $data;
-
-    public function __construct($partnerId, $data)
-    {
-        $this->partnerId = $partnerId;
-        $this->data = $data;
-    }
+    public function __construct(
+        public int $partnerId,
+        public array $data
+    ) {}
 
     public function broadcastOn(): array
     {
         return [
-            new PrivateChannel('user.' . $this->partnerId),
+            new PrivateChannel("user.{$this->partnerId}"),
         ];
     }
 

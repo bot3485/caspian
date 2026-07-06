@@ -1,6 +1,6 @@
 <x-app-layout>
     <div class="py-6 bg-gray-950 min-h-screen text-gray-200" 
-         x-data="chatApp()" 
+         x-data="window.chatApp()" 
          @click.once="$store.sounds.unlock()"
          @close-messenger.window="messengerOpen = false"
          @open-chat.window="openMessenger($event.detail.id, $event.detail.name)">
@@ -9,10 +9,10 @@
             <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
                 
                 <!-- ЛЕВАЯ КОЛОНКА (ВИДЕО) -->
-                <div class="lg:col-span-3 space-y-4" x-data="videoChatComponent({{ auth()->id() }})">
+                <div class="lg:col-span-3 space-y-4" x-data="window.videoChatComponent({{ auth()->id() }})">
                     
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <!-- ВЫ -->
+                        <!-- ВАШЕ ВИДЕО -->
                         <div class="bg-black rounded-[2.5rem] overflow-hidden shadow-2xl h-[480px] flex items-center justify-center relative border border-white/5">
                             <video x-ref="localVideo" autoplay muted playsinline class="w-full h-full object-cover scale-x-[-1]"></video>
                             
@@ -46,14 +46,14 @@
                             </div>
                         </div>
                         
-                        <!-- СОБЕСЕДНИК -->
+                        <!-- ВИДЕО СОБЕСЕДНИКА -->
                         <div class="bg-black rounded-[2.5rem] overflow-hidden shadow-2xl h-[480px] flex items-center justify-center relative border border-white/5">
                             <video x-ref="remoteVideo" autoplay playsinline class="w-full h-full object-cover transition-all duration-700" 
                                    :class="isBlurred ? 'blur-[80px] grayscale brightness-50' : ''"
                                    :class="!isInCall && 'opacity-0'"></video>
                             
                             <div x-show="isInCall && isBlurred" class="absolute inset-0 z-30 flex items-center justify-center">
-                                <button @click="isBlurred = false" class="bg-indigo-600/80 hover:bg-indigo-600 backdrop-blur-md border border-white/20 text-white px-8 py-4 rounded-2xl font-black text-[10px] uppercase">Открыть видео</button>
+                                <button @click="isBlurred = false" class="bg-indigo-600/80 hover:bg-indigo-600 backdrop-blur-md border border-white/20 text-white px-8 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest">Открыть видео</button>
                             </div>
 
                             <div x-show="!isInCall" class="absolute inset-0 flex flex-col items-center justify-center bg-gray-950 transition-all">
@@ -73,22 +73,22 @@
                                 </div>
                             </div>
                             <div class="space-y-2">
-                                <button x-show="state === 'idle'" @click="startSearch()" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-5 rounded-2xl font-black text-xs transition-all">НАЧАТЬ ПОИСК</button>
+                                <button x-show="state === 'idle'" @click="startSearch()" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-5 rounded-2xl font-black text-xs transition-all active:scale-95">НАЧАТЬ ПОИСК</button>
                                 <div x-show="state === 'connected'" class="flex flex-col gap-2">
                                     <div class="flex gap-2">
                                         <button @click="addPartnerToContacts()" class="flex-1 bg-white/5 hover:bg-white/10 text-white py-5 rounded-2xl font-black text-[10px] uppercase border border-white/10">⭐️ Друг</button>
                                         <button @click="startSearch()" class="flex-[2] bg-indigo-600 hover:bg-indigo-500 text-white py-5 rounded-2xl font-black text-xs transition-all">СЛЕДУЮЩИЙ ➔</button>
                                     </div>
-                                    <button @click="stopSearch()" class="w-full bg-red-500/10 hover:bg-red-500/20 text-red-500 py-5 rounded-2xl font-black text-xs border border-red-500/20">ЗАВЕРШИТЬ 📞</button>
+                                    <button @click="stopSearch()" class="w-full bg-red-500/10 hover:bg-red-500/20 text-red-500 py-5 rounded-2xl font-black text-xs border border-red-500/20">ВЫЙТИ</button>
                                 </div>
                                 <button x-show="state === 'searching'" @click="stopSearch()" class="w-full bg-white/5 text-gray-400 py-5 rounded-2xl font-black text-xs hover:bg-white/10">ОТМЕНА</button>
                             </div>
                         </div>
 
-                        <div x-show="state === 'connected' && !isDirectCall" class="bg-gray-900/50 backdrop-blur-xl rounded-[2.5rem] border border-white/5 md:col-span-2 flex flex-col h-[280px] overflow-hidden">
+                        <div x-show="state === 'connected'" class="bg-gray-900/50 backdrop-blur-xl rounded-[2.5rem] border border-white/5 md:col-span-2 flex flex-col h-[280px] overflow-hidden shadow-2xl">
                             <div class="p-4 border-b border-white/5 bg-black/20 flex justify-between items-center text-[10px] font-black text-gray-500 uppercase tracking-widest">
                                 <span>Быстрый чат</span>
-                                <span x-show="dc && dc.readyState === 'open'" class="text-green-500 flex items-center gap-1.5"><span class="w-1.5 h-1.5 bg-green-500 rounded-full animate-ping"></span> Прямой канал</span>
+                                <span x-show="dc && dc.readyState === 'open'" class="text-green-500 flex items-center gap-1.5"><span class="w-1.5 h-1.5 bg-green-500 rounded-full animate-ping"></span> P2P активен</span>
                             </div>
                             <div class="flex-1 overflow-y-auto p-5 space-y-3 scrollbar-hide" x-ref="rouletteChat">
                                 <template x-for="msg in rouletteMessages">
@@ -104,7 +104,7 @@
                 </div>
 
                 <!-- КОНТАКТЫ -->
-                <div class="bg-gray-900/50 backdrop-blur-xl p-6 rounded-[2.5rem] border border-white/5 flex flex-col h-[750px]" x-data="contactsListComponent()">
+                <div class="bg-gray-900/50 backdrop-blur-xl p-6 rounded-[2.5rem] border border-white/5 flex flex-col h-[750px]" x-data="window.contactsListComponent()">
                     <h2 class="text-[10px] font-black text-gray-500 uppercase tracking-[0.3em] mb-8 ml-2">Друзья</h2>
                     <div class="flex-1 overflow-y-auto space-y-3 scrollbar-hide">
                         <template x-for="c in contacts" :key="c.id">
@@ -129,8 +129,10 @@
     </div>
 
     <script>
+        // Глобальные конфигурации
         window.rtcConfig = { iceServers: @json(config('webrtc.ice_servers')), iceCandidatePoolSize: 10 };
 
+        // Инициализация хранилищ Alpine
         document.addEventListener('alpine:init', () => {
             Alpine.store('online', {
                 users: new Set(),
@@ -140,75 +142,165 @@
                 has(id) { return this.users.has(Number(id)); }
             });
             Alpine.store('sounds', {
-                message: new Audio('/sounds/message.mp3'), call: new Audio('/sounds/call.mp3'), isUnlocked: false,
-                unlock() { if (this.isUnlocked) return; [this.message, this.call].forEach(a => { a.muted = true; a.play().then(() => { a.pause(); a.muted = false; a.currentTime = 0; }); }); this.isUnlocked = true; },
+                message: new Audio('/sounds/message.mp3'), 
+                call: new Audio('/sounds/call.mp3'), 
+                isUnlocked: false,
+                unlock() { 
+                    if (this.isUnlocked) return; 
+                    [this.message, this.call].forEach(a => { 
+                        a.muted = true; a.play().then(() => { a.pause(); a.muted = false; a.currentTime = 0; }); 
+                    }); 
+                    this.isUnlocked = true; 
+                    console.log("Audio Unlocked");
+                },
                 playMsg() { this.message.currentTime = 0; this.message.play().catch(()=>{}); },
                 playCall() { this.call.loop = true; this.call.play().catch(()=>{}); },
                 stopCall() { this.call.pause(); this.call.currentTime = 0; }
             });
         });
 
-        function chatApp() {
-            return { messengerOpen: false, init() { window.Echo.join('online-status').here(u => Alpine.store('online').set(u)).joining(u => Alpine.store('online').add(u.id)).leaving(u => Alpine.store('online').remove(u.id)); }, openMessenger(id, name) { this.messengerOpen = true; this.$dispatch('load-chat-history', {id, name}); } }
-        }
+        // Основные функции чата, привязанные к window
+        window.chatApp = function() {
+            return { 
+                messengerOpen: false, 
+                init() { 
+                    window.Echo.join('online-status')
+                        .here(u => Alpine.store('online').set(u))
+                        .joining(u => Alpine.store('online').add(u.id))
+                        .leaving(u => Alpine.store('online').remove(u.id)); 
+                }, 
+                openMessenger(id, name) { this.messengerOpen = true; this.$dispatch('load-chat-history', {id, name}); } 
+            }
+        };
 
-        function videoChatComponent(myId) {
+        window.videoChatComponent = function(myId) {
             return {
-                state: 'idle', statusHtml: 'Система готова', isInCall: false, isDirectCall: false, partnerId: null, pc: null, dc: null, localStream: null, remoteStream: null, micEnabled: true, camEnabled: true, rouletteMessages: [], rouletteInput: '', devices: { video: [], audio: [] }, selectedVideoId: localStorage.getItem('selectedVideoId') || '', selectedAudioId: localStorage.getItem('selectedAudioId') || '', showSettings: false, isBlurred: false, autoBlurTimer: null, showReportModal: false,
+                state: 'idle', statusHtml: 'Готов', isInCall: false, partnerId: null, pc: null, dc: null, localStream: null, 
+                micEnabled: true, camEnabled: true, rouletteMessages: [], rouletteInput: '', devices: { video: [], audio: [] }, 
+                selectedVideoId: localStorage.getItem('selectedVideoId') || '', 
+                selectedAudioId: localStorage.getItem('selectedAudioId') || '', 
+                showSettings: false, isBlurred: false, autoBlurTimer: null,
+                iceQueue: [], // Буфер для ранних ICE-кандидатов
 
                 async init() {
-                    await this.initMedia(); await this.updateDevicesList();
+                    await this.initMedia(); 
+                    await this.updateDevicesList();
+                    
                     window.Echo.private(`user.${myId}`)
                         .listen('.MatchFoundEvent', (e) => this.onMatchFound(e))
                         .listen('.WebRTCSignalEvent', (e) => this.onSignal(e));
                     
-                    window.addEventListener('beforeunload', () => { if(this.partnerId) this.stopSearch(); });
+                    // СЛУШАЕМ НАЧАЛО ПРЯМОГО ЗВОНКА
+                    window.addEventListener('initiate-direct-call', (e) => {
+                        console.log("Initiating direct call to:", e.detail.id);
+                        this.resetConnection(); // Очищаем старые связи
+                        this.partnerId = Number(e.detail.id);
+                        this.state = 'connected';
+                        this.isDirectCall = true; // Флаг, чтобы не уходить в поиск после звонка
+                        this.statusHtml = `Звонок: ${e.detail.name}`;
+                        this.initPC(); // Готовим PeerConnection заранее
+                    });
+
+                    window.addEventListener('beforeunload', () => this.stopSearch());
                 },
 
                 async onMatchFound(e) { 
                     if (this.state !== 'searching') return;
-                    console.log("Match found with:", e.partnerId);
-                    this.partnerId = Number(e.partnerId); this.state = 'connected'; this.isBlurred = true; 
-                    if(this.autoBlurTimer) clearTimeout(this.autoBlurTimer); this.autoBlurTimer = setTimeout(() => { this.isBlurred = false; }, 3000); 
+                    console.log("MATCH FOUND! Partner ID:", e.partnerId);
                     
-                    // Даем время на подготовку PC
-                    setTimeout(() => { if (myId > this.partnerId) this.sendOffer(); }, 1000);
+                    this.partnerId = Number(e.partnerId); 
+                    this.state = 'connected'; 
+                    this.isBlurred = true; 
+                    this.iceQueue = []; // Очищаем очередь для нового партнера
+                    
+                    if(this.autoBlurTimer) clearTimeout(this.autoBlurTimer);
+                    this.autoBlurTimer = setTimeout(() => { this.isBlurred = false; }, 3000); 
+
+                    this.initPC();
+
+                    // Инициатор шлет оффер (у кого ID больше)
+                    if (myId > this.partnerId) {
+                        console.log("I am the initiator, sending offer...");
+                        setTimeout(() => this.sendOffer(), 500);
+                    }
                 },
 
                 async onSignal(e) {
                     const msg = e.data;
-                    // Фильтрация "призраков"
+                    console.log("Signal In:", msg.type, "from:", msg.from);
+
                     if (msg.type === 'peer-disconnected' || msg.type === 'hang-up') {
-                        if (Number(msg.from) === this.partnerId) { this.resetConnection(); if (!this.isDirectCall) { this.statusHtml = '<span class="text-amber-500 uppercase">Партнер ушел</span>'; setTimeout(() => this.startSearch(), 1500); } }
+                        if (Number(msg.from) === this.partnerId) { 
+                            this.resetConnection(); 
+                            this.statusHtml = 'Партнер отключился'; 
+                            setTimeout(() => this.startSearch(), 1000); 
+                        }
                         return;
                     }
-                    if (Number(msg.from) !== this.partnerId && msg.type !== 'incoming-direct-call') return;
+
+                    if (msg.type === 'incoming-direct-call') {  
+                        Alpine.store('sounds').playCall();
+                        if (confirm(`Звонок от ${msg.callerName}. Принять?`)) {
+                            Alpine.store('sounds').stopCall();
+                            this.resetConnection(); // Важно очистить текущее состояние
+                            this.partnerId = Number(msg.callerId);
+                            this.state = 'connected';
+                            this.isDirectCall = true;
+                            this.initPC();
+                            console.log("Call accepted, sending peer-ready to caller");
+                            this.signal({ type: 'peer-ready' });
+                        } else { 
+                            Alpine.store('sounds').stopCall(); 
+                        }
+                        return;
+                    }
+
+                    if (Number(msg.from) !== this.partnerId) return;
 
                     try {
+                        if (msg.type === 'peer-ready') this.sendOffer();
+                        
                         if (msg.type === 'webrtc-offer') { 
-                            console.log("Received Offer");
                             this.initPC(); 
                             await this.pc.setRemoteDescription(new RTCSessionDescription({type: 'offer', sdp: this.fixSdp(msg.sdpString)})); 
                             const a = await this.pc.createAnswer(); 
                             await this.pc.setLocalDescription(a); 
                             this.signal({ type: 'webrtc-answer', sdpString: a.sdp }); 
+                            this.processIceQueue(); // Применяем накопленные кандидаты
                         }
+                        
                         if (msg.type === 'webrtc-answer') {
-                            console.log("Received Answer");
                             await this.pc.setRemoteDescription(new RTCSessionDescription({type: 'answer', sdp: this.fixSdp(msg.sdpString)}));
+                            this.processIceQueue(); // Применяем накопленные кандидаты
                         }
+                        
                         if (msg.type === 'ice-candidate') {
-                            this.pc?.addIceCandidate(new RTCIceCandidate(msg.candidate)).catch(e=>{});
+                            const candidate = new RTCIceCandidate(msg.candidate);
+                            // Если описание еще не установлено — в очередь, иначе — сразу в PC
+                            if (this.pc && this.pc.remoteDescription) {
+                                await this.pc.addIceCandidate(candidate).catch(e => console.error("ICE add error", e));
+                            } else {
+                                console.log("ICE buffered (no remote desc yet)");
+                                this.iceQueue.push(candidate);
+                            }
                         }
-                        if (msg.type === 'roulette-text-msg') { this.rouletteMessages.push({ isMe: false, text: msg.text }); Alpine.store('sounds').playMsg(); this.$nextTick(() => this.$refs.rouletteChat.scrollTop = 9999); }
-                        if (msg.type === 'incoming-direct-call') {
-                            Alpine.store('sounds').playCall();
-                            if (confirm(`Принять звонок от ${msg.callerName}?`)) { 
-                                Alpine.store('sounds').stopCall(); this.partnerId = Number(msg.callerId); this.isDirectCall = true; this.state = 'connected'; this.initPC(); this.signal({type:'peer-ready'}); 
-                            } else { Alpine.store('sounds').stopCall(); }
+                        
+                        if (msg.type === 'roulette-text-msg') { 
+                            this.rouletteMessages.push({ isMe: false, text: msg.text }); 
+                            Alpine.store('sounds').playMsg(); 
+                            this.$nextTick(() => this.$refs.rouletteChat.scrollTop = 9999); 
                         }
-                        if (msg.type === 'peer-ready') this.sendOffer();
-                    } catch(err) { console.error("Signal Handling Error:", err); }
+                    } catch(err) { console.error("Signaling error:", err); }
+                },
+
+                // Метод для обработки накопленных ICE-кандидатов
+                processIceQueue() {
+                    if (!this.pc) return;
+                    console.log("Processing ICE Queue. Count:", this.iceQueue.length);
+                    while (this.iceQueue.length > 0) {
+                        const candidate = this.iceQueue.shift();
+                        this.pc.addIceCandidate(candidate).catch(e => console.error("ICE delayed add error", e));
+                    }
                 },
 
                 async initMedia() {
@@ -219,123 +311,172 @@
                             audio: this.selectedAudioId ? { deviceId: { exact: this.selectedAudioId } } : true 
                         }); 
                         this.$refs.localVideo.srcObject = this.localStream;
-                        console.log("Local Media Started");
                     } catch (e) { 
-                        console.error("Media Error:", e);
-                        alert("Ошибка доступа к камере. Убедитесь, что она не используется другим приложением.");
+                        console.error("Media init error:", e);
+                        this.statusHtml = '<span class="text-red-500">Ошибка камеры</span>';
                     }
                 },
 
                 initPC() {
                     if (this.pc) return;
-                    console.log("Initializing PeerConnection...");
+                    console.log("Creating NEW PeerConnection...");
                     this.pc = new RTCPeerConnection(window.rtcConfig);
-                    this.remoteStream = new MediaStream();
-                    this.$refs.remoteVideo.srcObject = this.remoteStream;
 
-                    // Добавление треков
-                    this.localStream.getTracks().forEach(track => {
-                        this.pc.addTrack(track, this.localStream);
-                    });
-
-                    // Прием треков
                     this.pc.ontrack = (event) => {
-                        console.log("Remote track received:", event.track.kind);
-                        event.streams[0].getTracks().forEach(track => {
-                            this.remoteStream.addTrack(track);
-                        });
+                        console.log("Remote track received!");
+                        if (this.$refs.remoteVideo.srcObject !== event.streams[0]) {
+                            this.$refs.remoteVideo.srcObject = event.streams[0];
+                        }
                         this.isInCall = true;
-                        this.statusHtml = '<span class="text-green-500 font-black">● В ЭФИРЕ</span>';
+                        this.statusHtml = '<span class="text-green-500 font-bold">● В ЭФИРЕ</span>';
+                        
+                        // Принудительный старт для мобилок
+                        this.$refs.remoteVideo.play().catch(e => console.warn("Autoplay block", e));
                     };
+
+                    this.localStream.getTracks().forEach(track => this.pc.addTrack(track, this.localStream));
 
                     this.pc.onicecandidate = (e) => { 
                         if (e.candidate && this.partnerId) this.signal({ type: 'ice-candidate', candidate: e.candidate }); 
                     };
 
                     this.pc.oniceconnectionstatechange = () => {
-                        console.log("ICE Connection State:", this.pc.iceConnectionState);
-                        if (this.pc.iceConnectionState === 'disconnected') {
-                            this.resetConnection();
-                            this.statusHtml = '<span class="text-red-500">СВЯЗЬ ПОТЕРЯНА</span>';
-                            setTimeout(() => this.startSearch(), 2000);
+                        console.log("ICE State:", this.pc.iceConnectionState);
+                        if (['failed', 'disconnected'].includes(this.pc.iceConnectionState)) {
+                            if (this.partnerId) { this.resetConnection(); this.startSearch(); }
                         }
                     };
 
                     if (myId > this.partnerId) {
-                        this.setupDataChannel(this.pc.createDataChannel("chat"));
+                        this.setupDataChannel(this.pc.createDataChannel("roulette-chat"));
                     } else {
                         this.pc.ondatachannel = (e) => this.setupDataChannel(e.channel);
                     }
                 },
 
                 async sendOffer() { 
-                    if(!this.partnerId) return;
-                    this.initPC(); 
+                    if(!this.pc) this.initPC();
                     const o = await this.pc.createOffer(); 
                     await this.pc.setLocalDescription(o); 
                     this.signal({ type: 'webrtc-offer', sdpString: o.sdp }); 
-                    console.log("Offer Sent");
                 },
 
                 setupDataChannel(ch) { 
                     this.dc = ch; 
                     this.dc.onmessage = (e) => { 
                         const d = JSON.parse(e.data); 
-                        if (d.type === 'text') { this.rouletteMessages.push({ isMe: false, text: d.text }); Alpine.store('sounds').playMsg(); this.$nextTick(() => this.$refs.rouletteChat.scrollTop = 9999); } 
-                    }; 
+                        if (d.type === 'text') { 
+                            this.rouletteMessages.push({ isMe: false, text: d.text }); 
+                            Alpine.store('sounds').playMsg(); 
+                            this.$nextTick(() => this.$refs.rouletteChat.scrollTop = 9999); 
+                        } 
+                    };
                 },
 
                 sendRouletteMsg() { 
                     if (!this.rouletteInput || !this.partnerId) return; 
-                    if (this.dc?.readyState === 'open') this.dc.send(JSON.stringify({ type: 'text', text: this.rouletteInput }));
-                    else this.signal({ type: 'roulette-text-msg', text: this.rouletteInput });
-                    this.rouletteMessages.push({ isMe: true, text: this.rouletteInput }); this.rouletteInput = ''; this.$nextTick(() => this.$refs.rouletteChat.scrollTop = 9999); 
+                    if (this.dc?.readyState === 'open') {
+                        this.dc.send(JSON.stringify({ type: 'text', text: this.rouletteInput }));
+                    } else {
+                        this.signal({ type: 'roulette-text-msg', text: this.rouletteInput });
+                    }
+                    this.rouletteMessages.push({ isMe: true, text: this.rouletteInput }); 
+                    this.rouletteInput = ''; 
+                    this.$nextTick(() => this.$refs.rouletteChat.scrollTop = 9999); 
                 },
 
-                signal(d) { if (this.partnerId) window.axios.post('/chat/signal', { partnerId: Number(this.partnerId), data: d }).catch(e => { if(e.response?.status === 403) console.log("Match expired"); }); },
+                signal(d) { 
+                    if (!this.partnerId) return;
+                    let url = '/chat/signal';
+                    if (window.safeUrl) url = window.safeUrl(url);
+                    window.axios.post(url, { partnerId: this.partnerId, data: d }).catch(e => {}); 
+                },
 
                 resetConnection() { 
-                    console.log("Resetting all connections...");
                     this.partnerId = null;
-                    if (this.pc) { this.pc.onicecandidate = null; this.pc.ontrack = null; this.pc.close(); this.pc = null; }
-                    this.dc = null; this.isInCall = false; this.state = 'idle'; this.statusHtml = 'Готов'; this.rouletteMessages = []; 
-                    if(this.$refs.remoteVideo) { this.$refs.remoteVideo.srcObject = null; this.$refs.remoteVideo.load(); }
-                    Alpine.store('sounds').stopCall(); 
+                    this.iceQueue = [];
+                    if (this.pc) { 
+                        this.pc.onicecandidate = null;
+                        this.pc.ontrack = null;
+                        this.pc.close(); 
+                        this.pc = null; 
+                    }
+                    this.dc = null; 
+                    this.isInCall = false; 
+                    this.state = 'idle'; 
+                    this.statusHtml = 'Готов'; 
+                    this.rouletteMessages = []; 
+                    if(this.$refs.remoteVideo) {
+                        this.$refs.remoteVideo.pause();
+                        this.$refs.remoteVideo.srcObject = null;
+                        this.$refs.remoteVideo.load();
+                    }
                 },
 
-                async startSearch() { this.resetConnection(); this.state = 'searching'; this.statusHtml = '<span class="animate-pulse">ИЩЕМ...</span>'; await window.axios.post('/chat/search'); },
-                stopSearch() { if(this.partnerId) this.signal({ type: 'hang-up' }); window.axios.post('/chat/leave'); this.resetConnection(); },
+                async startSearch() { 
+                    if (this.state === 'searching') return;
+                    this.resetConnection(); 
+                    this.state = 'searching'; 
+                    this.statusHtml = '<span class="animate-pulse">ИЩЕМ...</span>'; 
+                    await window.axios.post('/chat/search'); 
+                },
+
+                stopSearch() { 
+                    if(this.partnerId) this.signal({ type: 'hang-up' }); 
+                    window.axios.post('/chat/leave'); 
+                    this.resetConnection(); 
+                },
+
                 fixSdp(sd) { return sd ? sd.split('\n').map(l => l.trim()).filter(l => l.length > 0).join('\r\n') + '\r\n' : ""; },
-                async updateDevicesList() { const d = await navigator.mediaDevices.enumerateDevices(); this.devices.video = d.filter(x => x.kind === 'videoinput'); this.devices.audio = d.filter(x => x.kind === 'audioinput'); },
-                async changeDevice() { localStorage.setItem('selectedVideoId', this.selectedVideoId); localStorage.setItem('selectedAudioId', this.selectedAudioId); await this.initMedia(); if(this.pc) this.resetConnection(); },
-                async addPartnerToContacts() { if (!this.partnerId) return; await window.axios.post('/chat/contact/toggle', { contactId: this.partnerId }); alert("Готово!"); window.dispatchEvent(new CustomEvent('contacts-updated')); },
-                async reportPartner(r) { await window.axios.post('/report', { reported_id: this.partnerId, reason: r }); alert("Жалоба принята!"); this.showReportModal = false; this.startSearch(); },
-                toggleMic() { this.micEnabled = !this.micEnabled; if(this.localStream) this.localStream.getAudioTracks()[0].enabled = this.micEnabled; },
-                toggleCam() { this.camEnabled = !this.camEnabled; if(this.localStream) this.localStream.getVideoTracks()[0].enabled = this.camEnabled; }
-            }
-        }
-
-        function messengerComponent(myId) {
-            return { 
-                messages: [], chatPartnerId: null, chatPartnerName: '', newMessage: '',
-                init() { 
-                    window.addEventListener('load-chat-history', async (e) => { this.chatPartnerId = e.detail.id; this.chatPartnerName = e.detail.name; this.messages = []; const res = await window.axios.get(`/chat/history/${this.chatPartnerId}`); this.messages = res.data.messages; this.$nextTick(() => this.$refs.msgContainer.scrollTop = 9999); }); 
-                    window.Echo.private(`user.${myId}`).listen('.MessageSentEvent', (e) => { if (Number(this.chatPartnerId) === Number(e.messageData.sender_id)) { this.messages.push(e.messageData); this.$nextTick(() => this.$refs.msgContainer.scrollTop = 9999); } }); 
+                async updateDevicesList() { 
+                    const d = await navigator.mediaDevices.enumerateDevices(); 
+                    this.devices.video = d.filter(x => x.kind === 'videoinput'); 
+                    this.devices.audio = d.filter(x => x.kind === 'audioinput'); 
                 },
-                handleScroll() {},
-                async send() { if (!this.newMessage.trim()) return; const res = await window.axios.post('/chat/message/send', { receiver_id: this.chatPartnerId, message: this.newMessage }); this.messages.push(res.data.message); this.newMessage = ''; this.$nextTick(() => this.$refs.msgContainer.scrollTop = 9999); }
+                async changeDevice() { 
+                    localStorage.setItem('selectedVideoId', this.selectedVideoId); 
+                    localStorage.setItem('selectedAudioId', this.selectedAudioId); 
+                    await this.initMedia(); 
+                    if(this.pc) this.resetConnection(); 
+                },
+                async addPartnerToContacts() { 
+                    if (!this.partnerId) return; 
+                    await window.axios.post('/chat/contact/toggle', { contactId: this.partnerId }); 
+                    window.dispatchEvent(new CustomEvent('contacts-updated')); 
+                    alert("Добавлено в друзья!");
+                }
             }
-        }
+        };
 
-        function contactsListComponent() {
-            return { contacts: [], initialLoaded: false, init() { this.load(); window.addEventListener('contacts-updated', () => this.load()); }, async load() { const res = await window.axios.get('/chat/contacts'); this.contacts = res.data.contacts; this.initialLoaded = true; }, callPartner(id, name) { if(confirm(`Позвонить ${name}?`)) window.dispatchEvent(new CustomEvent('start-direct-call', { detail: {id, name} })); } }
-        }
+        window.contactsListComponent = function() {
+            return { 
+                contacts: [], 
+                init() { 
+                    this.load(); 
+                    window.addEventListener('contacts-updated', () => this.load()); 
+                }, 
+                async load() { 
+                    const res = await window.axios.get('/chat/contacts'); 
+                    this.contacts = res.data.contacts; 
+                }, 
+                callPartner(id, name) { 
+                    if(confirm(`Позвонить ${name}?`)) {
+                        // ВАЖНО: сначала уведомляем видео-компонент, чтобы он установил partnerId
+                        window.dispatchEvent(new CustomEvent('initiate-direct-call', { 
+                            detail: { id: id, name: name } 
+                        }));
+                        // Затем просим сервер отправить уведомление другу
+                        window.axios.post('/chat/contact/call', { contactId: id });
+                    }
+                } 
+            }
+        };
     </script>
 
     <style>
         [x-cloak] { display: none !important; }
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
-        video { background: #000; image-rendering: -webkit-optimize-contrast; }
+        video { background: #000; image-rendering: -webkit-optimize-contrast; object-fit: cover; }
     </style>
 </x-app-layout>

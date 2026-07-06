@@ -32,6 +32,9 @@ Route::middleware('auth')->group(function () {
     Route::post('/chat/search', [ChatController::class, 'startSearching']);
     Route::post('/chat/leave', [ChatController::class, 'leaveChat']);
     Route::post('/chat/signal', [ChatController::class, 'sendSignal']);
+    Route::get('/chat/signal', function () {
+    return redirect()->route('chat'); // Если зашли GET-ом, просто кидаем в чат
+});
     
     // Contact List Management Endpoints
     Route::post('/chat/contact/check', [ChatController::class, 'checkContact']);

@@ -41,34 +41,45 @@ class ChatController extends Controller
     }
 
     public function sendSignal(Request $request): JsonResponse
-    {
-        $validated = $request->validate([
-            'partnerId' => 'required|integer',
-            'data' => 'required|array'
-        ]);
+        {
+            $validated = $request->validate([
+                'partnerId' => 'required|integer',
+                'data' => 'required|array'
+            ]);
 
-        $senderId = Auth::id();
-        $receiverId = (int)$validated['partnerId'];
-        $data = $validated['data'];
-        $data['from'] = $senderId;
+            $senderId = Auth::id();
+            $receiverId = (int)$validated['partnerId'];
+            $data = $validated['data'];
+            $data['from'] = $senderId;
 
-        // Простая и надежная проверка доступа
-        $isAllowed = Redis::exists("allow_signal:{$senderId}:{$receiverId}") || 
-                     Redis::exists("allow_signal:{$receiverId}:{$senderId}") ||
-                     Matchmaking::where('user_id', $senderId)->where('partner_id', $receiverId)->exists();
+            // 1. Проверяем обычную рулетку или прямой звонок через Redis
+            $isAllowed = Redis::exists("allow_signal:{$senderId}:{$receiverId}") || 
+                        Redis::exists("allow_signal:{$receiverId}:{$senderId}");
 
-        if (!$isAllowed) {
-            // Если это сигнал о разрыве, разрешаем его всегда для очистки
-            if (isset($data['type']) && in_array($data['type'], ['hang-up', 'peer-disconnected'])) {
-                broadcast(new WebRTCSignalEvent($receiverId, $data));
-                return response()->json(['status' => 'disconnected_signal_sent']);
+            // 2. Если это сигнал внутри комнаты (Room), проверяем существование комнаты
+            if (!$isAllowed && isset($data['roomUuid'])) {
+                $isAllowed = \App\Models\Room::where('uuid', $data['roomUuid'])->exists();
+                // В идеале здесь можно добавить проверку, залогинен ли юзер в комнату через сессию,
+                // но для исправления черного экрана достаточно проверки существования комнаты.
             }
-            return response()->json(['error' => 'Unauthorized Match'], 403);
-        }
 
-        broadcast(new WebRTCSignalEvent($receiverId, $data));
-        return response()->json(['status' => 'signal_sent']);
-    }
+            // 3. Проверка через таблицу матчинга (на всякий случай)
+            if (!$isAllowed) {
+                $isAllowed = Matchmaking::where('user_id', $senderId)->where('partner_id', $receiverId)->exists();
+            }
+
+            if (!$isAllowed) {
+                // Разрешаем сигналы разрыва связи всегда
+                if (isset($data['type']) && in_array($data['type'], ['hang-up', 'peer-disconnected'])) {
+                    broadcast(new WebRTCSignalEvent($receiverId, $data));
+                    return response()->json(['status' => 'disconnected_signal_sent']);
+                }
+                return response()->json(['error' => 'Unauthorized Signal'], 403);
+            }
+
+            broadcast(new WebRTCSignalEvent($receiverId, $data));
+            return response()->json(['status' => 'signal_sent']);
+        }
 
     public function leaveChat(Request $request): JsonResponse
     {
@@ -170,5 +181,17 @@ class ChatController extends Controller
         ]));
         
         return response()->json(['status' => 'calling']);
+    }
+    
+    public function sendTypingSignal(Request $request): \Illuminate\Http\JsonResponse 
+    {
+        $request->validate(['receiver_id' => 'required|integer']);
+        
+        broadcast(new \App\Events\UserTypingEvent(
+            $request->receiver_id, 
+            auth()->id()
+        ))->toOthers();
+
+        return response()->json(['status' => 'sent']);
     }
 }

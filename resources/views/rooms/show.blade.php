@@ -12,14 +12,13 @@
                 </div>
             </div>
             <div class="flex gap-2 relative">
-                <button @click="showSettings = !showSettings" class="bg-white/5 hover:bg-white/10 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase border border-white/10 transition-all">
+                <button @click.stop="showSettings = !showSettings" class="bg-white/5 hover:bg-white/10 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase border border-white/10 transition-all">
                     ⚙️ Настройки
                 </button>
-                <button @click="copyLink()" class="bg-white/5 hover:bg-white/10 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase border border-white/10 transition-all">
+                <button @click.stop="copyLink()" class="bg-white/5 hover:bg-white/10 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase border border-white/10 transition-all">
                     🔗 Ссылка
                 </button>
 
-                <!-- Всплывающее окно настроек в комнате -->
                 <div x-show="showSettings" x-transition x-cloak @click.away="showSettings = false"
                      class="absolute top-12 right-0 w-64 bg-gray-900 rounded-3xl shadow-2xl p-6 z-30 border border-white/10">
                     <div class="space-y-4">
@@ -67,25 +66,33 @@
             </template>
         </div>
 
-        <!-- КНОПКИ -->
+        <!-- КНОПКИ УПРАВЛЕНИЯ -->
         <div class="p-6 bg-black/60 backdrop-blur-3xl border-t border-white/5 flex justify-center items-center gap-4 z-20">
-            <button @click="toggleMic()" :class="micEnabled ? 'bg-gray-800' : 'bg-red-600'" class="w-14 h-14 rounded-2xl flex items-center justify-center text-xl transition-all">
+            <button type="button" @click.stop="toggleMic()" :class="micEnabled ? 'bg-gray-800' : 'bg-red-600'" class="w-14 h-14 rounded-2xl flex items-center justify-center text-xl transition-all active:scale-90">
                 <span x-text="micEnabled ? '🎤' : '🔇'"></span>
             </button>
-            <button @click="toggleCam()" :class="camEnabled ? 'bg-gray-800' : 'bg-red-600'" class="w-14 h-14 rounded-2xl flex items-center justify-center text-xl transition-all">
+            <button type="button" @click.stop="toggleCam()" :class="camEnabled ? 'bg-gray-800' : 'bg-red-600'" class="w-14 h-14 rounded-2xl flex items-center justify-center text-xl transition-all active:scale-90">
                 <span x-text="camEnabled ? '📷' : '🚫'"></span>
             </button>
-            <button @click="toggleScreenShare()" :class="isScreenSharing ? 'bg-indigo-600' : 'bg-gray-800'" class="w-14 h-14 rounded-2xl flex items-center justify-center text-xl transition-all">📺</button>
-            <div class="h-10 w-px bg-white/10"></div>
-            <a href="{{ route('rooms.index') }}" class="px-8 py-4 bg-red-600 text-white rounded-2xl font-black uppercase tracking-widest text-[10px]">ВЫЙТИ</a>
+            <button type="button" @click.stop="toggleScreenShare()" :class="isScreenSharing ? 'bg-indigo-600' : 'bg-gray-800'" class="w-14 h-14 rounded-2xl flex items-center justify-center text-xl transition-all active:scale-90">📺</button>
+            
+            <div class="h-10 w-px bg-white/10 mx-2"></div>
+            
+            <a href="{{ route('rooms.index') }}" class="px-8 py-4 bg-red-600 hover:bg-red-700 text-white rounded-2xl font-black uppercase tracking-widest text-[10px] transition-all">ВЫЙТИ</a>
         </div>
     </div>
 
     <script>
         function groupRoomComponent(roomUuid, myId, myName) {
             return {
-                peers: [], participants: [], localStream: null, screenStream: null,
-                micEnabled: true, camEnabled: true, isScreenSharing: false, showSettings: false,
+                peers: [], 
+                participants: [], 
+                localStream: null, 
+                screenStream: null,
+                micEnabled: true, 
+                camEnabled: true, 
+                isScreenSharing: false, 
+                showSettings: false,
                 devices: { video: [], audio: [] },
                 selectedVideoId: localStorage.getItem('selectedVideoId') || '',
                 selectedAudioId: localStorage.getItem('selectedAudioId') || '',
@@ -95,16 +102,31 @@
                     await this.initMedia(true);
                     await this.updateDevicesList();
 
+                    // Подключаемся к Presence-каналу комнаты
                     const channel = window.Echo.join(`room.${roomUuid}`);
+                    
                     channel.here(users => {
                         this.participants = users;
-                        users.forEach(u => { if (u.id !== myId) this.initiateConnection(u.id, u.name, true); });
+                        // Те, кто уже в комнате, инициируют соединение с новичком
+                        users.forEach(u => { 
+                            if (u.id !== myId) this.initiateConnection(u.id, u.name, true); 
+                        });
                     })
-                    .joining(u => { this.participants.push(u); this.initiateConnection(u.id, u.name, false); })
-                    .leaving(u => { this.participants = this.participants.filter(p => p.id !== u.id); this.removePeer(u.id); });
+                    .joining(u => { 
+                        this.participants.push(u); 
+                        // Когда кто-то заходит, мы (кто уже там) создаем соединение
+                        this.initiateConnection(u.id, u.name, false); 
+                    })
+                    .leaving(u => { 
+                        this.participants = this.participants.filter(p => p.id !== u.id); 
+                        this.removePeer(u.id); 
+                    });
 
+                    // Слушаем сигналы именно для этой комнаты
                     window.Echo.private(`user.${myId}`).listen('.WebRTCSignalEvent', (e) => {
-                        if (e.data.roomUuid === roomUuid) this.handleSignal(e.data);
+                        if (e.data.roomUuid === roomUuid) {
+                            this.handleSignal(e.data);
+                        }
                     });
                 },
 
@@ -117,10 +139,11 @@
                 async initMedia(firstTime = false) {
                     try {
                         const constraints = {
-                            video: this.selectedVideoId ? { deviceId: { exact: this.selectedVideoId } } : true,
+                            video: this.selectedVideoId ? { deviceId: { exact: this.selectedVideoId } } : { width: 1280, height: 720 },
                             audio: this.selectedAudioId ? { deviceId: { exact: this.selectedAudioId } } : true
                         };
                         const newStream = await navigator.mediaDevices.getUserMedia(constraints);
+                        
                         if (!firstTime && this.localStream) {
                             const vTrack = newStream.getVideoTracks()[0];
                             const aTrack = newStream.getAudioTracks()[0];
@@ -133,7 +156,12 @@
                         }
                         this.localStream = newStream;
                         this.$refs.localVideo.srcObject = this.localStream;
-                    } catch (e) { console.error(e); }
+                        
+                        // Применяем текущие состояния вкл/выкл
+                        this.localStream.getVideoTracks()[0].enabled = this.camEnabled;
+                        this.localStream.getAudioTracks()[0].enabled = this.micEnabled;
+
+                    } catch (e) { console.error("Media Error:", e); }
                 },
 
                 async changeDevice() {
@@ -154,12 +182,25 @@
 
                 async initiateConnection(partnerId, partnerName, isInitiator) {
                     if (this.peers.find(p => p.id === partnerId)) return;
+
                     const pc = new RTCPeerConnection(window.rtcConfig);
                     const peerObj = { id: partnerId, name: partnerName, pc: pc, mic: true, cam: true, iceQueue: [] };
                     this.peers.push(peerObj);
+
+                    // Добавляем наши треки в соединение
                     this.localStream.getTracks().forEach(t => pc.addTrack(t, this.localStream));
-                    pc.onicecandidate = e => { if (e.candidate) this.sendSignal(partnerId, { type: 'ice', candidate: e.candidate }); };
-                    pc.ontrack = e => { this.$nextTick(() => { const v = document.getElementById('video-' + partnerId); if (v) v.srcObject = e.streams[0]; }); };
+
+                    pc.onicecandidate = e => { 
+                        if (e.candidate) this.sendSignal(partnerId, { type: 'ice', candidate: e.candidate }); 
+                    };
+
+                    pc.ontrack = e => { 
+                        this.$nextTick(() => { 
+                            const v = document.getElementById('video-' + partnerId); 
+                            if (v && v.srcObject !== e.streams[0]) v.srcObject = e.streams[0]; 
+                        }); 
+                    };
+
                     if (isInitiator) {
                         const offer = await pc.createOffer();
                         await pc.setLocalDescription(offer);
@@ -168,8 +209,9 @@
                 },
 
                 async handleSignal(data) {
-                    const peer = this.peers.find(p => p.id === data.from);
+                    let peer = this.peers.find(p => p.id === data.from);
                     if (!peer) return;
+
                     try {
                         if (data.type === 'offer') {
                             await peer.pc.setRemoteDescription(new RTCSessionDescription({type:'offer', sdp: this.sanitizeSdp(data.sdp.sdp)}));
@@ -181,23 +223,34 @@
                             await peer.pc.setRemoteDescription(new RTCSessionDescription({type:'answer', sdp: this.sanitizeSdp(data.sdp.sdp)}));
                             this.drainIce(peer);
                         } else if (data.type === 'ice') {
-                            if (peer.pc.remoteDescription) await peer.pc.addIceCandidate(new RTCIceCandidate(data.candidate)).catch(e=>{});
-                            else peer.iceQueue.push(data.candidate);
+                            if (peer.pc.remoteDescription) {
+                                await peer.pc.addIceCandidate(new RTCIceCandidate(data.candidate)).catch(e=>{});
+                            } else {
+                                peer.iceQueue.push(data.candidate);
+                            }
                         } else if (data.type === 'media-status') {
                             peer[data.mediaType === 'video' ? 'cam' : 'mic'] = data.enabled;
                         }
-                    } catch (e) { console.warn(e); }
+                    } catch (e) { console.warn("Signal Handle Error:", e); }
                 },
 
-                drainIce(peer) { while(peer.iceQueue.length > 0) peer.pc.addIceCandidate(new RTCIceCandidate(peer.iceQueue.shift())).catch(e=>{}); },
+                drainIce(peer) { 
+                    while(peer.iceQueue.length > 0) {
+                        peer.pc.addIceCandidate(new RTCIceCandidate(peer.iceQueue.shift())).catch(e=>{});
+                    }
+                },
 
                 async toggleScreenShare() {
                     if (!this.isScreenSharing) {
                         try {
                             this.screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
                             const sTrack = this.screenStream.getVideoTracks()[0];
-                            this.peers.forEach(p => { const s = p.pc.getSenders().find(s => s.track?.kind === 'video'); if(s) s.replaceTrack(sTrack); });
-                            this.$refs.localVideo.srcObject = this.screenStream; this.isScreenSharing = true;
+                            this.peers.forEach(p => { 
+                                const s = p.pc.getSenders().find(s => s.track?.kind === 'video'); 
+                                if(s) s.replaceTrack(sTrack); 
+                            });
+                            this.$refs.localVideo.srcObject = this.screenStream; 
+                            this.isScreenSharing = true;
                             sTrack.onended = () => this.stopScreenShare();
                         } catch (e) { console.error(e); }
                     } else this.stopScreenShare();
@@ -205,17 +258,52 @@
 
                 stopScreenShare() {
                     const vTrack = this.localStream.getVideoTracks()[0];
-                    this.peers.forEach(p => { const s = p.pc.getSenders().find(s => s.track?.kind === 'video'); if(s) s.replaceTrack(vTrack); });
-                    this.$refs.localVideo.srcObject = this.localStream; this.isScreenSharing = false;
+                    this.peers.forEach(p => { 
+                        const s = p.pc.getSenders().find(s => s.track?.kind === 'video'); 
+                        if(s) s.replaceTrack(vTrack); 
+                    });
+                    this.$refs.localVideo.srcObject = this.localStream; 
+                    this.isScreenSharing = false;
                     if (this.screenStream) this.screenStream.getTracks().forEach(t => t.stop());
                 },
 
-                toggleMic() { this.micEnabled = !this.micEnabled; this.localStream.getAudioTracks()[0].enabled = this.micEnabled; this.broadcastMediaStatus('audio', this.micEnabled); },
-                toggleCam() { this.camEnabled = !this.camEnabled; this.localStream.getVideoTracks()[0].enabled = this.camEnabled; this.broadcastMediaStatus('video', this.camEnabled); },
-                broadcastMediaStatus(type, enabled) { this.peers.forEach(p => this.sendSignal(p.id, { type: 'media-status', mediaType: type, enabled })); },
-                sendSignal(toId, payload) { window.axios.post('/chat/signal', { partnerId: toId, data: { ...payload, from: myId, roomUuid: roomUuid } }); },
-                removePeer(id) { const idx = this.peers.findIndex(p => p.id === id); if (idx !== -1) { this.peers[idx].pc.close(); this.peers.splice(idx, 1); } },
-                copyLink() { navigator.clipboard.writeText(window.location.href); alert("Скопировано!"); }
+                toggleMic() { 
+                    this.micEnabled = !this.micEnabled; 
+                    this.localStream.getAudioTracks()[0].enabled = this.micEnabled; 
+                    this.broadcastMediaStatus('audio', this.micEnabled); 
+                },
+                
+                toggleCam() { 
+                    this.camEnabled = !this.camEnabled; 
+                    this.localStream.getVideoTracks()[0].enabled = this.camEnabled; 
+                    this.broadcastMediaStatus('video', this.camEnabled); 
+                },
+
+                broadcastMediaStatus(type, enabled) { 
+                    this.peers.forEach(p => this.sendSignal(p.id, { type: 'media-status', mediaType: type, enabled })); 
+                },
+
+                sendSignal(toId, payload) { 
+                    window.axios.post('/chat/signal', { 
+                        partnerId: toId, 
+                        data: { ...payload, from: myId, roomUuid: roomUuid } 
+                    }).catch(e => {
+                        console.error("Signal 403 or Error:", e);
+                    }); 
+                },
+
+                removePeer(id) { 
+                    const idx = this.peers.findIndex(p => p.id === id); 
+                    if (idx !== -1) { 
+                        this.peers[idx].pc.close(); 
+                        this.peers.splice(idx, 1); 
+                    } 
+                },
+                
+                copyLink() { 
+                    navigator.clipboard.writeText(window.location.href); 
+                    alert("Ссылка на комнату скопирована!"); 
+                }
             }
         }
     </script>

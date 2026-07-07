@@ -12,17 +12,17 @@ class MatchFoundEvent implements ShouldBroadcastNow
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
     /**
-     * PHP 8.4: Асимметричная видимость (Asymmetric Visibility).
-     * Свойство доступно для чтения отовсюду (public), 
-     * но изменять его можно только внутри класса (private set).
+     * PHP 8.4: Asymmetric Visibility.
      */
     public private(set) int $partnerId;
+    public private(set) bool $isFriend;
     private int $targetUserId;
 
-    public function __construct(int $targetUserId, int $partnerId)
+    public function __construct(int $targetUserId, int $partnerId, bool $isFriend = false)
     {
         $this->targetUserId = $targetUserId;
         $this->partnerId = $partnerId;
+        $this->isFriend = $isFriend;
     }
 
     public function broadcastOn(): array
@@ -32,7 +32,6 @@ class MatchFoundEvent implements ShouldBroadcastNow
         ];
     }
 
-    // Исправлено: методы всегда требуют {} и return
     public function broadcastAs(): string
     {
         return 'MatchFoundEvent';

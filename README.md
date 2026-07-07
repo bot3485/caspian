@@ -1,58 +1,41 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# 🌊 Caspian 2.0 — Next-Gen Video Ecosystem
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Caspian 2.0 — это высокотехнологичная платформа для видеокоммуникаций, построенная на стеке **Laravel 13**, **Pusher/Reverb** и **WebRTC**. Версия 2.0 полностью переосмысливает пользовательский опыт, внедряя премиальный дизайн и элементы геймификации.
 
-## About Laravel
+## 🚀 Технологический стек
+- **Backend:** PHP 8.5 / Laravel 13
+- **Real-time:** Laravel Reverb (WebSockets)
+- **Video:** WebRTC P2P (Mesh network)
+- **Frontend:** Alpine.js / Tailwind CSS 4
+- **Database:** PostgreSQL/MySQL + Redis (для очередей и кэша)
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## 💎 Новое в версии 2.0
+### 🎨 Дизайн и UI/UX
+- **Bento Grid Dashboard:** Полностью переработанная главная страница. Информация сгруппирована в стильные блоки.
+- **Cinema Mode:** В видеочате фокус смещен на собеседника. Элементы управления вынесены в "парящий остров" (Floating Island).
+- **Glassmorphism:** Использование эффектов размытия (backdrop-blur) и прозрачности для создания глубины интерфейса.
+- **Custom Toasts:** Стандартные браузерные алерты заменены на анимированные уведомления.
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+### ⚙️ Стабильность и WebRTC
+- **ICE Restart Logic:** Автоматическое восстановление видеопотока при смене сети (например, переход с Wi-Fi на 4G).
+- **Graceful Skip:** При переключении собеседника ("Далее") отправляется сигнал `peer-skipped`, позволяющий второму участнику мгновенно уйти в поиск без лишних кликов.
+- **Connection Monitoring:** Визуальный оверлей "Восстановление связи" при лагах интернета у партнера.
+- **SDP Sanitization:** Исправлена критическая ошибка `Invalid SDP line` для стабильного соединения между разными браузерами.
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+### 🎮 Геймификация
+- **XP System:** Начисление опыта за каждую минуту общения в активных чатах.
+- **Levels:** Система уровней пользователя (LVL), отображаемая в профиле и дашборде.
+- **Karma:** Рейтинг доверия на основе жалоб и лайков собеседников.
 
-## Learning Laravel
+## 🛠 Функциональные возможности
+1. **Видео-рулетка:** Случайный поиск собеседников 1 на 1 с алгоритмом умного подбора.
+2. **Групповые комнаты:** Приватные и публичные пространства для конференций до 6 человек с динамической сеткой видео.
+3. **P2P Мессенджер:** Текстовый чат внутри звонка, работающий напрямую между браузерами (E2E) или через сервер.
+4. **Список контактов:** Возможность сохранять собеседников и совершать прямые вызовы.
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+## 📦 Установка и настройка
 
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
-
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
-
-## Agentic Development
-
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
-
-```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
-```
-
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
-
-## Contributing
-
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
-
-## Code of Conduct
-
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
-
-## Security Vulnerabilities
-
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
-
-## License
-
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+1. **Клонируйте репозиторий и установите зависимости:**
+   ```bash
+   composer install
+   npm install && npm run build

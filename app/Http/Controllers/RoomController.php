@@ -10,7 +10,7 @@ use Illuminate\View\View;
 class RoomController extends Controller
 {
     /**
-     * Показ списка публичных комнат.
+     * Список публичных пространств.
      */
     public function index(): View
     {
@@ -23,7 +23,7 @@ class RoomController extends Controller
     }
 
     /**
-     * Создание новой комнаты.
+     * Создание комнаты с проверкой лимита.
      */
     public function store(Request $request): JsonResponse
     {
@@ -35,12 +35,17 @@ class RoomController extends Controller
             'is_public' => 'required|boolean',
         ]);
 
-        return DB::transaction(function () use ($validated) {
-            $userId = Auth::id();
+        $userId = Auth::id();
 
-            // Удаляем старые комнаты пользователя для чистоты базы
-            Room::where('creator_id', $userId)->delete();
+        // Проверка лимита: не более 5 активных комнат на пользователя
+        $existingCount = Room::where('creator_id', $userId)->count();
+        if ($existingCount >= 5) {
+            return response()->json([
+                'message' => 'Вы достигли лимита (5 комнат). Удалите старые, чтобы создать новую.'
+            ], 403);
+        }
 
+        return DB::transaction(function () use ($validated, $userId) {
             $room = Room::create([
                 'title' => $validated['title'],
                 'password' => $validated['password'] ?: null, 
@@ -48,7 +53,7 @@ class RoomController extends Controller
                 'creator_id' => $userId,
             ]);
 
-            // Автоматически даем доступ создателю
+            // Сразу даем доступ создателю
             Session::put("room_auth_{$room->uuid}", true);
 
             return response()->json([
@@ -59,34 +64,27 @@ class RoomController extends Controller
     }
 
     /**
-     * Показ комнаты (с проверкой доступа).
+     * Просмотр комнаты.
      */
     public function show(string $uuid): View|RedirectResponse
     {
         $room = Room::where('uuid', $uuid)->firstOrFail();
 
-        // 1. Если комната открытая (нет хеша пароля)
+        // Если пароля нет вообще
         if (empty($room->getRawOriginal('password'))) {
             return view('rooms.show', compact('room'));
         }
 
-        // 2. Если пароль есть, проверяем сессию
-        if (Session::has("room_auth_{$room->uuid}")) {
+        // Если есть пароль, проверяем сессию или авторство
+        if (Session::has("room_auth_{$room->uuid}") || $room->creator_id === Auth::id()) {
             return view('rooms.show', compact('room'));
         }
 
-        // 3. Если создатель заходит в свою комнату
-        if ($room->creator_id === Auth::id()) {
-            Session::put("room_auth_{$room->uuid}", true);
-            return view('rooms.show', compact('room'));
-        }
-
-        // Иначе — на страницу ввода пароля
         return view('rooms.auth', compact('room'));
     }
 
     /**
-     * Обработка попытки входа в защищенную комнату.
+     * Вход по паролю.
      */
     public function join(Request $request, string $uuid): JsonResponse
     {
@@ -98,17 +96,13 @@ class RoomController extends Controller
             return response()->json(['status' => 'access_granted']);
         }
 
-        $request->validate([
-            'password' => 'required|string'
-        ]);
+        $request->validate(['password' => 'required|string']);
 
         if (Hash::check($request->password, $storedHash)) {
             Session::put("room_auth_{$room->uuid}", true);
             return response()->json(['status' => 'access_granted']);
         }
 
-        return response()->json([
-            'message' => 'Неверный пароль. Попробуйте еще раз.'
-        ], 403);
+        return response()->json(['message' => 'Неверный пароль'], 403);
     }
 }

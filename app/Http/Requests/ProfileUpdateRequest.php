@@ -13,7 +13,7 @@ class ProfileUpdateRequest extends FormRequest
         return [
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', Rule::unique(User::class)->ignore($this->user()->id)],
-            // РАЗРЕШАЕМ ПОЛЕ ИНТЕРЕСОВ:
+            // ДОБАВЬ ЭТУ СТРОКУ, если её нет:
             'interests_string' => ['nullable', 'string', 'max:1000'],
         ];
     }

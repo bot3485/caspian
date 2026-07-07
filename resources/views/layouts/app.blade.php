@@ -26,12 +26,11 @@
         <div class="min-h-screen flex flex-col relative">
             @include('layouts.navigation')
 
-            <!-- Page Content -->
             <main class="flex-1">
                 {{ $slot }}
             </main>
 
-            <!-- TOAST NOTIFICATIONS -->
+            <!-- TOASTS -->
             <div class="fixed bottom-24 left-1/2 -translate-x-1/2 z-[200] flex flex-col gap-3 w-full max-w-sm px-4 pointer-events-none">
                 <template x-for="t in toasts" :key="t.id">
                     <div x-transition:enter="transition ease-out duration-300"
@@ -58,6 +57,22 @@
                 </template>
             </div>
         </div>
+
+        <script>
+            // Heartbeat: Пингуем сервер каждые 45 секунд для обновления last_seen
+            @auth
+                setInterval(() => {
+                    fetch('{{ route('ping') }}', {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json'
+                        }
+                    });
+                }, 45000);
+            @endauth
+        </script>
 
         <style>
             [x-cloak] { display: none !important; }

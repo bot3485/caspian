@@ -10,10 +10,11 @@ use Carbon\Carbon;
 class SyncLastSeen extends Command
 {
     protected $signature = 'sync:last-seen';
-    protected $description = 'Оптимизированный перенос меток last_seen из Redis в MySQL';
+    protected $description = 'Перенос меток активности из Redis в базу данных';
 
     public function handle()
     {
+        // Получаем все данные из Redis
         $data = Redis::hgetall('users_last_seen');
 
         if (empty($data)) {
@@ -22,21 +23,20 @@ class SyncLastSeen extends Command
 
         $this->info('Синхронизация ' . count($data) . ' пользователей...');
 
-        $updateData = [];
-        foreach ($data as $userId => $timestamp) {
-            $updateData[] = [
-                'id' => (int)$userId,
-                'last_seen' => Carbon::createFromTimestamp((int)$timestamp)->toDateTimeString(),
-                'name' => DB::raw('name'), // Необходимые поля для upsert, если они не nullable
-                'email' => DB::raw('email'),
-                'password' => DB::raw('password'),
-            ];
+        // Группируем по 100 для массового обновления
+        $chunks = array_chunk($data, 100, true);
+
+        foreach ($chunks as $chunk) {
+            DB::transaction(function () use ($chunk) {
+                foreach ($chunk as $userId => $timestamp) {
+                    User::where('id', (int)$userId)->update([
+                        'last_seen' => Carbon::createFromTimestamp((int)$timestamp)
+                    ]);
+                }
+            });
         }
 
-        // Массовое обновление через UPSERT (эффективнее транзакции с циклом)
-        // Обновит только поле last_seen, если ID совпадает
-        User::upsert($updateData, ['id'], ['last_seen']);
-
+        // Очищаем обработанные ключи
         Redis::del('users_last_seen');
         $this->info('Успешно синхронизировано.');
     }

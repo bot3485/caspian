@@ -93,14 +93,14 @@
                                     </div>
                                 </div>
 
-                                <!-- РАБОЧИЙ БЛОК ИНТЕРЕСОВ -->
+                                <!-- БЛОК ИНТЕРЕСОВ -->
                                 <div>
                                     <x-input-label for="interests" :value="__('Ваши интересы (через запятую)')" class="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2 ml-1" />
                                     
-                                    <input id="interests" name="interests_string" type="text" 
-                                        class="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-indigo-400 font-bold focus:outline-none focus:border-indigo-500 transition-colors" 
-                                        value="{{ $user->interests_as_string }}" 
-                                        placeholder="Например: Laravel, PHP, Video Games" />
+                                        <input id="interests" name="interests_string" type="text" 
+                                            class="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-indigo-400 font-bold focus:outline-none focus:border-indigo-500 transition-colors" 
+                                            value="{{ old('interests_string', $interestsString) }}" 
+                                            placeholder="Например: Laravel, PHP, Video Games" />
                                         
                                     <x-input-error class="mt-2" :messages="$errors->get('interests_string')" />
                                 </div>

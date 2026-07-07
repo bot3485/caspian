@@ -10,7 +10,9 @@ class Matchmaking extends Model
 {
     protected $table = 'matchmaking_queue';
 
-    protected $fillable = ['user_id', 'status', 'partner_id'];
+    public $timestamps = true; 
+
+    protected $fillable = ['user_id', 'status', 'partner_id', 'updated_at'];
 
     // КРИТИЧНО: Добавляем связь, чтобы поиск по времени (last_seen) работал
     public function user(): BelongsTo

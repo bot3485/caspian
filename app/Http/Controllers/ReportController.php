@@ -17,12 +17,13 @@ class ReportController extends Controller
         ]);
 
         $reporterId = Auth::id();
-        $reportedId = $validated['reported_id'];
+        $reportedId = (int)$validated['reported_id'];
 
         if ($reporterId === $reportedId) {
             return response()->json(['error' => 'Self-report'], 400);
         }
 
+        // Проверка: одна жалоба в сутки от одного пользователя на другого
         $alreadyReported = DB::table('reports')
             ->where('reporter_id', $reporterId)
             ->where('reported_id', $reportedId)
@@ -33,26 +34,29 @@ class ReportController extends Controller
             return response()->json(['status' => 'already_reported'], 200);
         }
 
-        DB::table('reports')->insert([
-            'reporter_id' => $reporterId,
-            'reported_id' => $reportedId,
-            'reason' => $validated['reason'],
-            'created_at' => now(),
-        ]);
-
-        $key = "user_reputation:{$reportedId}";
-        $count = Redis::incr($key);
-        Redis::expire($key, 86400); 
-
-        // v1.9: Автоматический бан при 5 жалобах
-        if ($count >= 5) {
-            User::where('id', $reportedId)->update([
-                'banned_until' => Carbon::now()->addHours(2)
+        return DB::transaction(function() use ($reporterId, $reportedId, $validated) {
+            DB::table('reports')->insert([
+                'reporter_id' => $reporterId,
+                'reported_id' => $reportedId,
+                'reason' => $validated['reason'],
+                'created_at' => now(),
             ]);
-            // Очищаем репутацию после бана, чтобы не банить вечно
-            Redis::del($key);
-        }
 
-        return response()->json(['status' => 'success']);
+            $reportedUser = User::find($reportedId);
+            if ($reportedUser) {
+                // Срезаем 20 единиц кармы за каждую жалобу
+                $reportedUser->decrement('karma', 20);
+                
+                // Если карма упала слишком низко — бан
+                if ($reportedUser->karma <= 0) {
+                    $reportedUser->update([
+                        'banned_until' => Carbon::now()->addHours(12),
+                        'karma' => 50 // Сбрасываем до 50 после бана
+                    ]);
+                }
+            }
+
+            return response()->json(['status' => 'success']);
+        });
     }
 }

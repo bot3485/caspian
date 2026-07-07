@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Matchmaking;
+use App\Models\Message;
 use App\Actions\FindPartner;
 use App\Actions\LeaveChat;
 use App\Enums\MatchmakingStatus;
@@ -21,86 +22,34 @@ class ChatController extends Controller
         protected FindPartner $findPartnerAction
     ) {}
 
-    /**
-     * Начало поиска партнера.
-     */
     public function startSearching(Request $request): JsonResponse
     {
         $userId = Auth::id();
-        
-        // 1. Принудительно выходим из старых чатов перед новым поиском
         $this->leaveChatAction->execute($userId);
-
-        // 2. Создаем запись в очереди
-        Matchmaking::create([
-            'user_id' => $userId,
-            'status' => MatchmakingStatus::Searching
-        ]);
-
-        // 3. Запускаем алгоритм подбора (с учетом интересов)
+        Matchmaking::create(['user_id' => $userId, 'status' => MatchmakingStatus::Searching, 'updated_at' => now()]);
         $partnerId = $this->findPartnerAction->execute($userId);
-
-        if ($partnerId) {
-            return response()->json(['status' => 'matched', 'partnerId' => $partnerId]);
-        }
-
-        return response()->json(['status' => 'searching']);
+        return response()->json(['status' => $partnerId ? 'matched' : 'searching', 'partnerId' => $partnerId]);
     }
 
-    /**
-     * Передача WebRTC сигналов между браузерами.
-     */
     public function sendSignal(Request $request): JsonResponse
     {
-        $validated = $request->validate([
-            'partnerId' => 'required|integer',
-            'data' => 'required|array'
-        ]);
-
+        $validated = $request->validate(['partnerId' => 'required|integer', 'data' => 'required|array']);
         $senderId = Auth::id();
         $receiverId = (int)$validated['partnerId'];
         $data = $validated['data'];
         $data['from'] = $senderId;
 
-        // Проверка на бан
-        if (Auth::user()->banned_until && Auth::user()->banned_until->isFuture()) {
-            return response()->json(['error' => 'Account restricted'], 403);
-        }
-
-        // Проверка: разрешено ли этим пользователям общаться?
-        $isAllowed = Redis::exists("allow_signal:{$senderId}:{$receiverId}") || 
-                    Redis::exists("allow_signal:{$receiverId}:{$senderId}");
-
-        if (!$isAllowed) {
-            $isAllowed = Matchmaking::where('user_id', $senderId)->where('partner_id', $receiverId)->exists();
-        }
-
-        if (!$isAllowed) {
-            // ФИКС: Разрешаем сигналы "пропуска" и "выхода" всегда
-            $exitSignals = ['hang-up', 'peer-disconnected', 'peer-skipped'];
-            if (isset($data['type']) && in_array($data['type'], $exitSignals)) {
-                broadcast(new WebRTCSignalEvent($receiverId, $data));
-                return response()->json(['status' => 'exit_signal_sent']);
-            }
-            return response()->json(['error' => 'Unauthorized Signal'], 403);
-        }
-
         broadcast(new WebRTCSignalEvent($receiverId, $data));
         return response()->json(['status' => 'signal_sent']);
     }
 
-    /**
-     * Завершение чата.
-     */
     public function leaveChat(Request $request): JsonResponse
     {
         $this->leaveChatAction->execute(Auth::id());
         return response()->json(['status' => 'left']);
     }
 
-    /**
-     * Работа с контактами (звездочка в чате).
-     */
+    // ТУТ ИСПРАВЛЕННЫЙ TOGGLE КОНТАКТОВ
     public function addContact(Request $request): JsonResponse 
     {
         $request->validate(['contactId' => 'required|integer|exists:users,id']);
@@ -109,12 +58,15 @@ class ChatController extends Controller
 
         if ($userId === $contactId) return response()->json(['error' => 'Self-addition'], 400);
 
-        DB::table('contacts')->updateOrInsert(
-            ['user_id' => $userId, 'contact_id' => $contactId],
-            ['updated_at' => now(), 'created_at' => now()]
-        );
+        $exists = DB::table('contacts')->where('user_id', $userId)->where('contact_id', $contactId)->exists();
 
-        return response()->json(['action' => 'added']);
+        if ($exists) {
+            DB::table('contacts')->where('user_id', $userId)->where('contact_id', $contactId)->delete();
+            return response()->json(['action' => 'removed', 'isFriend' => false]);
+        }
+
+        DB::table('contacts')->insert(['user_id' => $userId, 'contact_id' => $contactId, 'created_at' => now(), 'updated_at' => now()]);
+        return response()->json(['action' => 'added', 'isFriend' => true]);
     }
 
     public function getContacts(): JsonResponse 
@@ -127,14 +79,42 @@ class ChatController extends Controller
         return response()->json(['contacts' => $contacts]);
     }
 
-    /**
-     * Сигнал "Печатает..." для мессенджера (если DataChannel недоступен).
-     */
+    public function callContact(Request $request): JsonResponse
+    {
+        $request->validate(['contactId' => 'required|integer']);
+        $receiverId = (int)$request->contactId;
+        Redis::setex("allow_signal:".Auth::id().":{$receiverId}", 300, 1);
+        
+        broadcast(new WebRTCSignalEvent($receiverId, [
+            'type' => 'incoming-call',
+            'fromName' => Auth::user()->name,
+            'fromId' => Auth::id()
+        ]));
+        return response()->json(['status' => 'calling']);
+    }
+
+    public function getChatHistory(int $contactId): JsonResponse
+    {
+        $userId = Auth::id();
+        $messages = Message::where(function($q) use ($userId, $contactId) {
+                $q->where('sender_id', $userId)->where('receiver_id', $contactId);
+            })->orWhere(function($q) use ($userId, $contactId) {
+                $q->where('sender_id', $contactId)->where('receiver_id', $userId);
+            })->orderBy('created_at', 'asc')->take(50)->get();
+        return response()->json(['messages' => $messages]);
+    }
+
+    public function sendMessage(Request $request): JsonResponse
+    {
+        $validated = $request->validate(['receiver_id' => 'required|integer', 'message' => 'required|string']);
+        $message = Message::create(['sender_id' => Auth::id(), 'receiver_id' => $validated['receiver_id'], 'message' => $validated['message']]);
+        broadcast(new MessageSentEvent($message->toArray()))->toOthers();
+        return response()->json(['status' => 'sent', 'message' => $message]);
+    }
+
     public function sendTypingSignal(Request $request): JsonResponse 
     {
-        $request->validate(['receiver_id' => 'required|integer']);
-        // Вещаем событие печати напрямую получателю
-        broadcast(new \App\Events\UserTypingEvent($request->receiver_id, auth()->id()))->toOthers();
+        broadcast(new \App\Events\UserTypingEvent($request->receiver_id, Auth::id()))->toOthers();
         return response()->json(['status' => 'sent']);
     }
 }

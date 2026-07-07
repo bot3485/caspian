@@ -6,33 +6,48 @@ use Illuminate\Console\Command;
 use App\Models\Matchmaking;
 use App\Models\User;
 use App\Enums\MatchmakingStatus;
+use App\Events\XpGainedEvent;
+use Carbon\Carbon;
 
 class RewardUserXP extends Command
 {
     protected $signature = 'app:reward-xp';
-    protected $description = 'Начисляет XP пользователям в активных чатах';
+    protected $description = 'Начисляет XP только активным пользователям в чате';
 
     public function handle()
     {
-        // Находим всех, кто сейчас находится в состоянии 'matched' (в паре)
+        // 1. Ищем записи 'matched', но только для тех пользователей, 
+        // кто обновлял страницу (last_seen) не более 2 минут назад.
         $activeUserIds = Matchmaking::where('status', MatchmakingStatus::Matched)
+            ->whereHas('user', function($query) {
+                $query->where('last_seen', '>=', Carbon::now()->subMinutes(2));
+            })
             ->pluck('user_id');
 
-        if ($activeUserIds->isEmpty()) return;
+        if ($activeUserIds->isEmpty()) {
+            return;
+        }
 
         foreach ($activeUserIds as $userId) {
             $user = User::find($userId);
             if (!$user) continue;
 
-            // Начисляем 10 XP за каждую минуту общения
+            // Начисляем данные
             $user->increment('xp', 10);
+            $user->increment('total_minutes', 1);
 
-            // Проверка на повышение уровня (каждые 1000 XP)
+            if ($user->karma < 200) {
+                $user->increment('karma', 1);
+            }
+
+            // Проверка уровня
             $newLevel = floor($user->xp / 1000) + 1;
             if ($newLevel > $user->level) {
                 $user->update(['level' => $newLevel]);
-                // Здесь в будущем можно отправлять уведомление о новом уровне
             }
+
+            // Оповещаем фронтенд
+            broadcast(new XpGainedEvent($user->id, 10, $user->xp, $user->level));
         }
     }
 }

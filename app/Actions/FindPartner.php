@@ -4,6 +4,7 @@ namespace App\Actions;
 
 use App\Events\MatchFoundEvent;
 use App\Models\Matchmaking;
+use App\Models\User;
 use App\Enums\MatchmakingStatus;
 use Illuminate\Support\Facades\Redis;
 use Illuminate\Support\Facades\DB;
@@ -15,10 +16,13 @@ class FindPartner
 
     public function execute(int $userId): ?int
     {
+        $user = User::find($userId);
+        if (!$user) return null;
+
+        $myInterests = is_array($user->interests) ? $user->interests : [];
         $reputation = (int) Redis::get("user_reputation:{$userId}") ?: 0;
         $myQueue = ($reputation >= 3) ? $this->queueLow : $this->queueHigh;
 
-        // v1.9: Получаем ID последнего партнера
         $lastPartnerId = (int) Redis::get("user_last_partner:{$userId}");
 
         $partnerId = null;
@@ -28,24 +32,34 @@ class FindPartner
             $tempPartnerId = (int)$tempPartnerId;
             
             if ($tempPartnerId === $userId) continue;
-
-            // v1.9: Пропускаем, если это тот же человек, что был только что
             if ($tempPartnerId === $lastPartnerId) {
                 $skipped[] = $tempPartnerId;
                 continue;
             }
+
+            // Проверяем, существует ли партнер в БД
+            $partner = User::find($tempPartnerId);
+            if (!$partner) continue;
 
             $isSearching = Matchmaking::where('user_id', $tempPartnerId)
                 ->where('status', MatchmakingStatus::Searching)
                 ->exists();
 
             if ($isSearching) {
+                // Умный подбор: если у нас есть интересы, ищем совпадение
+                $partnerInterests = is_array($partner->interests) ? $partner->interests : [];
+                $common = array_intersect($myInterests, $partnerInterests);
+
+                if (!empty($myInterests) && empty($common) && count($skipped) < 5) {
+                    $skipped[] = $tempPartnerId;
+                    continue;
+                }
+
                 $partnerId = $tempPartnerId;
                 break;
             }
         }
 
-        // Возвращаем пропущенных обратно в очередь
         foreach ($skipped as $sid) {
             Redis::rpush($myQueue, $sid);
         }
@@ -67,10 +81,7 @@ class FindPartner
 
             Redis::setex("allow_signal:{$userId}:{$partnerId}", 60, 1);
             Redis::setex("allow_signal:{$partnerId}:{$userId}", 60, 1);
-            
-            // v1.9: Запоминаем последнего партнера на 5 минут
             Redis::setex("user_last_partner:{$userId}", 300, $partnerId);
-            Redis::setex("user_last_partner:{$partnerId}", 300, $userId);
         });
 
         $isPartnerFriendOfUser = DB::table('contacts')->where('user_id', $userId)->where('contact_id', $partnerId)->exists();
@@ -86,7 +97,6 @@ class FindPartner
     {
         $this->removeFromQueue($userId);
         Redis::rpush($queue, $userId);
-        Redis::expire($queue, 3600);
     }
 
     public function removeFromQueue(int $userId): void

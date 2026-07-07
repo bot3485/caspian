@@ -2,134 +2,138 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Room;
-use Illuminate\Http\{Request, JsonResponse, RedirectResponse};
-use Illuminate\Support\Facades\{Auth, Hash, Session, DB};
-use Illuminate\View\View;
+use App\Models\Matchmaking;
+use App\Actions\FindPartner;
+use App\Actions\LeaveChat;
+use App\Enums\MatchmakingStatus;
+use App\Events\WebRTCSignalEvent;
+use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Redis;
+use Illuminate\Support\Facades\DB;
 
-class RoomController extends Controller
+class ChatController extends Controller
 {
-    /**
-     * Показ списка публичных комнат.
-     */
-    public function index(): View
-    {
-        $rooms = Room::where('is_public', true)
-            ->with('creator') // Жадная загрузка создателя
-            ->withCount(['creator as participants_count']) // Можно расширить для подсчета реальных людей через Redis
-            ->latest()
-            ->get();
+    public function __construct(
+        protected LeaveChat $leaveChatAction,
+        protected FindPartner $findPartnerAction
+    ) {}
 
-        return view('rooms.index', compact('rooms'));
+    public function startSearching(Request $request): JsonResponse
+    {
+        $userId = Auth::id();
+        // Принудительно очищаем старые сессии перед новым поиском
+        $this->leaveChatAction->execute($userId);
+
+        Matchmaking::create([
+            'user_id' => $userId,
+            'status' => MatchmakingStatus::Searching
+        ]);
+
+        $partnerId = $this->findPartnerAction->execute($userId);
+
+        if ($partnerId) {
+            return response()->json(['status' => 'matched', 'partnerId' => $partnerId]);
+        }
+
+        return response()->json(['status' => 'searching']);
     }
 
-    /**
-     * Создание новой комнаты.
-     * Оптимизация: атомарная транзакция и очистка старых комнат пользователя.
-     */
-    public function store(Request $request): JsonResponse
+    public function sendSignal(Request $request): JsonResponse
     {
-        $request->merge(['is_public' => $request->boolean('is_public')]);
-        
         $validated = $request->validate([
-            'title' => 'required|string|max:50|min:3',
-            'password' => 'nullable|string|min:4',
-            'is_public' => 'required|boolean',
+            'partnerId' => 'required|integer',
+            'data' => 'required|array'
         ]);
 
-        return DB::transaction(function () use ($validated) {
-            $userId = Auth::id();
+        $senderId = Auth::id();
+        $receiverId = (int)$validated['partnerId'];
+        $data = $validated['data'];
+        $data['from'] = $senderId;
 
-            // 1. Удаляем все комнаты, которые этот пользователь создал ранее (дисциплина базы)
-            Room::where('creator_id', $userId)->delete();
+        // Проверка на бан
+        if (Auth::user()->banned_until && Auth::user()->banned_until->isFuture()) {
+            return response()->json(['error' => 'Account restricted'], 403);
+        }
 
-            // 2. Создаем новую комнату
-            // Пароль хешируется автоматически через casts в модели Room
-            $room = Room::create([
-                'title' => $validated['title'],
-                'password' => $validated['password'] ?: null, 
-                'is_public' => $validated['is_public'],
-                'creator_id' => $userId,
-            ]);
+        // Проверка прав на отправку сигнала
+        $isAllowed = Redis::exists("allow_signal:{$senderId}:{$receiverId}") || 
+                    Redis::exists("allow_signal:{$receiverId}:{$senderId}");
 
-            // 3. Автоматически даем создателю доступ к своей комнате
-            Session::put("room_auth_{$room->uuid}", true);
+        if (!$isAllowed) {
+            $isAllowed = Matchmaking::where('user_id', $senderId)->where('partner_id', $receiverId)->exists();
+        }
 
-            return response()->json([
-                'status' => 'success', 
-                'redirect' => route('rooms.show', $room->uuid)
-            ]);
-        });
+        if (!$isAllowed) {
+            // ВАЖНО: Разрешаем сигналы разрыва связи и пропуска в любом случае
+            $disconnectTypes = ['hang-up', 'peer-disconnected', 'peer-skipped'];
+            if (isset($data['type']) && in_array($data['type'], $disconnectTypes)) {
+                broadcast(new WebRTCSignalEvent($receiverId, $data));
+                return response()->json(['status' => 'exit_signal_sent']);
+            }
+            return response()->json(['error' => 'Unauthorized Signal'], 403);
+        }
+
+        broadcast(new WebRTCSignalEvent($receiverId, $data));
+        return response()->json(['status' => 'signal_sent']);
     }
 
-    /**
-     * Показ комнаты. Проверяет наличие пароля и авторизацию в сессии.
-     */
-    public function show(string $uuid): View|RedirectResponse
+    public function leaveChat(Request $request): JsonResponse
     {
-        $room = Room::where('uuid', $uuid)->firstOrFail();
-
-        // Если пароля нет (публичная комната)
-        if (empty($room->getRawOriginal('password'))) {
-            return view('rooms.show', compact('room'));
-        }
-
-        // Если пароль есть, проверяем, вводил ли его пользователь ранее
-        if (Session::has("room_auth_{$room->uuid}")) {
-            return view('rooms.show', compact('room'));
-        }
-
-        // Если создатель комнаты заходит в неё — пускаем без пароля (на случай сброса сессии)
-        if ($room->creator_id === Auth::id()) {
-            Session::put("room_auth_{$room->uuid}", true);
-            return view('rooms.show', compact('room'));
-        }
-
-        // Иначе — на страницу ввода пароля
-        return view('rooms.auth', compact('room'));
+        $this->leaveChatAction->execute(Auth::id());
+        return response()->json(['status' => 'left']);
     }
 
-    /**
-     * Обработка попытки входа в защищенную комнату.
-     */
-    public function join(Request $request, string $uuid): JsonResponse
-    {
-        $room = Room::where('uuid', $uuid)->firstOrFail();
-        $storedHash = $room->getRawOriginal('password');
-
-        // 1. Если комната открытая
-        if (empty($storedHash)) {
-            Session::put("room_auth_{$room->uuid}", true);
-            return response()->json(['status' => 'access_granted']);
-        }
-
-        // 2. Валидация ввода
-        $request->validate([
-            'password' => 'required|string'
-        ]);
-
-        // 3. Проверка пароля
-        if (Hash::check($request->password, $storedHash)) {
-            Session::put("room_auth_{$room->uuid}", true);
-            return response()->json(['status' => 'access_granted']);
-        }
-
-        return response()->json([
-            'message' => 'Неверный пароль. Попробуйте еще раз.'
-        ], 403);
+    public function getContacts(): JsonResponse 
+    { 
+        $contacts = DB::table('contacts')
+            ->where('contacts.user_id', Auth::id())
+            ->join('users', 'users.id', '=', 'contacts.contact_id')
+            ->select('users.id', 'users.name', 'users.last_seen')
+            ->get();
+        return response()->json(['contacts' => $contacts]);
     }
 
-    /**
-     * Удаление комнаты (принудительное закрытие создателем).
-     */
-    public function destroy(string $uuid): RedirectResponse
+    public function addContact(Request $request): JsonResponse 
     {
-        $room = Room::where('uuid', $uuid)
-            ->where('creator_id', Auth::id())
-            ->firstOrFail();
+        $request->validate(['contactId' => 'required|integer|exists:users,id']);
+        $contactId = (int)$request->contactId;
+        $userId = Auth::id();
 
-        $room->delete();
+        if ($userId === $contactId) return response()->json(['error' => 'Self-addition'], 400);
 
-        return redirect()->route('rooms.index')->with('status', 'Комната успешно закрыта');
+        DB::table('contacts')->updateOrInsert(
+            ['user_id' => $userId, 'contact_id' => $contactId],
+            ['updated_at' => now(), 'created_at' => now()]
+        );
+
+        return response()->json(['action' => 'added']);
+    }
+
+    public function callContact(Request $request): JsonResponse 
+    {
+        $request->validate(['contactId' => 'required|integer|exists:users,id']);
+        $contactId = (int)$request->contactId;
+        $user = Auth::user();
+
+        Redis::setex("allow_signal:{$user->id}:{$contactId}", 300, 1);
+        Redis::setex("allow_signal:{$contactId}:{$user->id}", 300, 1);
+
+        broadcast(new WebRTCSignalEvent($contactId, [
+            'type' => 'incoming-direct-call', 
+            'callerId' => $user->id, 
+            'callerName' => $user->name, 
+            'from' => $user->id
+        ]));
+        
+        return response()->json(['status' => 'calling']);
+    }
+
+    public function sendTypingSignal(Request $request): JsonResponse 
+    {
+        $request->validate(['receiver_id' => 'required|integer']);
+        broadcast(new \App\Events\UserTypingEvent($request->receiver_id, auth()->id()))->toOthers();
+        return response()->json(['status' => 'sent']);
     }
 }

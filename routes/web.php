@@ -7,54 +7,66 @@ use App\Http\Controllers\ReportController;
 use App\Http\Controllers\BrowserLogController;
 use Illuminate\Support\Facades\Route;
 
+// --- ПУБЛИЧНЫЕ РОУТЫ ---
 Route::get('/', function () {
     return view('welcome');
 });
+
 Route::post('_boost/browser-logs', [BrowserLogController::class, 'store']);
 
-Route::get('/dashboard', function () {
-    return view('dashboard');
-})->middleware(['auth', 'verified'])->name('dashboard');
-
+// --- РОУТЫ С АВТОРИЗАЦИЕЙ ---
 Route::middleware('auth')->group(function () {
-    Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
-    Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
-    Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
-});
 
-// Video Chat Roulette & WebRTC Signals
-Route::middleware('auth')->group(function () {
-    Route::get('/chat', function () {
-        return view('chat');
-    })->name('chat');
+    // Дашборд (требует подтвержденный Email)
+    Route::get('/dashboard', function () {
+        return view('dashboard');
+    })->middleware('verified')->name('dashboard');
+
+    // Лидерборд (Hall of Fame)
+    Route::get('/leaderboard', function () {
+        return view('leaderboard');
+    })->name('leaderboard');
+
+    // Управление профилем
+    Route::controller(ProfileController::class)->group(function () {
+        Route::get('/profile', 'edit')->name('profile.edit');
+        Route::patch('/profile', 'update')->name('profile.update');
+        Route::delete('/profile', 'destroy')->name('profile.destroy');
+    });
+
+    // Жалобы (Система Кармы)
     Route::post('/report', [ReportController::class, 'store'])->name('report.store');
 
-    Route::post('/chat/search', [ChatController::class, 'startSearching']);
-    Route::post('/chat/leave', [ChatController::class, 'leaveChat']);
-    Route::post('/chat/signal', [ChatController::class, 'sendSignal']);
-    Route::get('/chat/signal', function () {
-    return redirect()->route('chat'); // Если зашли GET-ом, просто кидаем в чат
-    });
-    
-    // Contact List Management Endpoints
-    Route::post('/chat/contact/check', [ChatController::class, 'checkContact']);
-    Route::post('/chat/contact/toggle', [ChatController::class, 'toggleContact']);
+    // --- ВИДЕОРУЛЕТКА И СИГНАЛИНГ ---
+    Route::prefix('chat')->group(function () {
+        Route::get('/', function () { return view('chat'); })->name('chat');
+        
+        Route::post('/search', [ChatController::class, 'startSearching']);
+        Route::post('/leave', [ChatController::class, 'leaveChat']);
+        
+        // WebRTC Сигналы
+        Route::post('/signal', [ChatController::class, 'sendSignal']);
+        Route::get('/signal', function () { return redirect()->route('chat'); });
 
-    Route::get('/chat/contacts', [ChatController::class, 'getContacts']);
-    Route::post('/chat/contact/add', [ChatController::class, 'addContact']);
-    Route::get('/chat/history/{contactId}', [ChatController::class, 'getChatHistory']);
-    Route::post('/chat/message/send', [ChatController::class, 'sendMessage']);
-    Route::post('/chat/message/typing', [ChatController::class, 'sendTypingSignal']);
-    Route::post('/chat/contact/call', [ChatController::class, 'callContact']);
-
-    //room
-    Route::controller(RoomController::class)->group(function () {
-        Route::get('/rooms', 'index')->name('rooms.index');
-        Route::post('/rooms', 'store')->name('rooms.store');
-        Route::get('/rooms/{uuid}', 'show')->name('rooms.show');
-        Route::post('/rooms/{uuid}/join', 'join')->name('rooms.join');
+        // Контакты и Мессенджер
+        Route::get('/contacts', [ChatController::class, 'getContacts']);
+        Route::post('/contact/add', [ChatController::class, 'addContact']);
+        Route::post('/contact/toggle', [ChatController::class, 'toggleContact']);
+        Route::post('/contact/call', [ChatController::class, 'callContact']);
+        
+        Route::get('/history/{contactId}', [ChatController::class, 'getChatHistory']);
+        Route::post('/message/send', [ChatController::class, 'sendMessage']);
+        Route::post('/message/typing', [ChatController::class, 'sendTypingSignal']);
     });
-    
+
+    // --- ГРУППОВЫЕ КОМНАТЫ (SPACES) ---
+    Route::controller(RoomController::class)->prefix('rooms')->name('rooms.')->group(function () {
+        Route::get('/', 'index')->name('index');
+        Route::post('/', 'store')->name('store');
+        Route::get('/{uuid}', 'show')->name('show');
+        Route::post('/{uuid}/join', 'join')->name('join');
+    });
+
 });
 
 require __DIR__.'/auth.php';

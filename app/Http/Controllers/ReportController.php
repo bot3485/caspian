@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\{Auth, DB, Redis};
+use App\Models\User;
+use Carbon\Carbon;
 
 class ReportController extends Controller
 {
@@ -21,7 +23,6 @@ class ReportController extends Controller
             return response()->json(['error' => 'Self-report'], 400);
         }
 
-        // Защита от спама: проверяем, был ли репорт сегодня
         $alreadyReported = DB::table('reports')
             ->where('reporter_id', $reporterId)
             ->where('reported_id', $reportedId)
@@ -40,8 +41,17 @@ class ReportController extends Controller
         ]);
 
         $key = "user_reputation:{$reportedId}";
-        Redis::incr($key);
+        $count = Redis::incr($key);
         Redis::expire($key, 86400); 
+
+        // v1.9: Автоматический бан при 5 жалобах
+        if ($count >= 5) {
+            User::where('id', $reportedId)->update([
+                'banned_until' => Carbon::now()->addHours(2)
+            ]);
+            // Очищаем репутацию после бана, чтобы не банить вечно
+            Redis::del($key);
+        }
 
         return response()->json(['status' => 'success']);
     }

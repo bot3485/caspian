@@ -10,6 +10,26 @@
                 <p class="text-gray-500 font-medium">Рады видеть тебя снова. Выбери способ общения на сегодня.</p>
             </div>
 
+           
+            <div class="mb-10 flex gap-4 overflow-x-auto pb-4 scrollbar-hide" x-data="{ onlineCount: 0 }" 
+                x-init="window.Echo.join('online-status').here(u => onlineCount = u.length).joining(u => onlineCount++).leaving(u => onlineCount--)">
+                
+                <div class="bg-white px-6 py-4 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-3 min-w-[200px]">
+                    <div class="w-3 h-3 bg-green-500 rounded-full animate-ping"></div>
+                    <div>
+                        <div class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Сейчас в сети</div>
+                        <div class="text-xl font-black text-gray-800" x-text="onlineCount + ' чел.'">0 чел.</div>
+                    </div>
+                </div>
+
+                <div class="bg-white px-6 py-4 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-3 min-w-[200px]">
+                    <div class="text-xl">🔥</div>
+                    <div>
+                        <div class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Твой статус</div>
+                        <div class="text-sm font-bold text-indigo-600">Активен</div>
+                    </div>
+                </div>
+            </div>
             <!-- Сетка основных разделов -->
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 

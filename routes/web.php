@@ -41,6 +41,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/chat/contact/toggle', [ChatController::class, 'toggleContact']);
 
     Route::get('/chat/contacts', [ChatController::class, 'getContacts']);
+    Route::post('/chat/contact/add', [ChatController::class, 'addContact']);
     Route::get('/chat/history/{contactId}', [ChatController::class, 'getChatHistory']);
     Route::post('/chat/message/send', [ChatController::class, 'sendMessage']);
     Route::post('/chat/message/typing', [ChatController::class, 'sendTypingSignal']);

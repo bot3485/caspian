@@ -30,7 +30,9 @@
                 await window.axios.post("{{ route('rooms.join', $room->uuid) }}", { password });
                 window.location.reload(); // Просто перезагружаем, теперь сессия есть и контроллер пустит
             } catch (err) {
-                alert("Ошибка: " + (err.response?.data?.message || "Неверный пароль"));
+                window.dispatchEvent(new CustomEvent('toast', { 
+                    detail: { msg: err.response?.data?.message || 'Неверный пароль', type: 'error' } 
+                }));
             }
         }
     </script>

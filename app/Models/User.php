@@ -13,7 +13,9 @@ use Illuminate\Database\Eloquent\Attributes\{Fillable, Hidden, Casts};
     'email_verified_at' => 'datetime', 
     'password' => 'hashed', 
     'last_seen' => 'datetime',
-    'banned_until' => 'datetime' // Добавлено
+    'banned_until' => 'datetime',
+    'xp' => 'integer', 
+    'level' => 'integer'
 ])]
 class User extends Authenticatable
 {
@@ -33,5 +35,21 @@ class User extends Authenticatable
     public string $email {
         get => $this->attributes['email'] ?? '';
         set => $this->attributes['email'] = strtolower(trim($value));
+    }
+
+    public function getXpProgressAttribute(): int
+    {
+        // Процент опыта до следующего уровня (кратный 1000)
+        return $this->xp % 1000 / 10; 
+    }
+
+    public function getNextLevelXpAttribute(): int
+    {
+        return 1000;
+    }
+
+    public function getCurrentLevelXpAttribute(): int
+    {
+        return $this->xp % 1000;
     }
 }

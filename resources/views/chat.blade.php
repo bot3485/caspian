@@ -11,43 +11,56 @@
 
         <div class="relative h-full flex flex-col lg:flex-row">
             
-            <!-- ЗОНА ВИДЕО -->
-            <div class="flex-1 relative bg-black overflow-hidden">
-                <video x-ref="remoteVideo" autoplay playsinline 
-                       class="w-full h-full object-cover transition-all duration-1000" 
-                       :class="isBlurred ? 'blur-[80px] scale-110 opacity-30' : 'opacity-100'"></video>
-                
-                <div x-show="isReconnecting" class="absolute inset-0 z-50 bg-black/60 backdrop-blur-md flex flex-col items-center justify-center">
-                    <div class="w-16 h-16 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-                    <p class="text-indigo-400 font-black uppercase text-[10px] tracking-[0.3em]">Восстановление связи...</p>
-                </div>
-
-                <!-- СОСТОЯНИЯ -->
-                <div x-show="!isInCall" class="absolute inset-0 flex flex-col items-center justify-center bg-[#050505] z-20">
-                    <template x-if="state === 'searching'">
-                        <div class="flex flex-col items-center">
-                            <div class="w-32 h-32 border-2 border-indigo-500/10 rounded-full animate-ping mb-10 flex items-center justify-center text-4xl">📡</div>
-                            <h3 class="text-white font-black uppercase text-[11px] tracking-[0.5em] animate-pulse">Установка соединения...</h3>
-                        </div>
-                    </template>
-                    <template x-if="state === 'idle'">
-                        <div class="text-center opacity-40">
-                            <span class="text-6xl block mb-6">🌊</span>
-                            <span class="font-black uppercase text-xs tracking-[0.3em]">Caspian Roulette</span>
-                        </div>
-                    </template>
-                </div>
-
-                <!-- Кнопка размытия -->
-                <div x-show="isInCall && isBlurred" class="absolute inset-0 z-30 flex items-center justify-center bg-black/40 backdrop-blur-md">
-                    <button @click="isBlurred = false" class="bg-indigo-600 text-white px-12 py-5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-2xl hover:scale-105 transition-all">Открыть камеру</button>
-                </div>
-
-                <!-- PIP (Ваше видео) -->
-                <div x-show="showSelfVideo" class="absolute bottom-10 left-10 w-48 md:w-64 aspect-video bg-[#111] rounded-3xl overflow-hidden shadow-2xl border border-white/10 z-40 transition-all">
-                    <video x-ref="localVideo" autoplay muted playsinline class="w-full h-full object-cover scale-x-[-1]"></video>
+        <!-- ЗОНА ВИДЕО -->
+        <div class="flex-1 relative bg-black overflow-hidden">
+            <!-- Само видео -->
+            <video x-ref="remoteVideo" autoplay playsinline 
+                class="w-full h-full object-cover transition-all duration-1000" 
+                :class="isBlurred ? 'blur-[100px] scale-110 opacity-40' : 'opacity-100'"></video>
+            
+            <!-- КНОПКА РАЗБЛОКИРОВКИ (Появляется когда партнер найден) -->
+            <div x-show="isBlurred && (state === 'connected' || isInCall)" 
+                class="absolute inset-0 z-[60] flex items-center justify-center bg-black/20 backdrop-blur-sm transition-all"
+                x-transition>
+                <div class="text-center p-10 bg-[#050505]/80 backdrop-blur-2xl rounded-[3rem] border border-white/10 shadow-2xl">
+                    <div class="w-20 h-20 bg-indigo-600/20 rounded-3xl flex items-center justify-center mx-auto mb-6 border border-indigo-500/30">
+                        <span class="text-3xl">🛡️</span>
+                    </div>
+                    <h3 class="text-white font-black uppercase text-[10px] tracking-[0.3em] mb-8">Безопасный просмотр</h3>
+                    <button @click="isBlurred = false" 
+                            class="bg-white text-black px-12 py-5 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-2xl hover:bg-indigo-600 hover:text-white transition-all active:scale-95">
+                        Открыть камеру
+                    </button>
                 </div>
             </div>
+
+            <!-- Оверлей восстановления связи -->
+            <div x-show="isReconnecting" class="absolute inset-0 z-[70] bg-black/60 backdrop-blur-md flex flex-col items-center justify-center">
+                <div class="w-16 h-16 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+                <p class="text-indigo-400 font-black uppercase text-[10px] tracking-[0.3em]">Восстановление...</p>
+            </div>
+
+            <!-- Состояния поиска (оставь как было) -->
+            <div x-show="!isInCall && state !== 'connected'" class="absolute inset-0 flex flex-col items-center justify-center bg-[#050505] z-20">
+                <template x-if="state === 'searching'">
+                    <div class="flex flex-col items-center">
+                        <div class="w-32 h-32 border-2 border-indigo-500/10 rounded-full animate-ping mb-10 flex items-center justify-center text-4xl">📡</div>
+                        <h3 class="text-white font-black uppercase text-[11px] tracking-[0.5em] animate-pulse">Поиск...</h3>
+                    </div>
+                </template>
+                <template x-if="state === 'idle'">
+                    <div class="text-center opacity-40">
+                        <span class="text-6xl block mb-6">🌊</span>
+                        <span class="font-black uppercase text-xs tracking-[0.3em]">Caspian Roulette</span>
+                    </div>
+                </template>
+            </div>
+
+            <!-- PIP (Ваше видео) -->
+            <div x-show="showSelfVideo" class="absolute bottom-10 left-10 w-48 md:w-64 aspect-video bg-[#111] rounded-3xl overflow-hidden shadow-2xl border border-white/10 z-[80] transition-all">
+                <video x-ref="localVideo" autoplay muted playsinline class="w-full h-full object-cover scale-x-[-1]"></video>
+            </div>
+        </div>
 
             <!-- ПРАВАЯ ПАНЕЛЬ -->
             <div class="w-full lg:w-[400px] flex flex-col bg-[#080808] border-l border-white/5 relative z-10" x-data="{ tab: 'chat' }">
@@ -57,16 +70,6 @@
                 </div>
                 
                 <div x-show="tab === 'chat'" class="flex-1 flex flex-col overflow-hidden">
-                    <!-- Заголовок с индикатором печати -->
-                    <div class="px-8 py-4 border-b border-white/5 bg-[#0a0a0a]/50 flex justify-between items-center h-12">
-                        <span class="text-[9px] font-black text-gray-500 uppercase tracking-widest">Сообщения</span>
-                        <div x-show="isPartnerTyping" class="flex gap-1 items-center" x-cloak>
-                            <span class="text-[9px] font-black text-indigo-500 uppercase tracking-widest mr-1">Печатает</span>
-                            <div class="w-1 h-1 bg-indigo-500 rounded-full animate-bounce"></div>
-                            <div class="w-1 h-1 bg-indigo-500 rounded-full animate-bounce [animation-delay:0.2s]"></div>
-                        </div>
-                    </div>
-
                     <div class="flex-1 overflow-y-auto p-8 space-y-4 scrollbar-hide" x-ref="chatBox">
                         <template x-for="msg in messages">
                             <div :class="msg.isMe ? 'items-end' : 'items-start'" class="flex flex-col">
@@ -78,21 +81,31 @@
 
                     <div class="p-6 border-t border-white/5 bg-[#0a0a0a]">
                         <div class="flex gap-3 bg-black/40 p-2.5 rounded-2xl border border-white/10 focus-within:border-indigo-500/50 transition-all">
-                            <input type="text" x-model="chatInput" 
-                                   @input="sendTyping()" 
-                                   @keyup.enter="sendMsg()" 
-                                   placeholder="Написать..." class="flex-1 bg-transparent border-none text-sm focus:ring-0 px-4 text-white">
+                            <input type="text" x-model="chatInput" @keyup.enter="sendMsg()" placeholder="Написать..." class="flex-1 bg-transparent border-none text-sm focus:ring-0 px-4 text-white">
                             <button @click="sendMsg()" class="bg-white text-black w-12 h-12 rounded-xl flex items-center justify-center hover:bg-indigo-500 hover:text-white transition-all shadow-lg">➔</button>
                         </div>
                     </div>
                 </div>
 
+                <!-- ОБНОВЛЕННАЯ ВКЛАДКА ДРУЗЕЙ -->
                 <div x-show="tab === 'friends'" class="flex-1 overflow-y-auto p-6 space-y-3 scrollbar-hide">
+                    <!-- Добавь инициализацию списка онлайна, если её нет в x-data chat.blade.php -->
                     <template x-for="friend in friendsList" :key="friend.id">
                         <div class="p-4 bg-white/[0.02] border border-white/5 rounded-2xl flex items-center justify-between group hover:border-indigo-500/30 transition-all">
                             <div class="flex items-center gap-3">
-                                <div class="w-10 h-10 bg-indigo-600/20 text-indigo-400 rounded-xl flex items-center justify-center font-black" x-text="friend.name[0]"></div>
-                                <span class="text-xs font-bold" x-text="friend.name"></span>
+                                <div class="relative">
+                                    <div class="w-10 h-10 bg-indigo-600/20 text-indigo-400 rounded-xl flex items-center justify-center font-black" x-text="friend.name[0]"></div>
+                                    
+                                    <!-- Проверка через Echo (onlineList) -->
+                                    <div class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 border-2 border-[#080808] rounded-full" 
+                                        :class="onlineList.some(u => u.id === friend.id) ? 'bg-green-500' : 'bg-gray-700'"></div>
+                                </div>
+                                <div>
+                                    <div class="text-xs font-bold text-white" x-text="friend.name"></div>
+                                    <div class="text-[8px] font-black uppercase tracking-widest" 
+                                        :class="onlineList.some(u => u.id === friend.id) ? 'text-green-500' : 'text-gray-500'"
+                                        x-text="onlineList.some(u => u.id === friend.id) ? 'В сети' : friend.last_seen_human"></div>
+                                </div>
                             </div>
                             <button @click="callFriend(friend.id)" class="w-10 h-10 bg-indigo-500 text-white rounded-xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all">📞</button>
                         </div>
@@ -100,22 +113,19 @@
                 </div>
             </div>
 
-            <!-- УПРАВЛЕНИЕ -->
+            <!-- УПРАВЛЕНИЕ (ОСТАЛОСЬ ПРЕЖНИМ) -->
             <div class="absolute bottom-10 left-1/2 -translate-x-1/2 lg:left-[calc(50%-200px)] z-[100] flex items-center gap-3 px-6 py-4 bg-[#121212]/90 backdrop-blur-3xl border border-white/10 rounded-3xl shadow-2xl">
-                <button @click="toggleMic()" :class="micEnabled ? 'bg-white/5' : 'bg-red-600'" class="w-12 h-12 rounded-xl flex items-center justify-center text-lg transition-all active:scale-90">
+                <button @click="toggleMic()" :class="micEnabled ? 'bg-white/5' : 'bg-red-600'" class="w-12 h-12 rounded-xl flex items-center justify-center text-lg transition-all">
                     <span x-text="micEnabled ? '🎤' : '🔇'"></span>
                 </button>
-                <button @click="toggleCam()" :class="camEnabled ? 'bg-white/5' : 'bg-red-600'" class="w-12 h-12 rounded-xl flex items-center justify-center text-lg transition-all active:scale-90">
-                    <span x-text="camEnabled ? '📷' : '🚫'"></span>
-                </button>
-                <button @click="showSelfVideo = !showSelfVideo" class="w-12 h-12 rounded-xl flex items-center justify-center text-lg transition-all" :class="showSelfVideo ? 'bg-white/5' : 'bg-indigo-600'">
-                    <span x-text="showSelfVideo ? '🖼️' : '👤'"></span>
+                <button @click="isBlurred = !isBlurred" :class="isBlurred ? 'bg-indigo-600' : 'bg-white/5'" class="w-12 h-12 rounded-xl flex items-center justify-center text-lg transition-all active:scale-90">
+                    <span x-text="isBlurred ? '🙈' : '👁️'"></span>
                 </button>
 
                 <div class="w-px h-8 bg-white/10 mx-2"></div>
 
                 <template x-if="state === 'idle'">
-                    <button @click="startSearch()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-10 py-4 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-xl transition-all active:scale-95">Начать поиск</button>
+                    <button @click="startSearch()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-10 py-4 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-xl transition-all">Начать поиск</button>
                 </template>
                 
                 <template x-if="state === 'searching'">
@@ -125,11 +135,9 @@
                 <template x-if="state === 'connected'">
                     <div class="flex gap-2">
                         <button @click="report()" class="w-12 h-12 bg-red-600/10 text-red-500 rounded-xl flex items-center justify-center hover:bg-red-600 hover:text-white transition-all">🚩</button>
-                        
                         <button @click="addContact()" :class="isFriend ? 'text-green-500 bg-green-500/10 border-green-500/20' : 'text-gray-400 bg-white/5 border-white/10'" class="w-12 h-12 rounded-xl border flex items-center justify-center transition-all">
                             <span x-text="isFriend ? '✅' : '⭐'"></span>
                         </button>
-
                         <button @click="stopSearch()" class="bg-red-600/20 text-red-500 px-6 py-4 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-red-600 hover:text-white transition-all">Стоп</button>
                         <button @click="startSearch()" class="bg-white text-black px-10 py-4 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-600 hover:text-white transition-all active:scale-95">Следующий ➔</button>
                     </div>
@@ -167,6 +175,10 @@
                 soundsUnlocked: false,
 
                 async init() {
+                    window.Echo.join('online-status')
+                        .here(u => this.onlineList = u)
+                        .joining(u => this.onlineList.push(u))
+                        .leaving(u => this.onlineList = this.onlineList.filter(x => x.id !== u.id));
                     window.Echo.private(`user.${myId}`)
                         .listen('.MatchFoundEvent', (e) => this.handleMatch(e))
                         .listen('.WebRTCSignalEvent', (e) => this.handleSignal(e));

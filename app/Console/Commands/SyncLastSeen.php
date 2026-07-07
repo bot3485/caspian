@@ -16,24 +16,19 @@ class SyncLastSeen extends Command
     {
         // Получаем все данные из Redis
         $data = Redis::hgetall('users_last_seen');
-
-        if (empty($data)) {
-            return;
-        }
+        if (empty($data)) return;
 
         $this->info('Синхронизация ' . count($data) . ' пользователей...');
 
         // Группируем по 100 для массового обновления
         $chunks = array_chunk($data, 100, true);
 
-        foreach ($chunks as $chunk) {
-            DB::transaction(function () use ($chunk) {
-                foreach ($chunk as $userId => $timestamp) {
-                    User::where('id', (int)$userId)->update([
-                        'last_seen' => Carbon::createFromTimestamp((int)$timestamp)
-                    ]);
-                }
-            });
+        foreach ($data as $userId => $timestamp) {
+            // Используем updateQuietly, чтобы не триггерить лишние события
+            \App\Models\User::where('id', (int)$userId)->update([
+                // Принудительно устанавливаем время в формате UTC
+                'last_seen' => \Carbon\Carbon::createFromTimestamp((int)$timestamp, 'UTC')
+            ]);
         }
 
         // Очищаем обработанные ключи

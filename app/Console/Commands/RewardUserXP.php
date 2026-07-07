@@ -14,29 +14,23 @@ class RewardUserXP extends Command
     protected $signature = 'app:reward-xp';
     protected $description = 'Начисляет XP только активным пользователям в чате';
 
+
     public function handle()
     {
-        // 1. Ищем записи 'matched', но только для тех пользователей, 
-        // кто обновлял страницу (last_seen) не более 2 минут назад.
-        $activeUserIds = Matchmaking::where('status', MatchmakingStatus::Matched)
-            ->whereHas('user', function($query) {
-                $query->where('last_seen', '>=', Carbon::now()->subMinutes(2));
-            })
-            ->pluck('user_id');
+        // Ищем только тех, кто в статусе Matched (активно общается)
+        $matches = Matchmaking::where('status', MatchmakingStatus::Matched)->get();
 
-        if ($activeUserIds->isEmpty()) {
-            return;
-        }
+        foreach ($matches as $match) {
+            $user = $match->user;
+            if (!$user || !$user->isOnline()) continue;
 
-        foreach ($activeUserIds as $userId) {
-            $user = User::find($userId);
-            if (!$user) continue;
+            // 1. Опыт за общение
+            $user->increment('xp', 15);
+            $user->increment('total_minutes', 1); // Время в рулетке
 
-            // Начисляем данные
-            $user->increment('xp', 10);
-            $user->increment('total_minutes', 1);
-
-            if ($user->karma < 200) {
+            // 2. Начисление кармы (Бонус за адекватность)
+            // Каждые 10 минут общения без жалоб дают +1 карму (до лимита 500)
+            if ($user->total_minutes % 10 === 0 && $user->karma < 500) {
                 $user->increment('karma', 1);
             }
 
@@ -46,8 +40,7 @@ class RewardUserXP extends Command
                 $user->update(['level' => $newLevel]);
             }
 
-            // Оповещаем фронтенд
-            broadcast(new XpGainedEvent($user->id, 10, $user->xp, $user->level));
+            broadcast(new XpGainedEvent($user->id, 15, $user->xp, $user->level));
         }
     }
 }

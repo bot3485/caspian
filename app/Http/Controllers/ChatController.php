@@ -71,11 +71,22 @@ class ChatController extends Controller
 
     public function getContacts(): JsonResponse 
     { 
-        $contacts = DB::table('contacts')
-            ->where('contacts.user_id', Auth::id())
-            ->join('users', 'users.id', '=', 'contacts.contact_id')
-            ->select('users.id', 'users.name', 'users.last_seen')
-            ->get();
+        $contacts = \App\Models\User::whereIn('id', function($query) {
+                $query->select('contact_id')
+                    ->from('contacts')
+                    ->where('user_id', Auth::id());
+            })
+            ->select('id', 'name', 'last_seen')
+            ->get()
+            ->map(function($user) {
+                return [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'is_online' => $user->isOnline(),
+                    'last_seen_human' => $user->getLastSeenForHumans(),
+                ];
+            });
+            
         return response()->json(['contacts' => $contacts]);
     }
 

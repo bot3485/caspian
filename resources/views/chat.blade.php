@@ -250,10 +250,14 @@ window.videoChatApp = function(myId) {
                     const cand = new RTCIceCandidate(msg.candidate);
                     if (this.pc && this.pc.remoteDescription && this.pc.remoteDescription.type) await this.pc.addIceCandidate(cand).catch(()=>{});
                     else this.iceQueue.push(cand);
-                } else if (msg.type === 'text') { 
-                    this.messages.push({isMe:false, text: msg.text}); 
-                    this.msgSound.play().catch(()=>{}); this.scrollChat(); 
-                }
+                    } else if (msg.type === 'text') { 
+                        this.messages.push({isMe:false, text: msg.text}); 
+                        
+                        // Вызываем глобальное событие звука
+                        window.dispatchEvent(new CustomEvent('play-msg-sound')); 
+                        
+                        this.scrollChat(); 
+                    }
             } catch(e) { console.error("RTC Error:", e); }
         },
 

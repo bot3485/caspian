@@ -45,22 +45,25 @@ function globalCallHandler() {
     return {
         incomingCall: null,
         ringtone: new Audio('/sounds/call.mp3'),
+        msgSound: new Audio('/sounds/message.mp3'), // Добавили сюда
         audioUnlocked: false,
 
         initGlobal() {
             this.ringtone.loop = true;
-            this.ringtone.load(); // Предзагрузка файла
+            
+            // Слушаем событие для проигрывания звука сообщения из любого места
+            window.addEventListener('play-msg-sound', () => {
+                this.playMsgSound();
+            });
 
             @auth
             window.Echo.private('user.{{ auth()->id() }}')
                 .listen('.WebRTCSignalEvent', (e) => {
                     const data = e.data;
-                    
                     if (data.type === 'incoming-call') {
                         this.incomingCall = data;
                         this.playRingtone();
                     }
-
                     if (['hang-up', 'peer-disconnected', 'peer-skipped'].includes(data.type)) {
                         if (this.incomingCall && Number(data.from) === Number(this.incomingCall.fromId)) {
                             this.stopRingtone();
@@ -71,48 +74,47 @@ function globalCallHandler() {
             @endauth
         },
 
-        // Вызывается ОДИН раз при первом клике пользователя по сайту
         async unlockAudio() {
             if (this.audioUnlocked) return;
 
-            // Хитрый ход для iOS: 
-            // Мы запускаем мелодию В МУТЕ и ТУТ ЖЕ выключаем.
-            // Это дает объекту ringtone "легальное" право играть в будущем.
-            this.ringtone.muted = true;
-            try {
-                await this.ringtone.play();
-                this.ringtone.pause();
-                this.ringtone.currentTime = 0;
-                this.ringtone.muted = false; // Снимаем мут для будущих звонков
-                
-                this.audioUnlocked = true;
-                console.log("Ringtone primed for iOS");
-
-                // Если звонок УЖЕ пришел к моменту клика — запускаем его
-                if (this.incomingCall) {
-                    this.playRingtone();
+            // Разблокируем оба звука сразу
+            const sounds = [this.ringtone, this.msgSound];
+            
+            for (let sound of sounds) {
+                sound.muted = true;
+                try {
+                    await sound.play();
+                    sound.pause();
+                    sound.currentTime = 0;
+                    sound.muted = false;
+                } catch (e) {
+                    console.error("Priming failed", e);
                 }
-            } catch (err) {
-                console.error("Audio priming failed:", err);
             }
+
+            this.audioUnlocked = true;
+            console.log("All iOS sounds primed");
+
+            if (this.incomingCall) this.playRingtone();
         },
 
         playRingtone() {
-            // Если звонок есть и мы уже разблокировали аудио
             if (this.incomingCall && this.audioUnlocked) {
                 this.ringtone.currentTime = 0;
-                this.ringtone.muted = false;
-                this.ringtone.play().catch(e => {
-                    console.warn("Play failed even after unlock:", e);
-                });
+                this.ringtone.play().catch(()=>{});
+            }
+        },
+
+        playMsgSound() {
+            if (this.audioUnlocked) {
+                this.msgSound.currentTime = 0;
+                this.msgSound.play().catch(()=>{});
             }
         },
 
         stopRingtone() {
-            if (this.ringtone) {
-                this.ringtone.pause();
-                this.ringtone.currentTime = 0;
-            }
+            this.ringtone.pause();
+            this.ringtone.currentTime = 0;
         },
 
         acceptCall() {

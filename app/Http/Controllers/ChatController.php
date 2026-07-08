@@ -148,4 +148,39 @@ class ChatController extends Controller
         broadcast(new \App\Events\UserTypingEvent($request->receiver_id, Auth::id()))->toOthers();
         return response()->json(['status' => 'sent']);
     }
+
+    public function getInteractionHistory(): JsonResponse 
+    {
+        $userId = Auth::id();
+        
+        // Получаем историю, исключая тех, кто в ЧС
+        $history = DB::table('interactions')
+            ->join('users', 'interactions.partner_id', '=', 'users.id')
+            ->where('interactions.user_id', $userId)
+            ->whereNotExists(function($query) use ($userId) {
+                $query->select(DB::raw(1))
+                    ->from('blocks')
+                    ->where('blocker_id', $userId)
+                    ->whereColumn('blocked_id', 'interactions.partner_id');
+            })
+            ->select('users.id', 'users.name', 'users.last_seen', 'interactions.last_at')
+            ->orderByDesc('interactions.last_at')
+            ->get()
+            ->map(function($user) {
+                $u = \App\Models\User::find($user->id);
+                return [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'is_online' => $u->isOnline(),
+                    'last_seen_human' => $u->getLastSeenForHumans(),
+                    'last_met_diff' => \Carbon\Carbon::parse($user->last_at)->diffForHumans(),
+                    'last_at' => $user->last_at
+                ];
+            })
+            // Сортировка: сначала Онлайн, потом по времени встречи
+            ->sortByDesc(fn($u) => $u['is_online'] . $u['last_at'])
+            ->values();
+
+        return response()->json(['history' => $history]);
+    }
 }

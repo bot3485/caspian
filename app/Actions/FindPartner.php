@@ -15,11 +15,10 @@ class FindPartner
     private string $queueLow  = 'matchmaking_low';
 
     /**
-     * Основная логика поиска партнера с расширенной информацией.
+     * Основная логика поиска партнера с учетом блокировок и записи истории.
      */
     public function execute(int $userId): ?int
     {
-        // 1. Принудительно удаляем себя из очередей перед началом нового поиска
         $this->removeFromQueue($userId);
 
         $user = User::find($userId);
@@ -29,7 +28,6 @@ class FindPartner
 
         $myInterests = is_array($user->interests) ? $user->interests : [];
         $myQueue = ($user->karma < 50) ? $this->queueLow : $this->queueHigh;
-        $lastPartnerId = (int) Redis::get("user_last_partner:{$userId}");
         
         $partnerId = null;
         $skipped = [];
@@ -38,12 +36,21 @@ class FindPartner
             $tempPartnerId = (int)$tempPartnerId;
             
             if ($tempPartnerId === $userId) continue;
-            if ($tempPartnerId === $lastPartnerId) {
-                $skipped[] = $tempPartnerId;
-                continue;
+
+            // ПРОВЕРКА ЧЕРНОГО СПИСКА (В обе стороны)
+            $isBlocked = DB::table('blocks')
+                ->where(function($q) use ($userId, $tempPartnerId) {
+                    $q->where('blocker_id', $userId)->where('blocked_id', $tempPartnerId);
+                })
+                ->orWhere(function($q) use ($userId, $tempPartnerId) {
+                    $q->where('blocker_id', $tempPartnerId)->where('blocked_id', $userId);
+                })->exists();
+
+            if ($isBlocked) {
+                continue; 
             }
 
-            // Проверка активности партнера в БД (обновление в последние 20 секунд)
+            // Проверка активности партнера в БД
             $matchEntry = Matchmaking::where('user_id', $tempPartnerId)
                 ->where('status', MatchmakingStatus::Searching)
                 ->where('updated_at', '>=', now()->subSeconds(20))
@@ -56,7 +63,6 @@ class FindPartner
                 $partnerInterests = is_array($partner->interests) ? $partner->interests : [];
                 $common = array_intersect($myInterests, $partnerInterests);
 
-                // Если есть свои интересы, но нет общих с партнером — пропускаем (но не более 5 раз)
                 if (!empty($myInterests) && !empty($partnerInterests) && empty($common) && count($skipped) < 5) {
                     $skipped[] = $tempPartnerId;
                     continue;
@@ -67,7 +73,6 @@ class FindPartner
             }
         }
 
-        // Возвращаем пропущенных в очередь
         foreach ($skipped as $sid) {
             Redis::rpush($myQueue, $sid);
         }
@@ -78,30 +83,11 @@ class FindPartner
             return null;
         }
 
-        // Данные партнера для меня
         $partner = User::find($partnerId);
         $commonWithPartner = array_values(array_intersect($myInterests, (array)$partner->interests));
         
-        $partnerDataForMe = [
-            'id' => $partner->id,
-            'name' => $partner->name,
-            'level' => $partner->level,
-            'rank_name' => $partner->rank_name, // Предполагается наличие атрибута в модели User
-            'karma' => $partner->karma,
-            'common_interests' => $commonWithPartner,
-        ];
-
-        // Мои данные для партнера
-        $myDataForPartner = [
-            'id' => $user->id,
-            'name' => $user->name,
-            'level' => $user->level,
-            'rank_name' => $user->rank_name,
-            'karma' => $user->karma,
-            'common_interests' => $commonWithPartner,
-        ];
-
         DB::transaction(function () use ($userId, $partnerId) {
+            // 1. Обновляем статусы поиска
             Matchmaking::where('user_id', $userId)->update([
                 'status' => MatchmakingStatus::Matched, 
                 'partner_id' => $partnerId, 
@@ -113,23 +99,39 @@ class FindPartner
                 'updated_at' => now()
             ]);
 
-            Redis::setex("allow_signal:{$userId}:{$partnerId}", 60, 1);
-            Redis::setex("allow_signal:{$partnerId}:{$userId}", 60, 1);
-            Redis::setex("user_last_partner:{$userId}", 300, $partnerId);
+            // 2. ЗАПИСЫВАЕМ В ИСТОРИЮ ВСТРЕЧ (Interactions)
+            DB::table('interactions')->updateOrInsert(
+                ['user_id' => $userId, 'partner_id' => $partnerId],
+                ['last_at' => now()]
+            );
+            DB::table('interactions')->updateOrInsert(
+                ['user_id' => $partnerId, 'partner_id' => $userId],
+                ['last_at' => now()]
+            );
+
+            // 3. Права на сигналы (1 час)
+            Redis::setex("allow_signal:{$userId}:{$partnerId}", 3600, 1);
+            Redis::setex("allow_signal:{$partnerId}:{$userId}", 3600, 1);
         });
 
-        // Отправляем события с полным набором данных
-        broadcast(new MatchFoundEvent(
-            $userId, 
-            $partnerDataForMe, 
-            DB::table('contacts')->where('user_id', $userId)->where('contact_id', $partnerId)->exists()
-        ));
+        // Отправляем события
+        broadcast(new MatchFoundEvent($userId, [
+            'id' => $partner->id,
+            'name' => $partner->name,
+            'level' => $partner->level,
+            'rank_name' => $partner->rank_name,
+            'karma' => $partner->karma,
+            'common_interests' => $commonWithPartner,
+        ], DB::table('contacts')->where('user_id', $userId)->where('contact_id', $partnerId)->exists()));
         
-        broadcast(new MatchFoundEvent(
-            $partnerId, 
-            $myDataForPartner, 
-            DB::table('contacts')->where('user_id', $partnerId)->where('contact_id', $userId)->exists()
-        ));
+        broadcast(new MatchFoundEvent($partnerId, [
+            'id' => $user->id,
+            'name' => $user->name,
+            'level' => $user->level,
+            'rank_name' => $user->rank_name,
+            'karma' => $user->karma,
+            'common_interests' => $commonWithPartner,
+        ], DB::table('contacts')->where('user_id', $partnerId)->where('contact_id', $userId)->exists()));
 
         return $partnerId;
     }

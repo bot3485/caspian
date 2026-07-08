@@ -7,12 +7,11 @@
     <title>ChatRoulette</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
-<body class="bg-[#050505] text-white font-sans antialiased selection:bg-indigo-500/30" 
+<body class="bg-[#050505] text-white font-sans antialiased" 
       x-data="globalCallHandler()" 
       x-init="initGlobal()"
       @click="unlockAudio()" 
-      @mousemove.once="unlockAudio()" 
-      @keydown.once="unlockAudio()">
+      @touchstart.once="unlockAudio()">
 
     <div class="min-h-screen flex flex-col relative">
         @include('layouts.navigation')
@@ -44,26 +43,36 @@
 function globalCallHandler() {
     return {
         incomingCall: null,
+        callTimestamp: 0,
         ringtone: new Audio('/sounds/call.mp3'),
-        msgSound: new Audio('/sounds/message.mp3'), // Добавили сюда
+        msgSound: new Audio('/sounds/message.mp3'),
         audioUnlocked: false,
+        soundEnabled: true, // По умолчанию включено
+        isIOS: /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream,
 
         initGlobal() {
             this.ringtone.loop = true;
             
-            // Слушаем событие для проигрывания звука сообщения из любого места
-            window.addEventListener('play-msg-sound', () => {
-                this.playMsgSound();
-            });
+            // Если устройство — iPhone, подготавливаемся к возможным проблемам
+            if (this.isIOS) {
+                console.log("iOS detected: applying advanced audio constraints");
+            }
+
+            window.addEventListener('play-msg-sound', () => this.playMsgSound());
 
             @auth
             window.Echo.private('user.{{ auth()->id() }}')
                 .listen('.WebRTCSignalEvent', (e) => {
                     const data = e.data;
+                    
+                    // Обработка входящего звонка
                     if (data.type === 'incoming-call') {
                         this.incomingCall = data;
+                        this.callTimestamp = Date.now();
                         this.playRingtone();
                     }
+
+                    // Остановка при сбросе
                     if (['hang-up', 'peer-disconnected', 'peer-skipped'].includes(data.type)) {
                         if (this.incomingCall && Number(data.from) === Number(this.incomingCall.fromId)) {
                             this.stopRingtone();
@@ -77,39 +86,54 @@ function globalCallHandler() {
         async unlockAudio() {
             if (this.audioUnlocked) return;
 
-            // Разблокируем оба звука сразу
+            // 1. Пытаемся "прокачать" аудио коротким воспроизведением
             const sounds = [this.ringtone, this.msgSound];
-            
             for (let sound of sounds) {
-                sound.muted = true;
                 try {
+                    sound.muted = true;
                     await sound.play();
                     sound.pause();
                     sound.currentTime = 0;
                     sound.muted = false;
                 } catch (e) {
-                    console.error("Priming failed", e);
+                    console.warn("Audio fail on this device:", e);
+                    // Если даже при клике браузер ругается, отключаем звуки совсем
+                    this.soundEnabled = false;
                 }
             }
 
             this.audioUnlocked = true;
-            console.log("All iOS sounds primed");
+            console.log("Audio system unlocked");
 
-            if (this.incomingCall) this.playRingtone();
+            // ИСПРАВЛЕНИЕ: Проверяем, не "протух" ли звонок (если пришел более 15 сек назад)
+            // Это уберет срабатывание мелодии при случайном нажатии на кнопки
+            if (this.incomingCall && (Date.now() - this.callTimestamp < 15000)) {
+                this.playRingtone();
+            } else {
+                this.stopRingtone();
+                this.incomingCall = null;
+            }
         },
 
         playRingtone() {
-            if (this.incomingCall && this.audioUnlocked) {
-                this.ringtone.currentTime = 0;
-                this.ringtone.play().catch(()=>{});
-            }
+            if (!this.soundEnabled) return;
+
+            // На iOS Chrome/Safari звонок не заиграет, пока нет клика.
+            // Но мы вызываем его здесь, чтобы он заиграл СРАЗУ, если аудио уже разблокировано.
+            this.ringtone.play().catch(e => {
+                // Если ошибка - значит аудио еще заблокировано, это нормально для первого раза
+                console.log("Waiting for user interaction to play ringtone...");
+            });
         },
 
         playMsgSound() {
-            if (this.audioUnlocked) {
-                this.msgSound.currentTime = 0;
-                this.msgSound.play().catch(()=>{});
-            }
+            if (!this.soundEnabled || !this.audioUnlocked) return;
+
+            // Сбрасываем и играем
+            this.msgSound.currentTime = 0;
+            this.msgSound.play().catch(e => {
+                console.warn("Message sound blocked by system");
+            });
         },
 
         stopRingtone() {

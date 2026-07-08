@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Route;
 
 // --- ПУБЛИЧНЫЕ РОУТЫ ---
 Route::get('/', function () { return view('welcome'); });
+Route::get('/chat/history-all', [ChatController::class, 'getInteractionHistory']);
 Route::post('_boost/browser-logs', [BrowserLogController::class, 'store']);
 
 // --- РОУТЫ С АВТОРИЗАЦИЕЙ ---

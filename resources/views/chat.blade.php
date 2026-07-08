@@ -193,268 +193,284 @@
     </div>
 
     <script>
-        window.rtcConfig = { iceServers: @json(config('webrtc.ice_servers')), iceCandidatePoolSize: 10 };
+window.rtcConfig = { 
+    iceServers: @json(config('webrtc.ice_servers')), 
+    iceCandidatePoolSize: 10,
+    iceTransportPolicy: 'all', 
+    bundlePolicy: "max-bundle",
+    rtcpMuxPolicy: "require"
+};
 
-        window.videoChatApp = function(myId) {
-            return {
-                state: 'idle', isInCall: false, partnerId: null, partnerData: null, isFriend: false,
-                pc: null, dc: null, localStream: null, iceQueue: [], onlineList: [],
-                micEnabled: true, camEnabled: true, isBlurred: false, isReconnecting: false,
-                showSelfVideo: true, incomingCall: null, friendsList: [],
-                messages: [], chatInput: '', connectionTimeout: null,
-                isPartnerTyping: false, typingTimeout: null, lastTypingSent: 0,
-                msgSound: new Audio('/sounds/message.mp3'),
-                ringtone: new Audio('/sounds/call.mp3'), 
-                soundsUnlocked: false,
+window.videoChatApp = function(myId) {
+    return {
+        state: 'idle', isInCall: false, partnerId: null, partnerData: null, isFriend: false,
+        pc: null, dc: null, localStream: null, iceQueue: [], onlineList: [],
+        micEnabled: true, camEnabled: true, isBlurred: false, isReconnecting: false,
+        showSelfVideo: true, incomingCall: null, friendsList: [],
+        messages: [], chatInput: '', connectionTimeout: null,
+        isPartnerTyping: false, typingTimeout: null, lastTypingSent: 0,
+        msgSound: new Audio('/sounds/message.mp3'),
+        ringtone: new Audio('/sounds/call.mp3'), 
+        soundsUnlocked: false,
 
-                async init() {
-                    window.Echo.join('online-status')
-                        .here(u => this.onlineList = u)
-                        .joining(u => this.onlineList.push(u))
-                        .leaving(u => this.onlineList = this.onlineList.filter(x => x.id !== u.id));
-                    
-                    window.Echo.private(`user.${myId}`)
-                        .listen('.MatchFoundEvent', (e) => this.handleMatch(e))
-                        .listen('.WebRTCSignalEvent', (e) => this.handleSignal(e));
-                    
-                    await this.initMedia();
-                    this.loadFriends();
-                },
+        async init() {
+            // Экспортируем компонент для отладки в консоли (теперь chatComponent будет доступен)
+            window.chatComponent = this;
 
-                async loadFriends() {
-                    try {
-                        const res = await window.axios.get('/chat/contacts');
-                        this.friendsList = res.data.contacts;
-                    } catch(e) {}
-                },
+            window.Echo.join('online-status')
+                .here(u => this.onlineList = u)
+                .joining(u => this.onlineList.push(u))
+                .leaving(u => this.onlineList = this.onlineList.filter(x => x.id !== u.id));
+            
+            window.Echo.private(`user.${myId}`)
+                .listen('.MatchFoundEvent', (e) => this.handleMatch(e))
+                .listen('.WebRTCSignalEvent', (e) => this.handleSignal(e));
+            
+            await this.initMedia();
+            this.loadFriends();
+            console.log("Caspian App Initialized");
+        },
 
-                async handleMatch(e) {
-                    if (this.state !== 'searching' && !this.incomingCall) return;
-                    
-                    // Сохраняем расширенные данные о партнере из события
-                    this.partnerId = Number(e.partnerData.id);
-                    this.partnerData = e.partnerData;
-                    this.isFriend = !!e.isFriend;
-                    
-                    this.state = 'connected';
-                    this.isBlurred = true;
-                    this.initPC();
-                    
-                    // Тот, у кого ID больше, инициирует Offer
-                    if (myId > this.partnerId) setTimeout(() => this.sendOffer(), 1000);
+        async loadFriends() {
+            try {
+                const res = await window.axios.get('/chat/contacts');
+                this.friendsList = res.data.contacts;
+            } catch(e) {}
+        },
 
-                    if (this.connectionTimeout) clearTimeout(this.connectionTimeout);
-                    this.connectionTimeout = setTimeout(() => {
-                        if (!this.isInCall && this.state === 'connected') {
-                            window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'Собеседник не ответил', type: 'info' } }));
-                            this.startSearch();
-                        }
-                    }, 20000);
-                },
-
-                async handleSignal(e) {
-                    const msg = e.data;
-                    if (msg.type === 'incoming-call') { 
-                        this.incomingCall = msg; 
-                        this.playRingtone();
-                        return; 
-                    }
-                    
-                    if ((msg.type === 'offer' || msg.type === 'answer') && this.state === 'searching') {
-                        this.partnerId = Number(msg.from);
-                        this.state = 'connected';
-                        this.isBlurred = true;
-                    }
-
-                    if (Number(msg.from) !== this.partnerId) return;
-
-                    if (['peer-skipped', 'peer-disconnected', 'hang-up'].includes(msg.type)) {
-                        this.reset();
-                        if (msg.type === 'peer-skipped') this.startSearch();
-                        return;
-                    }
-
-                    if (msg.type === 'typing') this.showTypingIndicator();
-
-                    try {
-                        if (msg.type === 'offer') {
-                            this.initPC();
-                            await this.pc.setRemoteDescription(new RTCSessionDescription({type:'offer', sdp: this.sanitizeSdp(msg.sdp.sdp)}));
-                            const ans = await this.pc.createAnswer();
-                            await this.pc.setLocalDescription(ans);
-                            this.signal({type:'answer', sdp: ans});
-                            this.drainIce();
-                        } else if (msg.type === 'answer') {
-                            await this.pc.setRemoteDescription(new RTCSessionDescription({type:'answer', sdp: this.sanitizeSdp(msg.sdp.sdp)}));
-                            this.drainIce();
-                        } else if (msg.type === 'ice') {
-                            const cand = new RTCIceCandidate(msg.candidate);
-                            if (this.pc && this.pc.remoteDescription) await this.pc.addIceCandidate(cand).catch(()=>{});
-                            else this.iceQueue.push(cand);
-                        } else if (msg.type === 'text') {
-                            this.messages.push({isMe:false, text: msg.text});
-                            this.playMsgSound();
-                            this.scrollChat();
-                        }
-                    } catch(e) { console.error("WebRTC Signal Error:", e); }
-                },
-
-                initPC() {
-                    if (this.pc) return;
-                    this.pc = new RTCPeerConnection(window.rtcConfig);
-                    this.pc.oniceconnectionstatechange = () => {
-                        this.isReconnecting = (this.pc.iceConnectionState === 'disconnected');
-                        if (this.pc.iceConnectionState === 'failed') this.reset();
-                    };
-                    this.pc.onicecandidate = (e) => { if(e.candidate) this.signal({type:'ice', candidate: e.candidate}); };
-                    this.pc.ontrack = (e) => { 
-                        if (this.$refs.remoteVideo) this.$refs.remoteVideo.srcObject = e.streams[0]; 
-                        this.isInCall = true; 
-                    };
-                    if (this.localStream) this.localStream.getTracks().forEach(t => this.pc.addTrack(t, this.localStream));
-                    this.dc = this.pc.createDataChannel("chat");
-                    this.setupDC(this.dc);
-                    this.pc.ondatachannel = (e) => this.setupDC(e.channel);
-                },
-
-                setupDC(channel) {
-                    channel.onmessage = (e) => {
-                        const d = JSON.parse(e.data);
-                        if (d.type === 'text') { 
-                            this.messages.push({isMe:false, text: d.text}); 
-                            this.scrollChat(); 
-                            this.playMsgSound(); 
-                        }
-                        if (d.type === 'typing') this.showTypingIndicator();
-                    };
-                },
-
-                sendTyping() {
-                    if (Date.now() - this.lastTypingSent < 2000) return;
-                    this.lastTypingSent = Date.now();
-                    if (this.dc && this.dc.readyState === 'open') this.dc.send(JSON.stringify({type:'typing'}));
-                    else this.signal({type:'typing'});
-                },
-
-                showTypingIndicator() {
-                    this.isPartnerTyping = true;
-                    if (this.typingTimeout) clearTimeout(this.typingTimeout);
-                    this.typingTimeout = setTimeout(() => this.isPartnerTyping = false, 3000);
-                },
-
-                async sendOffer() {
-                    this.initPC();
-                    const offer = await this.pc.createOffer();
-                    await this.pc.setLocalDescription(offer);
-                    this.signal({type:'offer', sdp: offer});
-                },
-
-                sendMsg() {
-                    if (!this.chatInput.trim()) return;
-                    const txt = this.chatInput;
-                    this.messages.push({isMe:true, text: txt});
-                    if (this.dc && this.dc.readyState === 'open') this.dc.send(JSON.stringify({type:'text', text: txt}));
-                    else this.signal({type:'text', text: txt});
-                    this.chatInput = '';
-                    this.scrollChat();
-                },
-
-                async startSearch() {
-                    if (this.partnerId) this.signal({type:'peer-skipped'});
-                    this.reset();
-                    this.state = 'searching';
-                    await window.axios.post('/chat/search');
-                },
-
-                stopSearch() {
-                    if (this.partnerId) this.signal({type:'hang-up'});
-                    this.reset();
-                    window.axios.post('/chat/leave');
-                    this.state = 'idle';
-                },
-
-                signal(data) {
-                    if (!this.partnerId) return;
-                    window.axios.post('/chat/signal', { partnerId: this.partnerId, data: data }).catch(()=>{});
-                },
-
-                reset() {
-                    if (this.pc) { this.pc.close(); this.pc = null; }
-                    this.stopRingtone();
-                    this.partnerId = null;
-                    this.partnerData = null;
-                    this.isInCall = false; 
-                    this.state = 'idle';
-                    this.messages = []; 
-                    this.isBlurred = false; 
-                    this.iceQueue = [];
-                    this.isPartnerTyping = false;
-                    if (this.$refs.remoteVideo) this.$refs.remoteVideo.srcObject = null;
-                    if (this.connectionTimeout) clearTimeout(this.connectionTimeout);
-                },
-
-                drainIce() { while(this.iceQueue.length > 0) this.pc.addIceCandidate(new RTCIceCandidate(this.iceQueue.shift())).catch(()=>{}); },
-                
-                async initMedia() {
-                    try {
-                        this.localStream = await navigator.mediaDevices.getUserMedia({video:true, audio:true});
-                        this.$refs.localVideo.srcObject = this.localStream;
-                    } catch(e) {
-                        window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'Камера или микрофон недоступны', type: 'error' } }));
-                    }
-                },
-
-                toggleMic() { this.micEnabled = !this.micEnabled; if(this.localStream) this.localStream.getAudioTracks()[0].enabled = this.micEnabled; },
-                sanitizeSdp(s) { return s.split('\n').map(l => l.trim()).filter(l => l.length > 0).join('\r\n') + '\r\n'; },
-                
-                scrollChat() { 
-                    this.$nextTick(() => { 
-                        const box = this.$refs.chatBox;
-                        if(box) box.scrollTop = box.scrollHeight;
-                    }); 
-                },
-                
-                async callFriend(friendId) {
-                    this.stopRingtone();
-                    this.partnerId = Number(friendId);
-                    this.state = 'searching';
-                    await window.axios.post('/chat/contact/call', { contactId: friendId });
-                },
-
-                async acceptCall() {
-                    this.stopRingtone();
-                    this.partnerId = Number(this.incomingCall.fromId);
-                    this.incomingCall = null;
-                    this.state = 'connected';
-                    this.isBlurred = true;
-                    this.initPC();
-                    this.sendOffer();
-                },
-
-                rejectCall() { this.stopRingtone(); this.incomingCall = null; },
-
-                unlockSounds() { 
-                    this.soundsUnlocked = true; 
-                    this.msgSound.play().then(() => { this.msgSound.pause(); }).catch(() => {});
-                    this.ringtone.play().then(() => { this.ringtone.pause(); }).catch(() => {});
-                },
-                playMsgSound() { if(this.soundsUnlocked) this.msgSound.play().catch(()=>{}); },
-                playRingtone() { 
-                    if(this.soundsUnlocked) {
-                        this.ringtone.loop = true;
-                        this.ringtone.play().catch(()=>{}); 
-                    }
-                },
-                stopRingtone() { this.ringtone.pause(); this.ringtone.currentTime = 0; },
-                
-                async report() { if(confirm('Пожаловаться на пользователя?')) { await window.axios.post('/report', {reported_id:this.partnerId, reason:'abuse'}); this.startSearch(); } },
-                async addContact() { 
-                    const res = await window.axios.post('/chat/contact/add', {contactId:this.partnerId}); 
-                    this.isFriend = res.data.isFriend;
-                    this.loadFriends();
-                }
+        async handleMatch(e) {
+            if (this.state !== 'searching' && !this.incomingCall) return;
+            
+            this.partnerId = Number(e.partnerData.id);
+            this.partnerData = e.partnerData;
+            this.isFriend = !!e.isFriend;
+            this.state = 'connected';
+            this.isBlurred = true;
+            
+            this.initPC();
+            
+            if (myId > this.partnerId) {
+                setTimeout(() => this.sendOffer(), 1000);
             }
-        };
+
+            if (this.connectionTimeout) clearTimeout(this.connectionTimeout);
+            this.connectionTimeout = setTimeout(() => {
+                if (!this.isInCall && this.state === 'connected') {
+                    window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'Партнер не отвечает', type: 'info' } }));
+                    this.startSearch();
+                }
+            }, 20000);
+        },
+
+        async handleSignal(e) {
+            const msg = e.data;
+            if (msg.type === 'incoming-call') { this.incomingCall = msg; this.playRingtone(); return; }
+            
+            if ((msg.type === 'offer' || msg.type === 'answer') && this.state === 'searching') {
+                this.partnerId = Number(msg.from);
+                this.state = 'connected';
+                this.isBlurred = true;
+            }
+
+            if (Number(msg.from) !== this.partnerId) return;
+
+            if (['peer-skipped', 'peer-disconnected', 'hang-up'].includes(msg.type)) {
+                this.reset();
+                if (msg.type === 'peer-skipped') this.startSearch();
+                return;
+            }
+
+            if (msg.type === 'typing') this.showTypingIndicator();
+
+            try {
+                if (msg.type === 'offer') {
+                    this.initPC();
+                    await this.pc.setRemoteDescription(new RTCSessionDescription({type:'offer', sdp: this.sanitizeSdp(msg.sdp.sdp)}));
+                    const ans = await this.pc.createAnswer();
+                    await this.pc.setLocalDescription(ans);
+                    this.signal({type:'answer', sdp: ans});
+                    this.drainIce();
+                } else if (msg.type === 'answer') {
+                    await this.pc.setRemoteDescription(new RTCSessionDescription({type:'answer', sdp: this.sanitizeSdp(msg.sdp.sdp)}));
+                    this.drainIce();
+                } else if (msg.type === 'ice') {
+                    const cand = new RTCIceCandidate(msg.candidate);
+                    if (this.pc && this.pc.remoteDescription && this.pc.remoteDescription.type) {
+                        await this.pc.addIceCandidate(cand).catch(()=>{});
+                    } else {
+                        this.iceQueue.push(cand);
+                    }
+                } else if (msg.type === 'text') {
+                    this.messages.push({isMe:false, text: msg.text});
+                    this.playMsgSound();
+                    this.scrollChat();
+                }
+            } catch(e) { console.warn("RTC Signal Error", e); }
+        },
+
+        initPC() {
+            if (this.pc) return;
+            console.log("RTC: Инициализация...");
+            this.pc = new RTCPeerConnection(window.rtcConfig);
+            
+            this.pc.oniceconnectionstatechange = () => {
+                console.log("RTC State:", this.pc.iceConnectionState);
+                this.isReconnecting = (this.pc.iceConnectionState === 'disconnected');
+                if (this.pc.iceConnectionState === 'failed') {
+                    this.reset();
+                    this.startSearch();
+                }
+            };
+
+            this.pc.onicecandidate = (e) => { 
+                if(e.candidate) this.signal({type:'ice', candidate: e.candidate}); 
+            };
+
+            this.pc.ontrack = (e) => { 
+                console.log("RTC: Получен поток");
+                if (this.$refs.remoteVideo) {
+                    this.$refs.remoteVideo.srcObject = e.streams[0];
+                    this.$refs.remoteVideo.play().catch(()=>{});
+                }
+                this.isInCall = true; 
+            };
+
+            if (this.localStream) {
+                this.localStream.getTracks().forEach(t => this.pc.addTrack(t, this.localStream));
+            }
+
+            this.dc = this.pc.createDataChannel("chat", { negotiated: true, id: 0 });
+            this.setupDC(this.dc);
+        },
+
+        setupDC(channel) {
+            channel.onmessage = (e) => {
+                const d = JSON.parse(e.data);
+                if (d.type === 'text') { this.messages.push({isMe:false, text: d.text}); this.scrollChat(); this.playMsgSound(); }
+                if (d.type === 'typing') this.showTypingIndicator();
+            };
+        },
+
+        async sendOffer() {
+            this.initPC();
+            const offer = await this.pc.createOffer();
+            await this.pc.setLocalDescription(offer);
+            this.signal({type:'offer', sdp: offer});
+        },
+
+        drainIce() {
+            while(this.iceQueue.length > 0) {
+                const cand = this.iceQueue.shift();
+                this.pc.addIceCandidate(cand).catch(()=>{});
+            }
+        },
+
+        sendMsg() {
+            if (!this.chatInput.trim()) return;
+            const txt = this.chatInput;
+            this.messages.push({isMe:true, text: txt});
+            if (this.dc && this.dc.readyState === 'open') this.dc.send(JSON.stringify({type:'text', text: txt}));
+            else this.signal({type:'text', text: txt});
+            this.chatInput = '';
+            this.scrollChat();
+        },
+
+        sendTyping() {
+            if (Date.now() - this.lastTypingSent < 2000) return;
+            this.lastTypingSent = Date.now();
+            if (this.dc && this.dc.readyState === 'open') this.dc.send(JSON.stringify({type:'typing'}));
+            else this.signal({type:'typing'});
+        },
+
+        showTypingIndicator() {
+            this.isPartnerTyping = true;
+            if (this.typingTimeout) clearTimeout(this.typingTimeout);
+            this.typingTimeout = setTimeout(() => this.isPartnerTyping = false, 3000);
+        },
+
+        async startSearch() {
+            if (this.partnerId) this.signal({type:'peer-skipped'});
+            this.reset();
+            this.state = 'searching';
+            await window.axios.post('/chat/search');
+        },
+
+        stopSearch() {
+            if (this.partnerId) this.signal({type:'hang-up'});
+            this.reset();
+            window.axios.post('/chat/leave');
+            this.state = 'idle';
+        },
+
+        signal(data) {
+            if (!this.partnerId) return;
+            window.axios.post('/chat/signal', { partnerId: this.partnerId, data: { ...data, from: myId } }).catch(()=>{});
+        },
+
+        reset() {
+            if (this.pc) { this.pc.close(); this.pc = null; }
+            this.stopRingtone();
+            this.partnerId = null;
+            this.partnerData = null;
+            this.isInCall = false; 
+            this.state = 'idle';
+            this.messages = []; 
+            this.isBlurred = false; 
+            this.iceQueue = [];
+            this.isPartnerTyping = false;
+            if (this.$refs.remoteVideo) this.$refs.remoteVideo.srcObject = null;
+            if (this.connectionTimeout) clearTimeout(this.connectionTimeout);
+        },
+        
+        async initMedia() {
+            try {
+                this.localStream = await navigator.mediaDevices.getUserMedia({video:true, audio:true});
+                this.$refs.localVideo.srcObject = this.localStream;
+            } catch(e) {
+                window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'Доступ к камере запрещен', type: 'error' } }));
+            }
+        },
+
+        toggleMic() { this.micEnabled = !this.micEnabled; if(this.localStream) this.localStream.getAudioTracks()[0].enabled = this.micEnabled; },
+        sanitizeSdp(s) { return s.split('\n').map(l => l.trim()).filter(l => l.length > 0).join('\r\n') + '\r\n'; },
+        scrollChat() { this.$nextTick(() => { const box = this.$refs.chatBox; if(box) box.scrollTop = box.scrollHeight; }); },
+        
+        async callFriend(friendId) {
+            this.stopRingtone();
+            this.partnerId = Number(friendId);
+            this.state = 'searching';
+            await window.axios.post('/chat/contact/call', { contactId: friendId });
+        },
+
+        async acceptCall() {
+            this.stopRingtone();
+            this.partnerId = Number(this.incomingCall.fromId);
+            this.incomingCall = null;
+            this.state = 'connected';
+            this.isBlurred = true;
+            this.initPC();
+            this.sendOffer();
+        },
+
+        rejectCall() { this.stopRingtone(); this.incomingCall = null; },
+
+        unlockSounds() { 
+            this.soundsUnlocked = true; 
+            this.msgSound.play().then(() => { this.msgSound.pause(); }).catch(() => {});
+            this.ringtone.play().then(() => { this.ringtone.pause(); }).catch(() => {});
+        },
+        playMsgSound() { if(this.soundsUnlocked) this.msgSound.play().catch(()=>{}); },
+        playRingtone() { if(this.soundsUnlocked) { this.ringtone.loop = true; this.ringtone.play().catch(()=>{}); } },
+        stopRingtone() { this.ringtone.pause(); this.ringtone.currentTime = 0; },
+        
+        async report() { if(confirm('Пожаловаться?')) { await window.axios.post('/report', {reported_id:this.partnerId, reason:'abuse'}); this.startSearch(); } },
+        async addContact() { 
+            const res = await window.axios.post('/chat/contact/add', {contactId:this.partnerId}); 
+            this.isFriend = res.data.isFriend;
+            this.loadFriends();
+        }
+    }
+};
     </script>
 
     <style>

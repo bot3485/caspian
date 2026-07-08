@@ -157,6 +157,17 @@
                                 </template>
                             </div>
                             
+                            <div class="px-8 py-1 h-6 flex items-center gap-1.5 transition-all duration-300" x-show="isPartnerTyping" x-transition>
+                                <div class="flex gap-1 items-center bg-white/5 px-3 py-1.5 rounded-full border border-white/5">
+                                    <span class="text-[9px] font-black text-indigo-400 uppercase tracking-widest" x-text="(partnerData?.name || 'Собеседник') + ' печатает'"></span>
+                                    <div class="flex gap-0.5 items-center justify-center bottom-0.5 relative">
+                                        <span class="w-1 h-1 bg-indigo-400 rounded-full animate-bounce" style="animation-delay: 0ms"></span>
+                                        <span class="w-1 h-1 bg-indigo-400 rounded-full animate-bounce" style="animation-delay: 150ms"></span>
+                                        <span class="w-1 h-1 bg-indigo-400 rounded-full animate-bounce" style="animation-delay: 300ms"></span>
+                                    </div>
+                                </div>
+                            </div>
+
                             <div class="px-6 py-2 flex justify-end">
                                 <button @click="report(partnerId)" class="text-[9px] font-black uppercase text-red-500/40 hover:text-red-500 transition-colors">🚩 Пожаловаться</button>
                             </div>
@@ -350,48 +361,89 @@ window.videoChatApp = function(myId) {
         },
 
         async handleSignal(e) {
-            const msg = e.data;
-            const senderId = Number(msg.from);
+                    const msg = e.data;
+                    const senderId = Number(msg.from);
 
-            if (msg.type === 'app-visibility') { this.partnerStatus = msg.status; return; }
-            if (msg.type === 'network-status') { this.connectionIssue = (msg.status === 'offline') ? 'У партнера проблемы' : false; return; }
-            
-            if (this.partnerId && senderId !== this.partnerId && !['offer', 'incoming-call'].includes(msg.type)) return;
+                    if (msg.type === 'app-visibility') { this.partnerStatus = msg.status; return; }
+                    if (msg.type === 'network-status') { this.connectionIssue = (msg.status === 'offline') ? 'У партнера проблемы' : false; return; }
+                    
+                    // Обработка сигнала "печатает"
+                    if (msg.type === 'typing' && senderId === this.partnerId) {
+                        this.isPartnerTyping = true;
+                        if (this.typingTimeout) clearTimeout(this.typingTimeout);
+                        this.typingTimeout = setTimeout(() => {
+                            this.isPartnerTyping = false;
+                        }, 2500); // Скрываем через 2.5 секунды затишья
+                        return;
+                    }
 
-            if (!this.pc && (msg.type === 'offer' || msg.type === 'incoming-call')) {
-                if (!this.partnerId) this.partnerId = senderId;
-                this.state = 'connected';
-                this.initPC();
-            }
-            
-            try {
-                if (['peer-skipped', 'hang-up', 'peer-disconnected'].includes(msg.type)) { this.reset(); if(msg.type === 'peer-skipped') this.startSearch(); return; }
-                if (!this.pc && ['offer', 'answer', 'ice'].includes(msg.type)) return;
+                    if (this.partnerId && senderId !== this.partnerId && !['offer', 'incoming-call'].includes(msg.type)) return;
 
-                if (msg.type === 'offer' || msg.type === 'answer') {
-                    await this.pc.setRemoteDescription(new RTCSessionDescription({type: msg.type, sdp: this.sanitizeSdp(msg.sdp?.sdp || msg.sdp)}));
-                    if (msg.type === 'offer') {
-                        const ans = await this.pc.createAnswer();
-                        await this.pc.setLocalDescription(ans);
-                        this.signal({type:'answer', sdp: ans});
-                        while(this.iceQueue.length > 0) {
-                            await this.pc.addIceCandidate(this.iceQueue.shift()).catch(()=>{});
+                    if (!this.pc && (msg.type === 'offer' || msg.type === 'incoming-call')) {
+                        if (!this.partnerId) this.partnerId = senderId;
+                        this.state = 'connected';
+                        this.initPC();
+                    }
+                    
+                    try {
+                        if (['peer-skipped', 'hang-up', 'peer-disconnected'].includes(msg.type)) { this.reset(); if(msg.type === 'peer-skipped') this.startSearch(); return; }
+                        if (!this.pc && ['offer', 'answer', 'ice'].includes(msg.type)) return;
+
+                        if (msg.type === 'offer' || msg.type === 'answer') {
+                            await this.pc.setRemoteDescription(new RTCSessionDescription({type: msg.type, sdp: this.sanitizeSdp(msg.sdp?.sdp || msg.sdp)}));
+                            if (msg.type === 'offer') {
+                                const ans = await this.pc.createAnswer();
+                                await this.pc.setLocalDescription(ans);
+                                this.signal({type:'answer', sdp: ans});
+                                while(this.iceQueue.length > 0) {
+                                    await this.pc.addIceCandidate(this.iceQueue.shift()).catch(()=>{});
+                                }
+                            }
+                        } else if (msg.type === 'ice') {
+                            const cand = new RTCIceCandidate(msg.candidate);
+                            if (this.pc && this.pc.remoteDescription && this.pc.remoteDescription.type) {
+                                await this.pc.addIceCandidate(cand).catch(()=>{});
+                            } else {
+                                this.iceQueue.push(cand);
+                            }
+                        } else if (msg.type === 'text') { 
+                            this.isPartnerTyping = false; // Как только пришло сообщение — убираем индикатор
+                            if (this.typingTimeout) clearTimeout(this.typingTimeout);
+                            
+                            this.messages.push({isMe:false, text: msg.text}); 
+                            window.dispatchEvent(new CustomEvent('play-msg-sound')); 
+                            this.scrollChat(); 
                         }
+                    } catch(e) { console.error("RTC Error:", e); }
+                },
+
+                // НОВЫЙ МЕТОД: Отправка сигнала печати с ограничением по частоте (throttling)
+                sendTypingSignal() {
+                    const now = Date.now();
+                    if (now - this.lastTypingSent > 1500) { // Отправляем не чаще чем раз в 1.5 секунды
+                        this.lastTypingSent = now;
+                        this.signal({ type: 'typing' });
                     }
-                } else if (msg.type === 'ice') {
-                    const cand = new RTCIceCandidate(msg.candidate);
-                    if (this.pc && this.pc.remoteDescription && this.pc.remoteDescription.type) {
-                        await this.pc.addIceCandidate(cand).catch(()=>{});
-                    } else {
-                        this.iceQueue.push(cand);
-                    }
-                } else if (msg.type === 'text') { 
-                    this.messages.push({isMe:false, text: msg.text}); 
-                    window.dispatchEvent(new CustomEvent('play-msg-sound')); 
+                },
+
+                sendMsg() { 
+                    if (!this.chatInput.trim()) return; 
+                    this.messages.push({isMe:true, text: this.chatInput}); 
+                    this.signal({type:'text', text: this.chatInput}); 
+                    this.chatInput = ''; 
                     this.scrollChat(); 
-                }
-            } catch(e) { console.error("RTC Error:", e); }
-        },
+                },
+
+                reset() { 
+                    if (this.statsInterval) clearInterval(this.statsInterval);
+                    if (this.typingTimeout) clearTimeout(this.typingTimeout); // Очищаем таймаут при сбросе
+                    if (this.pc) { this.pc.close(); this.pc = null; }
+                    this.partnerId = null; this.partnerData = null; this.state = 'idle'; 
+                    this.messages = []; this.connectionIssue = false; this.partnerStatus = 'active'; this.ping = 0; this.iceQueue = [];
+                    this.isFriend = false; 
+                    this.isPartnerTyping = false; // Сбрасываем статус печати
+                    if (this.$refs.remoteVideo) this.$refs.remoteVideo.srcObject = null; 
+                },
 
         initPC() {
             if (this.pc) return;
@@ -456,13 +508,6 @@ window.videoChatApp = function(myId) {
         async initMedia() { try { this.localStream = await navigator.mediaDevices.getUserMedia({video:true, audio:true}); this.$refs.localVideo.srcObject = this.localStream; } catch(e) {} },
         toggleMic() { this.micEnabled = !this.micEnabled; if(this.localStream) this.localStream.getAudioTracks()[0].enabled = this.micEnabled; },
         toggleCam() { this.camEnabled = !this.camEnabled; if(this.localStream) this.localStream.getVideoTracks()[0].enabled = this.camEnabled; },
-        sendMsg() { 
-            if (!this.chatInput.trim()) return; 
-            this.messages.push({isMe:true, text: this.chatInput}); 
-            this.signal({type:'text', text: this.chatInput}); 
-            this.chatInput = ''; 
-            this.scrollChat(); 
-        },
         scrollChat() { this.$nextTick(() => { if(this.$refs.chatBox) this.$refs.chatBox.scrollTop = this.$refs.chatBox.scrollHeight; }); },
         
         async report(id) { 

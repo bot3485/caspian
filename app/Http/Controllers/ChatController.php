@@ -107,13 +107,20 @@ class ChatController extends Controller
     {
         $request->validate(['contactId' => 'required|integer']);
         $receiverId = (int)$request->contactId;
-        Redis::setex("allow_signal:".Auth::id().":{$receiverId}", 300, 1);
+        $senderId = Auth::id();
+
+        // Открываем "коридор" для обмена сигналами в ОБЕ стороны на 5 минут (300 сек)
+        // 1. Разрешаем вызывающему слать сигналы отвечающему
+        Redis::setex("allow_signal:{$senderId}:{$receiverId}", 300, 1);
+        // 2. Разрешаем отвечающему слать сигналы вызывающему
+        Redis::setex("allow_signal:{$receiverId}:{$senderId}", 300, 1);
         
-        broadcast(new WebRTCSignalEvent($receiverId, [
+        broadcast(new \App\Events\WebRTCSignalEvent($receiverId, [
             'type' => 'incoming-call',
             'fromName' => Auth::user()->name,
-            'fromId' => Auth::id()
+            'fromId' => $senderId
         ]));
+
         return response()->json(['status' => 'calling']);
     }
 

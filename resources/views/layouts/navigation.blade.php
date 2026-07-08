@@ -12,7 +12,6 @@
                 </a>
 
                 <div class="hidden space-x-1 sm:flex">
-                    <x-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')" class="px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest !border-none hover:bg-white/5 transition-colors">Hub</x-nav-link>
                     <x-nav-link :href="route('chat')" :active="request()->routeIs('chat')" class="px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest !border-none hover:bg-white/5 transition-colors">Roulette</x-nav-link>
                     <x-nav-link :href="route('rooms.index')" :active="request()->routeIs('rooms.*')" class="px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest !border-none hover:bg-white/5 transition-colors">Spaces</x-nav-link>
                 </div>

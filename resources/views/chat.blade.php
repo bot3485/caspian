@@ -102,10 +102,22 @@
                                 <div class="flex gap-2 items-center">
                                     <button @click="report(partnerId)" class="w-12 h-12 bg-red-600/10 text-red-500 rounded-full flex items-center justify-center hover:bg-red-600 transition-all" title="Пожаловаться и заблокировать">🚩</button>
                                     
+                                    <!-- КНОПКА ДОБАВЛЕНИЯ С ДИНАМИЧЕСКИМ HOVER -->
                                     <button @click="toggleContact()" 
-                                            :class="isFriend ? 'bg-green-600/20 text-green-400 border-green-500/30' : 'bg-white/5 text-gray-300 border-white/10'" 
-                                            class="h-12 px-5 rounded-full border flex items-center gap-2 transition-all font-black text-[10px] uppercase tracking-widest whitespace-nowrap group">
-                                        <span x-text="isFriend ? '✅ В друзьях' : '⭐ Добавить'"></span>
+                                            @mouseenter="isFriendHover = true" 
+                                            @mouseleave="isFriendHover = false"
+                                            :class="isFriend 
+                                                ? (isFriendHover ? 'bg-red-600/20 text-red-500 border-red-500/30' : 'bg-green-600/20 text-green-400 border-green-500/30') 
+                                                : 'bg-white/5 text-gray-300 border-white/10 hover:bg-white/10'" 
+                                            class="h-12 px-6 rounded-full border flex items-center gap-2 transition-all font-black text-[10px] uppercase tracking-widest whitespace-nowrap min-w-[160px] justify-center">
+                                        
+                                        <template x-if="!isFriend">
+                                            <span>⭐ Добавить</span>
+                                        </template>
+                                        
+                                        <template x-if="isFriend">
+                                            <span x-text="isFriendHover ? '❌ Удалить из друзей' : '✅ В друзьях'"></span>
+                                        </template>
                                     </button>
 
                                     <button @click="stopSearch()" class="bg-red-600/20 text-red-500 px-6 py-3.5 rounded-full font-black text-[10px] uppercase tracking-widest hover:bg-red-600 hover:text-white transition-all">Стоп</button>
@@ -123,6 +135,7 @@
                     <button @click="tab = 'chat'" :class="tab === 'chat' ? 'text-indigo-400 border-b-2 border-indigo-500' : 'text-gray-500'" class="flex-1 py-6 text-[10px] font-black uppercase tracking-widest transition-all">Чат</button>
                     <button @click="tab = 'friends'; loadFriends()" :class="tab === 'friends' ? 'text-indigo-400 border-b-2 border-indigo-500' : 'text-gray-500'" class="flex-1 py-6 text-[10px] font-black uppercase tracking-widest transition-all">Друзья</button>
                     <button @click="tab = 'history'; loadHistory()" :class="tab === 'history' ? 'text-indigo-400 border-b-2 border-indigo-500' : 'text-gray-500'" class="flex-1 py-6 text-[10px] font-black uppercase tracking-widest transition-all">История</button>
+                    <button @click="tab = 'blacklist'; loadBlocked()" :class="tab === 'blacklist' ? 'text-red-500 border-b-2 border-red-500' : 'text-gray-500'" class="flex-1 py-6 text-[10px] font-black uppercase tracking-widest transition-all">ЧС</button>
                 </div>
                 
                 <!-- ВКЛАДКА: ЧАТ -->
@@ -144,7 +157,6 @@
                                 </template>
                             </div>
                             
-                            <!-- Кнопка жалобы в чате -->
                             <div class="px-6 py-2 flex justify-end">
                                 <button @click="report(partnerId)" class="text-[9px] font-black uppercase text-red-500/40 hover:text-red-500 transition-colors">🚩 Пожаловаться</button>
                             </div>
@@ -161,6 +173,11 @@
 
                 <!-- ВКЛАДКА: ДРУЗЬЯ -->
                 <div x-show="tab === 'friends'" class="flex-1 overflow-y-auto p-6 space-y-3">
+                    <template x-if="friendsList.length === 0">
+                        <div class="py-20 text-center opacity-20">
+                            <p class="text-[10px] font-black uppercase tracking-widest">Список пуст</p>
+                        </div>
+                    </template>
                     <template x-for="friend in friendsList" :key="friend.id">
                         <div class="p-4 bg-white/[0.02] border border-white/5 rounded-2xl flex items-center justify-between group hover:border-white/10 transition-all">
                             <div class="flex items-center gap-3">
@@ -180,6 +197,11 @@
 
                 <!-- ВКЛАДКА: ИСТОРИЯ -->
                 <div x-show="tab === 'history'" class="flex-1 overflow-y-auto p-6 space-y-3">
+                    <template x-if="historyList.length === 0">
+                        <div class="py-20 text-center opacity-20">
+                            <p class="text-[10px] font-black uppercase tracking-widest">История пуста</p>
+                        </div>
+                    </template>
                     <template x-for="item in historyList" :key="item.id">
                         <div class="p-4 bg-white/[0.02] border border-white/5 rounded-2xl flex items-center justify-between group">
                             <div class="flex items-center gap-3">
@@ -197,6 +219,32 @@
                         </div>
                     </template>
                 </div>
+
+                <!-- ВКЛАДКА: ЧЕРНЫЙ СПИСОК -->
+                <div x-show="tab === 'blacklist'" class="flex-1 overflow-y-auto p-6 space-y-3">
+                    <template x-if="blockedList.length === 0">
+                        <div class="py-20 text-center opacity-20">
+                            <span class="text-4xl">🛡️</span>
+                            <p class="text-[10px] font-black uppercase mt-4 tracking-widest">Список пуст</p>
+                        </div>
+                    </template>
+
+                    <template x-for="bUser in blockedList" :key="bUser.id">
+                        <div class="p-4 bg-red-500/5 border border-red-500/10 rounded-2xl flex items-center justify-between group">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 bg-red-500/20 text-red-500 rounded-xl flex items-center justify-center font-black" x-text="bUser.name[0]"></div>
+                                <div>
+                                    <div class="text-xs font-bold text-white" x-text="bUser.name"></div>
+                                    <div class="text-[7px] font-black uppercase text-red-500/50">Заблокирован</div>
+                                </div>
+                            </div>
+                            <button @click="unblock(bUser.id)" class="px-4 py-2 bg-white/5 hover:bg-white text-gray-400 hover:text-black rounded-xl text-[9px] font-black uppercase tracking-widest transition-all border border-white/5">
+                                Разблокировать
+                            </button>
+                        </div>
+                    </template>
+                </div>
+
             </div>
         </div>
     </div>
@@ -206,8 +254,10 @@ window.rtcConfig = { iceServers: @json(config('webrtc.ice_servers')), bundlePoli
 
 window.videoChatApp = function(myId) {
     return {
-        state: 'idle', partnerId: null, partnerData: null, isFriend: false,
+        state: 'idle', partnerId: null, partnerData: null, isFriend: false, 
+        isFriendHover: false, // НОВОЕ: состояние наведения на кнопку
         pc: null, localStream: null, iceQueue: [], onlineList: [], friendsList: [], historyList: [],
+        blockedList: [],
         micEnabled: true, camEnabled: true, isBlurred: false, showSelfVideo: true,
         messages: [], chatInput: '', isPartnerTyping: false, typingTimeout: null, lastTypingSent: 0,
         isCallingFriend: false,
@@ -227,6 +277,7 @@ window.videoChatApp = function(myId) {
             await this.initMedia();
             this.loadFriends();
             this.loadHistory();
+            this.loadBlocked();
 
             const urlParams = new URLSearchParams(window.location.search);
             const acceptId = urlParams.get('accept_call');
@@ -248,11 +299,28 @@ window.videoChatApp = function(myId) {
         async loadFriends() { 
             const res = await window.axios.get('/chat/contacts'); 
             this.friendsList = res.data.contacts; 
+            // После загрузки друзей, если мы в звонке, обновляем локальную переменную isFriend
+            if (this.partnerId) {
+                this.isFriend = this.friendsList.some(f => f.id === this.partnerId);
+            }
         },
 
         async loadHistory() {
             const res = await window.axios.get('/chat/history-all');
             this.historyList = res.data.history;
+        },
+
+        async loadBlocked() {
+            const res = await window.axios.get('/chat/blocked');
+            this.blockedList = res.data.blocked;
+        },
+
+        async unblock(id) {
+            await window.axios.post('/chat/unblock', { blockedId: id });
+            await this.loadBlocked();
+            await this.loadFriends(); // Ждем загрузки, чтобы обновить флаг дружбы
+            this.loadHistory();
+            window.dispatchEvent(new CustomEvent('toast', {detail:{msg:'Пользователь разблокирован', type:'success'}}));
         },
 
         async callFriend(friend) { 
@@ -261,7 +329,13 @@ window.videoChatApp = function(myId) {
             this.partnerData = { ...friend, rank_name: 'Связь...' };
             this.state = 'searching';
             this.isCallingFriend = true;
-            await window.axios.post('/chat/contact/call', { contactId: friend.id }); 
+            await window.axios.post('/chat/contact/call', { contactId: friend.id })
+                .catch(e => {
+                    if (e.response?.status === 403) {
+                        window.dispatchEvent(new CustomEvent('toast', {detail:{msg:'Невозможно позвонить этому пользователю', type:'error'}}));
+                        this.stopSearch();
+                    }
+                }); 
         },
 
         async handleMatch(e) {
@@ -272,7 +346,7 @@ window.videoChatApp = function(myId) {
             this.state = 'connected';
             this.initPC(); 
             if (myId > this.partnerId) setTimeout(() => this.sendOffer(), 1000);
-            this.loadHistory(); // Обновляем историю при новом матче
+            this.loadHistory(); 
         },
 
         async handleSignal(e) {
@@ -281,21 +355,36 @@ window.videoChatApp = function(myId) {
 
             if (msg.type === 'app-visibility') { this.partnerStatus = msg.status; return; }
             if (msg.type === 'network-status') { this.connectionIssue = (msg.status === 'offline') ? 'У партнера проблемы' : false; return; }
-            if (this.partnerId && senderId !== this.partnerId && !['offer', 'answer', 'ice'].includes(msg.type)) return;
+            
+            if (this.partnerId && senderId !== this.partnerId && !['offer', 'incoming-call'].includes(msg.type)) return;
+
+            if (!this.pc && (msg.type === 'offer' || msg.type === 'incoming-call')) {
+                if (!this.partnerId) this.partnerId = senderId;
+                this.state = 'connected';
+                this.initPC();
+            }
             
             try {
                 if (['peer-skipped', 'hang-up', 'peer-disconnected'].includes(msg.type)) { this.reset(); if(msg.type === 'peer-skipped') this.startSearch(); return; }
+                if (!this.pc && ['offer', 'answer', 'ice'].includes(msg.type)) return;
+
                 if (msg.type === 'offer' || msg.type === 'answer') {
                     await this.pc.setRemoteDescription(new RTCSessionDescription({type: msg.type, sdp: this.sanitizeSdp(msg.sdp?.sdp || msg.sdp)}));
                     if (msg.type === 'offer') {
                         const ans = await this.pc.createAnswer();
                         await this.pc.setLocalDescription(ans);
                         this.signal({type:'answer', sdp: ans});
+                        while(this.iceQueue.length > 0) {
+                            await this.pc.addIceCandidate(this.iceQueue.shift()).catch(()=>{});
+                        }
                     }
                 } else if (msg.type === 'ice') {
                     const cand = new RTCIceCandidate(msg.candidate);
-                    if (this.pc && this.pc.remoteDescription) await this.pc.addIceCandidate(cand).catch(()=>{});
-                    else this.iceQueue.push(cand);
+                    if (this.pc && this.pc.remoteDescription && this.pc.remoteDescription.type) {
+                        await this.pc.addIceCandidate(cand).catch(()=>{});
+                    } else {
+                        this.iceQueue.push(cand);
+                    }
                 } else if (msg.type === 'text') { 
                     this.messages.push({isMe:false, text: msg.text}); 
                     window.dispatchEvent(new CustomEvent('play-msg-sound')); 
@@ -359,28 +448,41 @@ window.videoChatApp = function(myId) {
             if (this.statsInterval) clearInterval(this.statsInterval);
             if (this.pc) { this.pc.close(); this.pc = null; }
             this.partnerId = null; this.partnerData = null; this.state = 'idle'; 
-            this.messages = []; this.connectionIssue = false; this.partnerStatus = 'active'; this.ping = 0;
+            this.messages = []; this.connectionIssue = false; this.partnerStatus = 'active'; this.ping = 0; this.iceQueue = [];
+            this.isFriend = false; // Сброс статуса дружбы
             if (this.$refs.remoteVideo) this.$refs.remoteVideo.srcObject = null; 
         },
         
         async initMedia() { try { this.localStream = await navigator.mediaDevices.getUserMedia({video:true, audio:true}); this.$refs.localVideo.srcObject = this.localStream; } catch(e) {} },
         toggleMic() { this.micEnabled = !this.micEnabled; if(this.localStream) this.localStream.getAudioTracks()[0].enabled = this.micEnabled; },
         toggleCam() { this.camEnabled = !this.camEnabled; if(this.localStream) this.localStream.getVideoTracks()[0].enabled = this.camEnabled; },
-        sendMsg() { if (!this.chatInput.trim()) return; this.messages.push({isMe:true, text: this.chatInput}); this.signal({type:'text', text: this.chatInput}); this.chatInput = ''; this.scrollChat(); },
+        sendMsg() { 
+            if (!this.chatInput.trim()) return; 
+            this.messages.push({isMe:true, text: this.chatInput}); 
+            this.signal({type:'text', text: this.chatInput}); 
+            this.chatInput = ''; 
+            this.scrollChat(); 
+        },
         scrollChat() { this.$nextTick(() => { if(this.$refs.chatBox) this.$refs.chatBox.scrollTop = this.$refs.chatBox.scrollHeight; }); },
         
         async report(id) { 
-            if(!id || !confirm('Пожаловаться и заблокировать этого пользователя? Вы больше никогда не встретитесь.')) return; 
+            if(!id || !confirm('Пожаловаться и заблокировать?')) return; 
             await window.axios.post('/report', {reported_id: id, reason:'abuse'});
             if (id === this.partnerId) { this.startSearch(); } 
-            else { this.loadFriends(); this.loadHistory(); }
+            
+            this.loadFriends(); 
+            this.loadHistory(); 
+            this.loadBlocked();
+            
             window.dispatchEvent(new CustomEvent('toast', {detail:{msg:'Пользователь заблокирован', type:'success'}}));
         },
 
         async toggleContact() { 
             try {
                 const res = await window.axios.post('/chat/contact/add', { contactId: this.partnerId }); 
-                this.isFriend = res.data.isFriend; this.loadFriends(); 
+                this.isFriend = res.data.isFriend; 
+                this.loadFriends(); // Обновляем боковую панель
+                this.isFriendHover = false; // Сброс состояния наведения после клика
             } catch (e) {}
         },
         copyLink() { navigator.clipboard.writeText(window.location.href); }

@@ -14,7 +14,9 @@ Route::post('_boost/browser-logs', [BrowserLogController::class, 'store']);
 
 // --- РОУТЫ С АВТОРИЗАЦИЕЙ ---
 Route::middleware(['auth', 'verified'])->group(function () {
-    
+
+Route::get('/chat/blocked', [ChatController::class, 'getBlockedUsers']);
+Route::post('/chat/unblock', [ChatController::class, 'unblockUser']);
 Route::post('/rooms/{uuid}/sync-occupancy', [\App\Http\Controllers\RoomController::class, 'syncOccupancy'])->name('rooms.sync-occupancy');
    
     Route::get('/dashboard', function () {

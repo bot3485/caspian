@@ -84,10 +84,18 @@ class ChatController extends Controller
 
     public function getContacts(): JsonResponse 
     { 
-        $contacts = \App\Models\User::whereIn('id', function($query) {
+        $userId = Auth::id();
+        $contacts = \App\Models\User::whereIn('id', function($query) use ($userId) {
                 $query->select('contact_id')
                     ->from('contacts')
-                    ->where('user_id', Auth::id());
+                    ->where('user_id', $userId);
+            })
+            // Если человек в ЧС, он просто не попадает в выборку, но запись в contacts остается!
+            ->whereNotExists(function($query) use ($userId) {
+                $query->select(DB::raw(1))
+                    ->from('blocks')
+                    ->where('blocker_id', $userId)
+                    ->whereColumn('blocked_id', 'users.id');
             })
             ->select('id', 'name', 'last_seen')
             ->get()
@@ -109,10 +117,15 @@ class ChatController extends Controller
         $receiverId = (int)$request->contactId;
         $senderId = Auth::id();
 
-        // Открываем "коридор" для обмена сигналами в ОБЕ стороны на 5 минут (300 сек)
-        // 1. Разрешаем вызывающему слать сигналы отвечающему
+        // ПРОВЕРКА ЧС
+        $isBlocked = DB::table('blocks')
+            ->where('blocker_id', $receiverId)->where('blocked_id', $senderId)
+            ->orWhere('blocker_id', $senderId)->where('blocked_id', $receiverId)
+            ->exists();
+
+        if ($isBlocked) return response()->json(['error' => 'Blocked'], 403);
+
         Redis::setex("allow_signal:{$senderId}:{$receiverId}", 300, 1);
-        // 2. Разрешаем отвечающему слать сигналы вызывающему
         Redis::setex("allow_signal:{$receiverId}:{$senderId}", 300, 1);
         
         broadcast(new \App\Events\WebRTCSignalEvent($receiverId, [
@@ -135,10 +148,23 @@ class ChatController extends Controller
         return response()->json(['messages' => $messages]);
     }
 
-    public function sendMessage(Request $request): JsonResponse
+public function sendMessage(Request $request): JsonResponse
     {
         $validated = $request->validate(['receiver_id' => 'required|integer', 'message' => 'required|string']);
-        $message = Message::create(['sender_id' => Auth::id(), 'receiver_id' => $validated['receiver_id'], 'message' => $validated['message']]);
+        $senderId = Auth::id();
+        $receiverId = $validated['receiver_id'];
+
+        // ПРОВЕРКА: Не заблокирован ли пользователь
+        $isBlocked = DB::table('blocks')
+            ->where(fn($q) => $q->where('blocker_id', $senderId)->where('blocked_id', $receiverId))
+            ->orWhere(fn($q) => $q->where('blocker_id', $receiverId)->where('blocked_id', $senderId))
+            ->exists();
+
+        if ($isBlocked) {
+            return response()->json(['error' => 'User is blocked'], 403);
+        }
+
+        $message = Message::create(['sender_id' => $senderId, 'receiver_id' => $receiverId, 'message' => $validated['message']]);
         broadcast(new MessageSentEvent($message->toArray()))->toOthers();
         return response()->json(['status' => 'sent', 'message' => $message]);
     }
@@ -182,5 +208,30 @@ class ChatController extends Controller
             ->values();
 
         return response()->json(['history' => $history]);
+    }
+
+        public function getBlockedUsers(): JsonResponse
+    {
+        $userId = Auth::id();
+        $blocked = DB::table('blocks')
+            ->join('users', 'blocks.blocked_id', '=', 'users.id')
+            ->where('blocks.blocker_id', $userId)
+            ->select('users.id', 'users.name', 'blocks.created_at as blocked_at')
+            ->orderByDesc('blocks.created_at')
+            ->get();
+
+        return response()->json(['blocked' => $blocked]);
+    }
+
+        public function unblockUser(Request $request): JsonResponse
+    {
+        $request->validate(['blockedId' => 'required|integer']);
+        
+        DB::table('blocks')
+            ->where('blocker_id', Auth::id())
+            ->where('blocked_id', $request->blockedId)
+            ->delete();
+
+        return response()->json(['status' => 'unblocked']);
     }
 }

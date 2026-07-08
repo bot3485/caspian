@@ -8,7 +8,7 @@
                     <div class="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-[0_0_15px_rgba(79,70,229,0.4)]">
                         <x-application-logo class="w-6 h-6 fill-white" />
                     </div>
-                    <span class="text-lg font-black tracking-tighter uppercase hidden sm:block">Caspian</span>
+                    <span class="text-lg font-black tracking-tighter uppercase hidden sm:block">ChatRoulette</span>
                 </a>
 
                 <div class="hidden space-x-1 sm:flex">

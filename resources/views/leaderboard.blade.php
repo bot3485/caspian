@@ -4,7 +4,7 @@
             
             <div class="text-center mb-16">
                 <h1 class="text-6xl font-black tracking-tighter uppercase italic">Hall of Fame</h1>
-                <p class="text-indigo-500 font-black uppercase text-xs tracking-[0.4em] mt-2">Лучшие пользователи Caspian</p>
+                <p class="text-indigo-500 font-black uppercase text-xs tracking-[0.4em] mt-2">Лучшие пользователи ChatRoulette</p>
             </div>
             
             <div class="space-y-3">

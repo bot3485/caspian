@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Caspian — Экосистема общения</title>
+    <title>ChatRoulette</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 <body class="bg-gray-950 text-white antialiased selection:bg-indigo-500 selection:text-white">
@@ -19,7 +19,7 @@
             </div>
             
             <h1 class="text-6xl md:text-8xl font-black tracking-tighter mb-4 bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-500">
-                CASPIAN
+                ChatRoulette
             </h1>
             <p class="text-lg md:text-xl text-gray-400 max-w-2xl mx-auto mb-10 leading-relaxed">
                 Интеллектуальная платформа для видео-встреч, случайных знакомств и приватного общения. 

@@ -78,6 +78,7 @@
             return {
                 peers: [], 
                 currentCount: 1,
+                pulseTimer: null,
                 localStream: null, 
                 screenStream: null,
                 micEnabled: true, 
@@ -90,33 +91,37 @@
                     return `grid-template-columns: repeat(${cols}, minmax(280px, 1fr))`;
                 },
 
-                async init() {
-                    window.rtcConfig = { 
-                        iceServers: @json(config('webrtc.ice_servers')), 
-                        bundlePolicy: "max-bundle" 
-                    };
+// Внутри groupRoomComponent в init():
 
+                async init() {
+                    window.rtcConfig = { iceServers: @json(config('webrtc.ice_servers')), bundlePolicy: "max-bundle" };
                     await this.initMedia();
                     
                     const channel = window.Echo.join(`room.${roomUuid}`);
 
-                    const updateServerCount = (count) => {
+                    const sync = (count) => {
                         this.currentCount = count;
-                        window.axios.post(`/rooms/${roomUuid}/sync-occupancy`, { count: count }).catch(()=>{});
+                        window.axios.post(`/rooms/${roomUuid}/sync-occupancy`, { count: count }).catch(() => {});
                     };
-                    
+
                     channel.here(users => {
-                        updateServerCount(users.length);
-                        users.forEach(u => { 
-                            if (u.id !== myId) this.initiateConnection(u.id, u.name, myId > u.id); 
-                        });
+                        // Мгновенная синхронизация при входе
+                        sync(users.length);
+                        users.forEach(u => { if (u.id !== myId) this.initiateConnection(u.id, u.name, myId > u.id); });
+                        
+                        // Запускаем "ПУЛЬС": каждые 15 секунд подтверждаем количество людей
+                        if(this.pulseTimer) clearInterval(this.pulseTimer);
+                        this.pulseTimer = setInterval(() => {
+                            // Мы берем количество peers + 1 (мы сами)
+                            sync(this.peers.length + 1);
+                        }, 15000);
                     }).joining(u => {
                         window.dispatchEvent(new CustomEvent('toast', {detail:{msg: u.name + ' вошел', type:'info'}}));
                         this.initiateConnection(u.id, u.name, myId > u.id);
-                        updateServerCount(this.peers.length + 1);
+                        sync(this.peers.length + 1);
                     }).leaving(u => {
                         this.removePeer(u.id);
-                        updateServerCount(this.peers.length + 1);
+                        sync(this.peers.length + 1);
                     });
 
                     window.Echo.private(`user.${myId}`).listen('.WebRTCSignalEvent', (e) => {

@@ -175,11 +175,12 @@ public function sendMessage(Request $request): JsonResponse
         return response()->json(['status' => 'sent']);
     }
 
+// Исправленный метод getInteractionHistory в ChatController.php
+
     public function getInteractionHistory(): JsonResponse 
     {
         $userId = Auth::id();
         
-        // Получаем историю, исключая тех, кто в ЧС
         $history = DB::table('interactions')
             ->join('users', 'interactions.partner_id', '=', 'users.id')
             ->where('interactions.user_id', $userId)
@@ -190,7 +191,6 @@ public function sendMessage(Request $request): JsonResponse
                     ->whereColumn('blocked_id', 'interactions.partner_id');
             })
             ->select('users.id', 'users.name', 'users.last_seen', 'interactions.last_at')
-            ->orderByDesc('interactions.last_at')
             ->get()
             ->map(function($user) {
                 $u = \App\Models\User::find($user->id);
@@ -203,11 +203,17 @@ public function sendMessage(Request $request): JsonResponse
                     'last_at' => $user->last_at
                 ];
             })
-            // Сортировка: сначала Онлайн, потом по времени встречи
-            ->sortByDesc(fn($u) => $u['is_online'] . $u['last_at'])
-            ->values();
+            ->toArray();
 
-        return response()->json(['history' => $history]);
+        // Правильная сортировка: Сначала Онлайн (true > false), затем по дате
+        usort($history, function($a, $b) {
+            if ($a['is_online'] === $b['is_online']) {
+                return strcmp($b['last_at'], $a['last_at']);
+            }
+            return $b['is_online'] <=> $a['is_online'];
+        });
+
+        return response()->json(['history' => array_values($history)]);
     }
 
         public function getBlockedUsers(): JsonResponse

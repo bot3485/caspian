@@ -27,9 +27,11 @@
                 } catch (e) { alert('Ошибка при удалении'); }
             },
             init() {
-                window.Echo.channel('rooms-lobby').listen('.OccupancyUpdated', (e) => {
-                    this.occupancy[e.roomUuid] = e.count;
-                });
+                window.Echo.channel('rooms-lobby')
+                    .listen('.OccupancyUpdated', (e) => {
+                        console.log('Lobby Update:', e); // Для отладки
+                        this.occupancy[e.roomUuid] = e.count;
+                    });
             }
          }">
         

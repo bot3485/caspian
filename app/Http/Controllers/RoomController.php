@@ -9,39 +9,28 @@ use Illuminate\View\View;
 
 class RoomController extends Controller
 {
-    /**
-     * Display a listing of public live spaces.
-     * Мы загружаем создателей комнат и добавляем мета-данные для "живого" вида.
-     */
     public function index(): View
     {
         $userId = Auth::id();
-
-        // 1. Берем все публичные комнаты
-        // 2. Добавляем свою комнату, даже если она приватная
         $rooms = Room::where('is_public', true)
             ->orWhere('creator_id', $userId)
             ->with('creator')
             ->latest()
             ->get()
-            ->unique('id'); // Чтобы не дублировалась, если она и публичная, и ваша
+            ->unique('id');
 
         $userHasRoom = Room::where('creator_id', $userId)->exists();
 
         return view('rooms.index', compact('rooms', 'userHasRoom'));
     }
 
-    /**
-     * Store a newly created room in storage.
-     */
     public function store(Request $request): JsonResponse
     {
         $userId = Auth::id();
 
-        // КРИТИЧНО: Лимит 1 комната
         if (Room::where('creator_id', $userId)->exists()) {
             return response()->json([
-                'message' => 'У вас уже есть созданная комната. Пожалуйста, удалите старую, чтобы создать новую.'
+                'message' => 'У вас уже есть созданная комната. Удалите её, чтобы создать новую.'
             ], 403);
         }
 
@@ -63,32 +52,22 @@ class RoomController extends Controller
         return response()->json(['status' => 'success', 'redirect' => route('rooms.show', $room->uuid)]);
     }
 
-    /**
-     * Display the specific room if authorized.
-     */
     public function show(string $uuid): View|RedirectResponse
     {
         $room = Room::where('uuid', $uuid)->with('creator')->firstOrFail();
-
-        // 1. Если комната публичная и без пароля — пускаем сразу
         $hasPassword = !empty($room->getRawOriginal('password'));
         
         if (!$hasPassword) {
             return view('rooms.show', compact('room'));
         }
 
-        // 2. Если есть пароль, проверяем сессию или права владельца
         if (Session::has("room_auth_{$room->uuid}") || $room->creator_id === Auth::id()) {
             return view('rooms.show', compact('room'));
         }
 
-        // 3. Если пароль нужен, но не введен — на страницу входа
         return view('rooms.auth', compact('room'));
     }
 
-    /**
-     * Handle password submission for private rooms.
-     */
     public function join(Request $request, string $uuid): JsonResponse
     {
         $room = Room::where('uuid', $uuid)->firstOrFail();
@@ -106,35 +85,31 @@ class RoomController extends Controller
             return response()->json(['status' => 'access_granted']);
         }
 
-        return response()->json([
-            'message' => 'Предоставленный пароль не совпадает с настройками комнаты.'
-        ], 403);
+        return response()->json(['message' => 'Неверный пароль.'], 403);
     }
 
     public function destroy(string $uuid): JsonResponse
     {
-        $room = Room::where('uuid', $uuid)
-            ->where('creator_id', Auth::id())
-            ->firstOrFail();
-
+        $room = Room::where('uuid', $uuid)->where('creator_id', Auth::id())->firstOrFail();
         $room->delete();
-
         return response()->json(['status' => 'success']);
     }
 
     public function syncOccupancy(Request $request, string $uuid): JsonResponse
     {
-        $request->validate(['count' => 'required|integer|min:0|max:6']);
+        $request->validate(['count' => 'required|integer|min:0|max:10']);
         
         $room = Room::where('uuid', $uuid)->firstOrFail();
         
-        // Обновляем в БД
-        $room->update(['current_occupancy' => $request->count]);
+        // Обновляем количество и ставим текущее время (как метку жизни комнаты)
+        $room->update([
+            'current_occupancy' => $request->count,
+            'updated_at' => now() 
+        ]);
         
-        // Отправляем событие на главную страницу (в Лобби)
-        broadcast(new \App\Events\RoomOccupancyUpdated($uuid, $request->count));
+        // Вещаем в лобби
+        broadcast(new \App\Events\RoomOccupancyUpdated($uuid, $request->count))->toOthers();
 
         return response()->json(['status' => 'ok']);
     }
-
 }

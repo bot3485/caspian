@@ -15,15 +15,7 @@ class ProfileController extends Controller
     {
         $user = Auth::user();
         $friendsCount = DB::table('contacts')->where('user_id', $user->id)->count();
-        
-        // Получаем интересы и ГАРАНТИРУЕМ, что это строка для инпута
-        $interests = $user->interests;
-        
-        // Если прилетела строка (ошибка каста), декодируем. Если null - пустой массив.
-        if (is_string($interests)) {
-            $interests = json_decode($interests, true) ?? [];
-        }
-        
+        $interests = $user->interests ?? [];
         $interestsString = is_array($interests) ? implode(', ', $interests) : '';
         
         return view('profile.edit', [
@@ -35,22 +27,21 @@ class ProfileController extends Controller
 
     public function update(ProfileUpdateRequest $request): RedirectResponse
     {
-        $user = User::find(Auth::id());
-
-        $user->name = $request->name;
-        $user->email = $request->email;
+        $user = $request->user();
+        $user->fill($request->validated());
 
         if ($user->isDirty('email')) {
             $user->email_verified_at = null;
         }
 
-        // Превращаем строку "A, B, C" в массив ["A", "B", "C"]
+        // Обработка интересов
         $raw = $request->input('interests_string', '');
         if (!empty(trim($raw))) {
+            // Очищаем от пробелов и пустых элементов
             $tags = array_filter(array_map('trim', explode(',', $raw)));
             $user->interests = array_values($tags);
         } else {
-            $user->interests = [];
+            $user->interests = []; // Всегда массив
         }
 
         $user->save();

@@ -4,7 +4,7 @@ namespace App\Events;
 
 use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
-use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow; // Должно быть Now
+use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
@@ -19,13 +19,11 @@ class RoomOccupancyUpdated implements ShouldBroadcastNow
 
     public function broadcastOn(): array
     {
-        // Канал должен быть публичным (Channel), а не Private
         return [new Channel('rooms-lobby')];
     }
 
     public function broadcastAs(): string
     {
-        // Имя события для Echo (с точкой на фронте .OccupancyUpdated)
         return 'OccupancyUpdated';
     }
 }

@@ -15,15 +15,20 @@ class RoomController extends Controller
      */
     public function index(): View
     {
+        $userId = Auth::id();
+
+        // 1. Берем все публичные комнаты
+        // 2. Добавляем свою комнату, даже если она приватная
         $rooms = Room::where('is_public', true)
+            ->orWhere('creator_id', $userId)
             ->with('creator')
             ->latest()
-            ->get();
+            ->get()
+            ->unique('id'); // Чтобы не дублировалась, если она и публичная, и ваша
 
-        // Общий онлайн во всех комнатах
-        $totalOnlineInSpaces = $rooms->sum('current_occupancy');
+        $userHasRoom = Room::where('creator_id', $userId)->exists();
 
-        return view('rooms.index', compact('rooms', 'totalOnlineInSpaces'));
+        return view('rooms.index', compact('rooms', 'userHasRoom'));
     }
 
     /**
@@ -31,40 +36,31 @@ class RoomController extends Controller
      */
     public function store(Request $request): JsonResponse
     {
-        $request->merge(['is_public' => $request->boolean('is_public')]);
-        
+        $userId = Auth::id();
+
+        // КРИТИЧНО: Лимит 1 комната
+        if (Room::where('creator_id', $userId)->exists()) {
+            return response()->json([
+                'message' => 'У вас уже есть созданная комната. Пожалуйста, удалите старую, чтобы создать новую.'
+            ], 403);
+        }
+
         $validated = $request->validate([
-            'title' => 'required|string|max:50|min:3',
+            'title' => 'required|string|max:40|min:3',
             'password' => 'nullable|string|min:4',
             'is_public' => 'required|boolean',
         ]);
 
-        $userId = Auth::id();
+        $room = Room::create([
+            'title' => $validated['title'],
+            'password' => $validated['password'],
+            'is_public' => $validated['is_public'],
+            'creator_id' => $userId,
+        ]);
 
-        // Лимит: не более 5 активных комнат на одного пользователя
-        $existingCount = Room::where('creator_id', $userId)->count();
-        if ($existingCount >= 5) {
-            return response()->json([
-                'message' => 'Вы достигли лимита созданных комнат (макс: 5).'
-            ], 403);
-        }
+        Session::put("room_auth_{$room->uuid}", true);
 
-        return DB::transaction(function () use ($validated, $userId) {
-            $room = Room::create([
-                'title' => $validated['title'],
-                'password' => $validated['password'] ?: null, 
-                'is_public' => $validated['is_public'],
-                'creator_id' => $userId,
-            ]);
-
-            // Автоматически авторизуем создателя для доступа к собственной комнате
-            Session::put("room_auth_{$room->uuid}", true);
-
-            return response()->json([
-                'status' => 'success', 
-                'redirect' => route('rooms.show', $room->uuid)
-            ]);
-        });
+        return response()->json(['status' => 'success', 'redirect' => route('rooms.show', $room->uuid)]);
     }
 
     /**
@@ -114,4 +110,31 @@ class RoomController extends Controller
             'message' => 'Предоставленный пароль не совпадает с настройками комнаты.'
         ], 403);
     }
+
+    public function destroy(string $uuid): JsonResponse
+    {
+        $room = Room::where('uuid', $uuid)
+            ->where('creator_id', Auth::id())
+            ->firstOrFail();
+
+        $room->delete();
+
+        return response()->json(['status' => 'success']);
+    }
+
+    public function syncOccupancy(Request $request, string $uuid): JsonResponse
+    {
+        $request->validate(['count' => 'required|integer|min:0|max:6']);
+        
+        $room = Room::where('uuid', $uuid)->firstOrFail();
+        
+        // Обновляем в БД
+        $room->update(['current_occupancy' => $request->count]);
+        
+        // Отправляем событие на главную страницу (в Лобби)
+        broadcast(new \App\Events\RoomOccupancyUpdated($uuid, $request->count));
+
+        return response()->json(['status' => 'ok']);
+    }
+
 }

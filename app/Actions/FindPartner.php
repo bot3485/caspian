@@ -25,11 +25,6 @@ class FindPartner
         $user = User::find($userId);
         if (!$user) return null;
 
-        // Задержка для пользователей с низкой кармой
-        if ($user->karma < 50) {
-            sleep(rand(3, 5)); 
-        }
-
         if ($user->banned_until && $user->banned_until->isFuture()) return null;
 
         $myInterests = is_array($user->interests) ? $user->interests : [];

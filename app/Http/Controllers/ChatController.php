@@ -33,10 +33,23 @@ class ChatController extends Controller
 
     public function sendSignal(Request $request): JsonResponse
     {
-        $validated = $request->validate(['partnerId' => 'required|integer', 'data' => 'required|array']);
+        $validated = $request->validate([
+            'partnerId' => 'required|integer', 
+            'data' => 'required|array'
+        ]);
+
         $senderId = Auth::id();
         $receiverId = (int)$validated['partnerId'];
         $data = $validated['data'];
+
+        // 1. Проверка прав (Рулетка или Комната)
+        $isAllowedMatch = Redis::exists("allow_signal:{$senderId}:{$receiverId}");
+        $isAllowedRoom = isset($data['roomUuid']) && \App\Models\Room::where('uuid', $data['roomUuid'])->exists();
+
+        if (!$isAllowedMatch && !$isAllowedRoom) {
+            return response()->json(['error' => 'Unauthorized signaling'], 403);
+        }
+
         $data['from'] = $senderId;
 
         broadcast(new WebRTCSignalEvent($receiverId, $data));

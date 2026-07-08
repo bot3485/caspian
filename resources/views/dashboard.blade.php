@@ -2,38 +2,12 @@
     <div class="py-10 bg-[#050505] min-h-screen text-white" x-data="{ onlineList: [] }" x-init="window.Echo.join('online-status').here(u => onlineList = u)">
         
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            
-            <!-- HEADER -->
-            <div class="flex justify-between items-center mb-10">
-                <h1 class="text-4xl font-black tracking-tighter uppercase italic">Caspian <span class="text-indigo-500">2.1</span></h1>
-                <div class="bg-white/5 border border-white/10 px-4 py-2 rounded-xl flex items-center gap-3">
-                    <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                    <span class="text-[10px] font-black uppercase tracking-widest" x-text="onlineList.length + ' ONLINE'"></span>
-                </div>
-            </div>
-
             <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
                 
                 <!-- ГЛАВНАЯ СЕТКА -->
                 <div class="lg:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-6">
                     
-                    <!-- СТАТИСТИКА -->
-                    <div class="md:col-span-2 bg-gradient-to-br from-indigo-900/20 to-transparent border border-white/5 rounded-[2.5rem] p-8 grid grid-cols-3 gap-6">
-                        <div>
-                            <div class="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-1 italic">Пользователей</div>
-                            <div class="text-3xl font-black">{{ number_format($stats['total_users']) }}</div>
-                        </div>
-                        <div class="border-x border-white/5 px-6">
-                            <div class="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-1 italic">В эфире</div>
-                            <div class="text-3xl font-black">{{ number_format($stats['total_minutes']) }}</div>
-                        </div>
-                        <div class="relative z-10" x-data="{ totalInSpaces: {{ $stats['active_rooms_occupancy'] ?? 0 }} }" 
-                            @occupancy-updated.window="totalInSpaces = $event.detail.total">
-                            <div class="text-[9px] font-black text-indigo-400 uppercase tracking-[0.2em] mb-1 italic">Spaces</div>
-                            <div class="text-3xl font-black tracking-tighter text-white" x-text="totalInSpaces"></div>
-                            <div class="text-[8px] text-gray-500 font-bold uppercase mt-1">участников сейчас</div>
-                        </div>
-                    </div>
+
 
                     <!-- КАРТА: РУЛЕТКА -->
                     <a href="{{ route('chat') }}" class="group relative overflow-hidden rounded-[3rem] bg-indigo-600 p-10 transition-all hover:shadow-[0_0_50px_rgba(79,70,229,0.3)]">

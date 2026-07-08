@@ -47,35 +47,67 @@
                     <div x-show="!camEnabled" class="absolute inset-0 flex items-center justify-center bg-gray-900"><span class="text-3xl text-gray-700">🚫</span></div>
                 </div>
 
-                <!-- УПРАВЛЕНИЕ -->
-                <div class="absolute bottom-10 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-3 px-6 py-4 bg-[#121212]/90 backdrop-blur-3xl border border-white/10 rounded-3xl shadow-2xl">
-                    <button @click="toggleMic()" :class="micEnabled ? 'bg-white/5' : 'bg-red-600'" class="w-12 h-12 rounded-xl flex items-center justify-center">🎤</button>
-                    <button @click="toggleCam()" :class="camEnabled ? 'bg-white/5' : 'bg-red-600'" class="w-12 h-12 rounded-xl flex items-center justify-center">📷</button>
-                    <button @click="isBlurred = !isBlurred" :class="isBlurred ? 'bg-indigo-600' : 'bg-white/5'" class="w-12 h-12 rounded-xl flex items-center justify-center text-lg transition-all">🙈</button>
-
-                    <div class="w-px h-8 bg-white/10 mx-2"></div>
-
-                    <template x-if="state === 'idle'">
-                        <button @click="startSearch()" class="bg-indigo-600 px-10 py-4 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all shadow-xl">Начать поиск</button>
-                    </template>
+                <!-- УПРАВЛЕНИЕ: Универсальный Floating Island -->
+                <div class="absolute bottom-8 left-1/2 -translate-x-1/2 z-[100]" x-data="{ controlsOpen: true }">
                     
-                    <template x-if="state === 'searching'">
-                        <button @click="stopSearch()" class="bg-white/10 text-white px-10 py-4 rounded-xl font-black text-[10px] uppercase tracking-widest border border-white/10">Отмена</button>
-                    </template>
-                    
-                    <template x-if="state === 'connected'">
-                        <div class="flex gap-2 items-center">
-                            <button @click="report()" class="w-12 h-12 bg-red-600/10 text-red-500 rounded-xl flex items-center justify-center hover:bg-red-600">🚩</button>
-                            <button @click="toggleContact()" :class="isFriend ? 'bg-green-600/20 text-green-400 border-green-500/30' : 'bg-white/5 text-gray-300 border-white/10'" class="px-5 h-12 rounded-xl border flex items-center gap-2 transition-all font-black text-[10px] uppercase tracking-widest">
-                                <span x-text="isFriend ? '✅ В друзьях' : '⭐ Добавить'"></span>
-                            </button>
-                            <!-- КНОПКА СТОП (ВОССТАНОВЛЕНА) -->
-                            <button @click="stopSearch()" class="bg-red-600/20 text-red-500 px-6 h-12 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-red-600 hover:text-white transition-all">Стоп</button>
-                            <button @click="startSearch()" class="bg-white text-black px-10 h-12 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-600 hover:text-white transition-all">Далее ➔</button>
+                    <div class="flex items-center gap-2 p-2 bg-[#121212]/95 backdrop-blur-3xl border border-white/10 rounded-full shadow-[0_10px_40px_rgba(0,0,0,0.8)] transition-all duration-300">
+                        
+                        <!-- КНОПКА СВОРАЧИВАНИЯ/РАЗВОРАЧИВАНИЯ (Теперь везде, не только на мобилках) -->
+                        <button @click="controlsOpen = !controlsOpen" 
+                                class="w-12 h-12 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-lg text-gray-300 transition-transform shrink-0"
+                                :class="controlsOpen ? 'rotate-180 bg-white/10' : ''"
+                                title="Свернуть / Развернуть">
+                            <span x-text="controlsOpen ? '▼' : '⚡'"></span>
+                        </button>
+
+                        <!-- РАЗВОРАЧИВАЕМЫЙ БЛОК -->
+                        <div x-show="controlsOpen" 
+                            x-transition:enter="transition ease-out duration-200"
+                            x-transition:enter-start="opacity-0 scale-95 -translate-x-4"
+                            x-transition:enter-end="opacity-100 scale-100 translate-x-0"
+                            x-transition:leave="transition ease-in duration-150"
+                            x-transition:leave-start="opacity-100 scale-100 translate-x-0"
+                            x-transition:leave-end="opacity-0 scale-95 -translate-x-4"
+                            class="flex items-center gap-2 pr-2 overflow-x-auto max-w-[85vw] sm:max-w-none scrollbar-hide">
+                            
+                            <!-- Медиа-кнопки -->
+                            <div class="flex items-center gap-1.5 shrink-0">
+                                <button @click="toggleMic()" :class="micEnabled ? 'bg-white/5 hover:bg-white/10' : 'bg-red-600'" class="w-12 h-12 rounded-full flex items-center justify-center text-lg transition-colors">🎤</button>
+                                <button @click="toggleCam()" :class="camEnabled ? 'bg-white/5 hover:bg-white/10' : 'bg-red-600'" class="w-12 h-12 rounded-full flex items-center justify-center text-lg transition-colors">📷</button>
+                                <button @click="isBlurred = !isBlurred" :class="isBlurred ? 'bg-indigo-600 shadow-[0_0_15px_rgba(79,70,229,0.5)]' : 'bg-white/5 hover:bg-white/10'" class="w-12 h-12 rounded-full flex items-center justify-center text-lg transition-all">🙈</button>
+                            </div>
+
+                            <div class="w-px h-6 bg-white/10 mx-1 shrink-0"></div>
+
+                            <!-- Кнопки действий (shrink-0 не дает им сжиматься и обрезаться!) -->
+                            <div class="flex items-center gap-2 shrink-0">
+                                <template x-if="state === 'idle'">
+                                    <button @click="startSearch()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-8 py-3.5 rounded-full font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-600/30 transition-all">Начать поиск</button>
+                                </template>
+                                
+                                <template x-if="state === 'searching'">
+                                    <button @click="stopSearch()" class="bg-white/10 hover:bg-white/20 text-white px-8 py-3.5 rounded-full font-black text-[10px] uppercase tracking-widest transition-all">Отмена</button>
+                                </template>
+                                
+                                <template x-if="state === 'connected'">
+                                    <div class="flex gap-2 items-center">
+                                        <button @click="report()" class="w-12 h-12 bg-red-600/10 text-red-500 rounded-full flex items-center justify-center hover:bg-red-600 hover:text-white transition-all shrink-0" title="Жалоба">🚩</button>
+                                        
+                                        <button @click="toggleContact()" :class="isFriend ? 'bg-green-600/20 text-green-400 border-green-500/30' : 'bg-white/5 text-gray-300 border-white/10 hover:bg-white/10'" class="h-12 px-5 rounded-full border flex items-center gap-2 transition-all font-black text-[10px] uppercase tracking-widest shrink-0">
+                                            <span x-text="isFriend ? '✅ В друзьях' : '⭐ Добавить'"></span>
+                                        </button>
+
+                                        <button @click="stopSearch()" class="bg-red-600/20 text-red-500 hover:bg-red-600 hover:text-white px-6 py-3.5 rounded-full font-black text-[10px] uppercase tracking-widest transition-all shrink-0">Стоп</button>
+                                        
+                                        <!-- Исправленная кнопка "Далее" - теперь она не обрезается -->
+                                        <button @click="startSearch()" class="bg-white text-black hover:bg-indigo-600 hover:text-white px-8 py-3.5 rounded-full font-black text-[10px] uppercase tracking-widest transition-all shadow-xl shrink-0">Далее ➔</button>
+                                    </div>
+                                </template>
+                            </div>
+
                         </div>
-                    </template>
+                    </div>
                 </div>
-            </div>
 
             <!-- ПРАВАЯ ПАНЕЛЬ -->
             <div class="w-full lg:w-[400px] flex flex-col bg-[#080808] border-l border-white/5" x-data="{ tab: 'chat' }">

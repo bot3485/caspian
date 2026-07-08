@@ -22,12 +22,14 @@ Broadcast::channel('online-status', function ($user) {
 });
 
 Broadcast::channel('room.{uuid}', function ($user, $uuid) {
-    if (App\Models\Room::where('uuid', $uuid)->exists()) {
-        // Обязательно возвращаем массив, чтобы работал метод .here() и .joining()
-        return [
-            'id' => $user->id, 
-            'name' => $user->name
-        ]; 
+    $room = \App\Models\Room::where('uuid', $uuid)->first();
+    
+    if (!$room) return false;
+
+    // Если в комнате уже 6 человек И текущий юзер — не создатель (создатель может зайти всегда)
+    if ($room->current_occupancy >= 6 && $room->creator_id !== $user->id) {
+        return false; 
     }
-    return false;
+
+    return ['id' => $user->id, 'name' => $user->name];
 });

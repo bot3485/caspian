@@ -40,25 +40,22 @@ class AppServiceProvider extends ServiceProvider
      */
     protected function updateRoomOccupancy(string $channelName, string $action): void
     {
-        // 1. Ищем UUID комнаты в названии канала
-        if (preg_match('/room\.([a-f0-9\-]{36})/', $channelName, $matches)) {
+        // Улучшенное регулярное выражение (добавлен префикс presence-?)
+        if (preg_match('/(?:presence-)?room\.([a-f0-9\-]{36})/', $channelName, $matches)) {
             $uuid = $matches[1];
-            $room = Room::where('uuid', $uuid)->first();
+            $room = \App\Models\Room::where('uuid', $uuid)->first();
             
             if ($room) {
-                // 2. Обновляем базу данных
                 if ($action === 'joined') {
                     $room->increment('current_occupancy');
                 } else {
-                    if ($room->current_occupancy > 0) {
-                        $room->decrement('current_occupancy');
-                    }
+                    // Используем MAX(0, ...), чтобы не уйти в минус при багах
+                    \DB::table('rooms')->where('id', $room->id)->update([
+                        'current_occupancy' => \DB::raw('GREATEST(current_occupancy - 1, 0)')
+                    ]);
                 }
 
                 $newCount = $room->fresh()->current_occupancy;
-
-                // 3. ОТПРАВЛЯЕМ СОБЫТИЕ В ЛОББИ (этого ждут карточки комнат)
-                // Убедитесь, что класс события RoomOccupancyUpdated принимает (uuid, count)
                 broadcast(new \App\Events\RoomOccupancyUpdated($uuid, $newCount));
             }
         }

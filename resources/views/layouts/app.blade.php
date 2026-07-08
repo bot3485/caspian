@@ -41,96 +41,99 @@
     </div>
 
     <script>
-        function globalCallHandler() {
-            return {
-                incomingCall: null,
-                ringtone: new Audio('/sounds/call.mp3'),
-                audioUnlocked: false,
+function globalCallHandler() {
+    return {
+        incomingCall: null,
+        ringtone: new Audio('/sounds/call.mp3'),
+        audioUnlocked: false,
 
-                initGlobal() {
-                    this.ringtone.loop = true;
-                    this.ringtone.preload = 'auto'; // Предзагрузка файла
+        initGlobal() {
+            this.ringtone.loop = true;
+            this.ringtone.load(); // Предзагрузка файла
+
+            @auth
+            window.Echo.private('user.{{ auth()->id() }}')
+                .listen('.WebRTCSignalEvent', (e) => {
+                    const data = e.data;
                     
-                    @auth
-                    window.Echo.private('user.{{ auth()->id() }}')
-                        .listen('.WebRTCSignalEvent', (e) => {
-                            const data = e.data;
-                            
-                            if (data.type === 'incoming-call') {
-                                console.log("Incoming call from:", data.fromName);
-                                this.incomingCall = data;
-                                // Пытаемся запустить звук
-                                this.playRingtone();
-                            }
-
-                            if (data.type === 'hang-up' || data.type === 'peer-disconnected') {
-                                if (this.incomingCall && Number(data.from) === Number(this.incomingCall.fromId)) {
-                                    this.stopRingtone();
-                                    this.incomingCall = null;
-                                }
-                            }
-                        });
-                    @endauth
-                },
-
-                // Метод для воспроизведения
-                playRingtone() {
-                    if (this.incomingCall) {
-                        this.ringtone.play().catch(err => {
-                            console.warn("Звук заблокирован браузером. Ожидание клика...");
-                        });
+                    if (data.type === 'incoming-call') {
+                        this.incomingCall = data;
+                        this.playRingtone();
                     }
-                },
 
-                // Метод разблокировки звука
-                unlockAudio() {
-                    if (this.audioUnlocked) {
-                        // Если уже разблокировано, но есть входящий звонок и тишина - включаем
-                        if (this.incomingCall && this.ringtone.paused) this.playRingtone();
-                        return;
-                    }
-                    
-                    // Хак для пробития защиты браузера
-                    this.ringtone.play().then(() => {
-                        this.audioUnlocked = true;
-                        console.log("Audio System Activated");
-                        // Если пока звонка нет - сразу стопаем "тестовый" запуск
-                        if (!this.incomingCall) {
-                            this.ringtone.pause();
-                            this.ringtone.currentTime = 0;
+                    if (['hang-up', 'peer-disconnected', 'peer-skipped'].includes(data.type)) {
+                        if (this.incomingCall && Number(data.from) === Number(this.incomingCall.fromId)) {
+                            this.stopRingtone();
+                            this.incomingCall = null;
                         }
-                    }).catch(() => {
-                        // Всё еще заблокировано
-                    });
-                },
-
-                acceptCall() {
-                    const fromId = this.incomingCall.fromId;
-                    this.stopRingtone();
-                    this.incomingCall = null;
-                    window.location.href = '/chat?accept_call=' + fromId;
-                },
-
-                rejectCall() {
-                    if (this.incomingCall) {
-                        window.axios.post('/chat/signal', { 
-                            partnerId: this.incomingCall.fromId, 
-                            data: { type: 'hang-up', from: {{ auth()->id() }} } 
-                        }).catch(() => {});
                     }
-                    this.stopRingtone();
-                    this.incomingCall = null;
-                },
+                });
+            @endauth
+        },
 
-                stopRingtone() {
-                    if (this.ringtone) {
-                        this.ringtone.pause();
-                        this.ringtone.currentTime = 0;
-                        this.ringtone.load(); // Очистка буфера
-                    }
+        // Вызывается ОДИН раз при первом клике пользователя по сайту
+        async unlockAudio() {
+            if (this.audioUnlocked) return;
+
+            // Хитрый ход для iOS: 
+            // Мы запускаем мелодию В МУТЕ и ТУТ ЖЕ выключаем.
+            // Это дает объекту ringtone "легальное" право играть в будущем.
+            this.ringtone.muted = true;
+            try {
+                await this.ringtone.play();
+                this.ringtone.pause();
+                this.ringtone.currentTime = 0;
+                this.ringtone.muted = false; // Снимаем мут для будущих звонков
+                
+                this.audioUnlocked = true;
+                console.log("Ringtone primed for iOS");
+
+                // Если звонок УЖЕ пришел к моменту клика — запускаем его
+                if (this.incomingCall) {
+                    this.playRingtone();
                 }
+            } catch (err) {
+                console.error("Audio priming failed:", err);
             }
+        },
+
+        playRingtone() {
+            // Если звонок есть и мы уже разблокировали аудио
+            if (this.incomingCall && this.audioUnlocked) {
+                this.ringtone.currentTime = 0;
+                this.ringtone.muted = false;
+                this.ringtone.play().catch(e => {
+                    console.warn("Play failed even after unlock:", e);
+                });
+            }
+        },
+
+        stopRingtone() {
+            if (this.ringtone) {
+                this.ringtone.pause();
+                this.ringtone.currentTime = 0;
+            }
+        },
+
+        acceptCall() {
+            const fromId = this.incomingCall.fromId;
+            this.stopRingtone();
+            this.incomingCall = null;
+            window.location.href = '/chat?accept_call=' + fromId;
+        },
+
+        rejectCall() {
+            if (this.incomingCall) {
+                window.axios.post('/chat/signal', { 
+                    partnerId: this.incomingCall.fromId, 
+                    data: { type: 'hang-up', from: {{ auth()->id() }} } 
+                }).catch(() => {});
+            }
+            this.stopRingtone();
+            this.incomingCall = null;
         }
+    }
+}
     </script>
 </body>
 </html>

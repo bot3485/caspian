@@ -39,7 +39,8 @@ return [
                 'host' => env('REVERB_HOST', '127.0.0.1'),
                 'port' => env('REVERB_PORT', 8080),
                 'scheme' => env('REVERB_SCHEME', 'http'),
-                'useTLS' => env('REVERB_SCHEME', 'https') === 'https', // Важно!
+                // Важно: серверу внутри не нужен TLS, если Nginx стоит перед ним
+                'useTLS' => false, 
             ],
         ],
         'pusher' => [

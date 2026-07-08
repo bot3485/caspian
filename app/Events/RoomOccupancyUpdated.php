@@ -19,11 +19,13 @@ class RoomOccupancyUpdated implements ShouldBroadcastNow
 
     public function broadcastOn(): array
     {
+        // Канал должен быть публичным (Channel), а не Private
         return [new Channel('rooms-lobby')];
     }
 
     public function broadcastAs(): string
     {
+        // Имя события для Echo (с точкой на фронте .OccupancyUpdated)
         return 'OccupancyUpdated';
     }
 }

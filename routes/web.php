@@ -14,7 +14,19 @@ Route::post('_boost/browser-logs', [BrowserLogController::class, 'store']);
 // --- РОУТЫ С АВТОРИЗАЦИЕЙ ---
 Route::middleware(['auth', 'verified'])->group(function () {
 
-    Route::get('/dashboard', function () { return view('dashboard'); })->name('dashboard');
+   
+    Route::get('/dashboard', function () {
+        return view('dashboard', [
+            'stats' => [
+                'total_users' => \App\Models\User::count(),
+                // Считаем тех, кто в поиске или уже в паре
+                'online_now' => \App\Models\Matchmaking::whereIn('status', ['searching', 'matched'])->count(),
+                'total_minutes' => \App\Models\User::sum('total_minutes'),
+                'active_rooms' => \App\Models\Room::where('is_public', true)->count(), // Ключ исправлен здесь
+            ]
+        ]);
+    })->name('dashboard');
+
     Route::get('/leaderboard', function () { return view('leaderboard'); })->name('leaderboard');
 
     // Пульс (Heartbeat) для обновления last_seen

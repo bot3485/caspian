@@ -8,7 +8,7 @@
                 <div class="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-xl shadow-lg">🏠</div>
                 <div>
                     <h1 class="text-xs font-black uppercase tracking-[0.3em]">{{ $room->title }}</h1>
-                    <p class="text-[10px] font-bold text-gray-500 uppercase tracking-widest mt-1" x-text="peers.length + 1 + ' online'"></p>
+                    <p class="text-[10px] font-bold text-gray-500 uppercase tracking-widest mt-1" x-text="(peers.length + 1) + ' участников в комнате'"></p>
                 </div>
             </div>
             <button @click="copyLink()" class="px-5 py-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-[9px] font-black uppercase tracking-widest border border-white/10 transition-all">🔗 Копировать ссылку</button>
@@ -41,18 +41,13 @@
                 <button @click="toggleMic()" :class="micEnabled ? 'bg-white/5' : 'bg-red-600'" class="w-14 h-14 rounded-2xl flex items-center justify-center text-xl">
                     <span x-text="micEnabled ? '🎤' : '🔇'"></span>
                 </button>
-                
                 <button @click="toggleCam()" :class="camEnabled ? 'bg-white/5' : 'bg-red-600'" class="w-14 h-14 rounded-2xl flex items-center justify-center text-xl">
                     <span x-text="camEnabled ? '📷' : '🚫'"></span>
                 </button>
-
-                <!-- КНОПКА ДЕМОНСТРАЦИИ ЭКРАНА -->
                 <button @click="toggleScreenShare()" :class="isScreenSharing ? 'bg-indigo-600 shadow-[0_0_15px_#6366f1]' : 'bg-white/5'" class="w-14 h-14 rounded-2xl flex items-center justify-center text-xl transition-all">
                     <span>📺</span>
                 </button>
-
                 <div class="w-px h-10 bg-white/10 mx-2"></div>
-                
                 <a href="{{ route('rooms.index') }}" class="bg-red-600 hover:bg-red-700 text-white px-10 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all">Покинуть</a>
             </div>
         </div>
@@ -70,10 +65,13 @@
                 },
                 async init() {
                     await this.initMedia();
+                    // Используем префикс presence-, так как Echo.join автоматически его добавляет
                     const channel = window.Echo.join(`room.${roomUuid}`);
+                    
                     channel.here(users => {
                         users.forEach(u => { if (u.id !== myId) this.initiateConnection(u.id, u.name, myId > u.id); });
                     }).joining(u => {
+                        window.dispatchEvent(new CustomEvent('toast', {detail:{msg: u.name + ' вошел в комнату', type:'info'}}));
                         this.initiateConnection(u.id, u.name, myId > u.id);
                     }).leaving(u => {
                         this.removePeer(u.id);
@@ -84,50 +82,28 @@
                     });
                 },
                 async initMedia() {
-                    this.localStream = await navigator.mediaDevices.getUserMedia({video:true, audio:true});
-                    this.$refs.localVideo.srcObject = this.localStream;
-                },
-                async toggleScreenShare() {
-                    if (!this.isScreenSharing) {
-                        try {
-                            this.screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-                            const sTrack = this.screenStream.getVideoTracks()[0];
-                            
-                            // Заменяем видео-трек у всех пиров
-                            this.peers.forEach(p => {
-                                const sender = p.pc.getSenders().find(s => s.track?.kind === 'video');
-                                if (sender) sender.replaceTrack(sTrack);
-                            });
-
-                            this.$refs.localVideo.srcObject = this.screenStream;
-                            this.isScreenSharing = true;
-
-                            sTrack.onended = () => this.stopScreenShare();
-                        } catch (e) { console.error("ScreenShare error:", e); }
-                    } else {
-                        this.stopScreenShare();
-                    }
-                },
-                stopScreenShare() {
-                    const vTrack = this.localStream.getVideoTracks()[0];
-                    this.peers.forEach(p => {
-                        const sender = p.pc.getSenders().find(s => s.track?.kind === 'video');
-                        if (sender) sender.replaceTrack(vTrack);
-                    });
-                    this.$refs.localVideo.srcObject = this.localStream;
-                    this.isScreenSharing = false;
-                    if (this.screenStream) this.screenStream.getTracks().forEach(t => t.stop());
+                    try {
+                        this.localStream = await navigator.mediaDevices.getUserMedia({video:true, audio:true});
+                        this.$refs.localVideo.srcObject = this.localStream;
+                    } catch(e) { console.error("Media error:", e); }
                 },
                 initiateConnection(partnerId, partnerName, isInitiator) {
                     if (this.peers.find(p => p.id === partnerId)) return;
+                    
                     const pc = new RTCPeerConnection(window.rtcConfig);
                     const peerObj = { id: partnerId, name: partnerName, pc: pc, iceQueue: [] };
                     this.peers.push(peerObj);
 
+                    // Добавляем треки
                     const stream = this.isScreenSharing ? this.screenStream : this.localStream;
-                    stream.getTracks().forEach(t => pc.addTrack(t, stream));
+                    if (stream) {
+                        stream.getTracks().forEach(t => pc.addTrack(t, stream));
+                    }
 
-                    pc.onicecandidate = e => { if (e.candidate) this.sendSignal(partnerId, { type: 'ice', candidate: e.candidate }); };
+                    pc.onicecandidate = e => { 
+                        if (e.candidate) this.sendSignal(partnerId, { type: 'ice', candidate: e.candidate }); 
+                    };
+                    
                     pc.ontrack = e => { 
                         this.$nextTick(() => { 
                             const v = document.getElementById('video-' + partnerId); 
@@ -136,28 +112,43 @@
                     };
 
                     if (isInitiator) {
-                        pc.createOffer().then(o => { pc.setLocalDescription(o); this.sendSignal(partnerId, { type: 'offer', sdp: o }); });
+                        pc.createOffer().then(o => { 
+                            pc.setLocalDescription(o); 
+                            this.sendSignal(partnerId, { type: 'offer', sdp: o }); 
+                        });
                     }
                 },
                 async handleSignal(data) {
                     let peer = this.peers.find(p => p.id === data.from);
                     if (!peer) return;
-                    if (data.type === 'offer') {
-                        await peer.pc.setRemoteDescription(new RTCSessionDescription({type:'offer', sdp:this.sanitizeSdp(data.sdp.sdp)}));
-                        const a = await peer.pc.createAnswer();
-                        await peer.pc.setLocalDescription(a);
-                        this.sendSignal(data.from, { type: 'answer', sdp: a });
-                        this.drainIce(peer);
-                    } else if (data.type === 'answer') {
-                        await peer.pc.setRemoteDescription(new RTCSessionDescription({type:'answer', sdp:this.sanitizeSdp(data.sdp.sdp)}));
-                        this.drainIce(peer);
-                    } else if (data.type === 'ice') {
-                        if (peer.pc.remoteDescription) peer.pc.addIceCandidate(new RTCIceCandidate(data.candidate)).catch(()=>{});
-                        else peer.iceQueue.push(data.candidate);
+                    
+                    try {
+                        if (data.type === 'offer') {
+                            await peer.pc.setRemoteDescription(new RTCSessionDescription({type:'offer', sdp:this.sanitizeSdp(data.sdp.sdp)}));
+                            const a = await peer.pc.createAnswer();
+                            await peer.pc.setLocalDescription(a);
+                            this.sendSignal(data.from, { type: 'answer', sdp: a });
+                            this.drainIce(peer);
+                        } else if (data.type === 'answer') {
+                            await peer.pc.setRemoteDescription(new RTCSessionDescription({type:'answer', sdp:this.sanitizeSdp(data.sdp.sdp)}));
+                            this.drainIce(peer);
+                        } else if (data.type === 'ice') {
+                            if (peer.pc.remoteDescription) peer.pc.addIceCandidate(new RTCIceCandidate(data.candidate)).catch(()=>{});
+                            else peer.iceQueue.push(data.candidate);
+                        }
+                    } catch(e) { console.warn("Signal error:", e); }
+                },
+                drainIce(peer) { 
+                    while(peer.iceQueue.length > 0) {
+                        peer.pc.addIceCandidate(new RTCIceCandidate(peer.iceQueue.shift())).catch(()=>{});
                     }
                 },
-                drainIce(peer) { while(peer.iceQueue.length > 0) peer.pc.addIceCandidate(new RTCIceCandidate(peer.iceQueue.shift())).catch(()=>{}); },
-                sendSignal(to, payload) { window.axios.post('/chat/signal', { partnerId: to, data: { ...payload, from: myId, roomUuid: roomUuid } }); },
+                sendSignal(to, payload) { 
+                    window.axios.post('/chat/signal', { 
+                        partnerId: to, 
+                        data: { ...payload, from: myId, roomUuid: roomUuid } 
+                    }); 
+                },
                 removePeer(id) { 
                     const p = this.peers.find(x => x.id === id); 
                     if(p) { p.pc.close(); this.peers = this.peers.filter(x => x.id !== id); }
@@ -165,7 +156,10 @@
                 toggleMic() { this.micEnabled = !this.micEnabled; this.localStream.getAudioTracks()[0].enabled = this.micEnabled; },
                 toggleCam() { this.camEnabled = !this.camEnabled; this.localStream.getVideoTracks()[0].enabled = this.camEnabled; },
                 sanitizeSdp(s) { return s.split('\n').map(l => l.trim()).filter(l => l.length > 0).join('\r\n') + '\r\n'; },
-                copyLink() { navigator.clipboard.writeText(window.location.href); window.dispatchEvent(new CustomEvent('toast', {detail:{msg:'Ссылка скопирована', type:'success'}})); }
+                copyLink() { 
+                    navigator.clipboard.writeText(window.location.href); 
+                    window.dispatchEvent(new CustomEvent('toast', {detail:{msg:'Ссылка скопирована', type:'success'}})); 
+                }
             }
         }
     </script>

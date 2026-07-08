@@ -31,8 +31,31 @@
                 <!-- ГЛАВНАЯ СЕТКА -->
                 <div class="lg:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-4">
                     
+                    <!-- ПУЛЬС ПЛАТФОРМЫ (Глобальная статистика) -->
+                    <div class="md:col-span-2 bg-gradient-to-br from-indigo-600/20 to-transparent border border-white/5 rounded-[2.5rem] p-8 grid grid-cols-3 gap-6 relative overflow-hidden group">
+                        <div class="absolute -right-10 -top-10 w-40 h-40 bg-indigo-500/10 blur-3xl rounded-full group-hover:bg-indigo-500/20 transition-all"></div>
+                        
+                        <div class="relative z-10">
+                            <div class="text-[9px] font-black text-indigo-400 uppercase tracking-[0.2em] mb-1 italic">Сообщество</div>
+                            <div class="text-3xl font-black tracking-tighter">{{ number_format($stats['total_users']) }}</div>
+                            <div class="text-[8px] text-gray-500 font-bold uppercase mt-1">участников</div>
+                        </div>
+                        
+                        <div class="relative z-10 border-x border-white/5 px-6">
+                            <div class="text-[9px] font-black text-indigo-400 uppercase tracking-[0.2em] mb-1 italic">В эфире</div>
+                            <div class="text-3xl font-black tracking-tighter">{{ number_format($stats['total_minutes']) }}</div>
+                            <div class="text-[8px] text-gray-500 font-bold uppercase mt-1">всего минут</div>
+                        </div>
+
+                        <div class="relative z-10">
+                            <div class="text-[9px] font-black text-indigo-400 uppercase tracking-[0.2em] mb-1 italic">Spaces</div>
+                            <div class="text-3xl font-black tracking-tighter text-white">{{ $stats['active_rooms'] }}</div>
+                            <div class="text-[8px] text-gray-500 font-bold uppercase mt-1">активных комнат</div>
+                        </div>
+                    </div>
+
                     <!-- КАРТА ВХОДА В РУЛЕТКУ -->
-                    <a href="{{ route('chat') }}" class="md:row-span-2 group relative overflow-hidden rounded-[3rem] bg-indigo-600 flex flex-col justify-end p-10 transition-all hover:shadow-[0_0_50px_rgba(79,70,229,0.4)]">
+                    <a href="{{ route('chat') }}" class="group relative overflow-hidden rounded-[3rem] bg-indigo-600 flex flex-col justify-end p-10 transition-all hover:shadow-[0_0_50px_rgba(79,70,229,0.4)]">
                         <div class="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent z-10"></div>
                         <div class="relative z-20">
                             <div class="w-16 h-16 bg-white/20 backdrop-blur-2xl rounded-2xl flex items-center justify-center text-4xl mb-6 group-hover:rotate-12 transition-transform">🎲</div>
@@ -41,41 +64,28 @@
                         </div>
                     </a>
 
-                    <!-- РАНГ И XP -->
+                    <!-- ПЕРСОНАЛЬНЫЙ РАНГ -->
                     <div class="bg-[#111] border border-white/5 rounded-[2.5rem] p-8 relative overflow-hidden">
                         <div class="flex justify-between items-start">
                             <div>
-                                <div class="text-[10px] font-black text-gray-500 uppercase tracking-widest">Ранг</div>
-                                <div class="text-4xl font-black mt-2 text-white italic">LVL {{ Auth::user()->level }}</div>
+                                <div class="text-[10px] font-black text-gray-500 uppercase tracking-widest">Ваш статус</div>
+                                <div class="text-3xl font-black mt-2 text-white italic tracking-tighter">{{ Auth::user()->rank_name }}</div>
                             </div>
-                            <div class="text-right">
-                                <div class="text-[10px] font-black text-indigo-500 uppercase tracking-widest">Опыт</div>
-                                <div class="text-xl font-bold mt-1 text-white/80">{{ number_format(Auth::user()->xp) }}</div>
-                            </div>
+                            <div class="bg-indigo-500/10 px-3 py-1 rounded-full text-[10px] font-black text-indigo-400 uppercase">LVL {{ Auth::user()->level }}</div>
                         </div>
-                        <div class="mt-6 w-full bg-white/5 h-2 rounded-full overflow-hidden">
-                            <div class="bg-indigo-500 h-full shadow-[0_0_15px_#6366f1] transition-all duration-1000" style="width: {{ (Auth::user()->xp % 1000) / 10 }}%"></div>
+                        <div class="mt-8">
+                            <div class="flex justify-between text-[9px] font-black uppercase text-gray-500 mb-2">
+                                <span>Прогресс до {{ Auth::user()->level + 1 }} LVL</span>
+                                <span>{{ Auth::user()->xp % 1000 }} / 1000 XP</span>
+                            </div>
+                            <div class="w-full bg-white/5 h-2 rounded-full overflow-hidden">
+                                <div class="bg-indigo-500 h-full shadow-[0_0_15px_#6366f1] transition-all duration-1000" style="width: {{ Auth::user()->xp_progress }}%"></div>
+                            </div>
                         </div>
                     </div>
 
-                    <!-- КАРМА -->
-                    <div class="bg-[#0a0a0a] border border-white/5 rounded-[2.5rem] p-8 flex flex-col justify-center">
-                        <div class="flex items-center gap-4">
-                            <div class="w-12 h-12 rounded-2xl bg-green-500/10 flex items-center justify-center text-2xl">⚖️</div>
-                            <div>
-                                <div class="text-[10px] font-black text-gray-500 uppercase tracking-widest">Карма (Доверие)</div>
-                                <div class="text-2xl font-black {{ Auth::user()->karma >= 100 ? 'text-green-500' : 'text-red-500' }}">
-                                    {{ Auth::user()->karma }}
-                                </div>
-                            </div>
-                        </div>
-                        <p class="text-[9px] text-gray-600 mt-4 leading-tight uppercase font-black tracking-tighter">
-                            Высокая карма дает приоритет в поиске и статус надежного партнера.
-                        </p>
-                    </div>
-
-                    <!-- ТАЙМЕРЫ (НОВОЕ) -->
-                    <div class="md:col-span-2 bg-white/[0.02] border border-white/5 rounded-[2.5rem] p-8 grid grid-cols-2 gap-8">
+                    <!-- ТАЙМЕРЫ -->
+                    <div class="md:col-span-2 bg-[#0a0a0a] border border-white/5 rounded-[2.5rem] p-8 grid grid-cols-2 gap-8">
                         <div>
                             <div class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1 italic"># Время на сайте</div>
                             <div class="text-3xl font-black italic text-white">{{ Auth::user()->site_minutes ?? 0 }} <span class="text-xs text-gray-600 not-italic uppercase">мин</span></div>
@@ -85,44 +95,24 @@
                             <div class="text-3xl font-black italic text-white">{{ Auth::user()->total_minutes ?? 0 }} <span class="text-xs text-gray-600 not-italic uppercase">мин</span></div>
                         </div>
                     </div>
-
-                    <!-- ИНТЕРЕСЫ -->
-                    <div class="md:col-span-2 bg-[#0a0a0a] border border-white/5 rounded-[2.5rem] p-8">
-                        <div class="flex justify-between items-center mb-4">
-                            <span class="text-[10px] font-black text-gray-500 uppercase tracking-widest italic"># Теги интересов</span>
-                            <a href="{{ route('profile.edit') }}" class="text-indigo-500 text-[10px] font-black uppercase">Изменить</a>
-                        </div>
-                        <div class="flex flex-wrap gap-2">
-                            @php $interests = is_array(Auth::user()->interests) ? Auth::user()->interests : []; @endphp
-                            @forelse($interests as $tag)
-                                <span class="px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg text-[10px] font-bold">#{{ $tag }}</span>
-                            @empty
-                                <p class="text-gray-600 text-[10px] italic font-bold">Добавьте теги в профиле для умного подбора</p>
-                            @endforelse
-                        </div>
-                    </div>
                 </div>
 
-                <!-- СПИСОК ДРУЗЕЙ -->
+                <!-- СПИСОК КОНТАКТОВ -->
                 <div class="bg-[#080808] border border-white/5 rounded-[2.5rem] flex flex-col overflow-hidden">
                     <div class="p-6 border-b border-white/5 bg-white/[0.02]">
                         <h3 class="text-[11px] font-black uppercase tracking-[0.2em] text-indigo-400">Контакты</h3>
                     </div>
-                    <div class="flex-1 overflow-y-auto p-4 space-y-3">
+                    <div class="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-hide">
                         <template x-for="friend in friends" :key="friend.id">
                             <div class="flex items-center justify-between p-4 bg-white/[0.02] border border-white/5 rounded-2xl hover:bg-white/5 transition-all">
                                 <div class="flex items-center gap-3">
                                     <div class="relative">
-                                        <div class="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center font-black text-xs" x-text="friend.name[0]"></div>
-                                        
-                                        <!-- ЖИВОЙ ИНДИКАТОР: Проверяем наличие ID в onlineList (WebSocket) -->
+                                        <div class="w-10 h-10 bg-indigo-600/20 text-indigo-400 rounded-xl flex items-center justify-center font-black text-xs" x-text="friend.name[0]"></div>
                                         <div class="absolute -bottom-1 -right-1 w-3 h-3 border-2 border-[#080808] rounded-full" 
                                             :class="onlineList.some(u => u.id === friend.id) ? 'bg-green-500' : 'bg-gray-700'"></div>
                                     </div>
                                     <div>
                                         <div class="text-xs font-bold" x-text="friend.name"></div>
-                                        
-                                        <!-- ДИНАМИЧЕСКИЙ ТЕКСТ: Если в WebSocket списке есть — пишем "В сети", если нет — время из базы -->
                                         <div class="text-[8px] font-black uppercase tracking-widest" 
                                             :class="onlineList.some(u => u.id === friend.id) ? 'text-green-500' : 'text-gray-500'"
                                             x-text="onlineList.some(u => u.id === friend.id) ? 'В сети' : friend.last_seen_human">

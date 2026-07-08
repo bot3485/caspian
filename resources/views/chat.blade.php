@@ -11,56 +11,85 @@
 
         <div class="relative h-full flex flex-col lg:flex-row">
             
-        <!-- ЗОНА ВИДЕО -->
-        <div class="flex-1 relative bg-black overflow-hidden">
-            <!-- Само видео -->
-            <video x-ref="remoteVideo" autoplay playsinline 
-                class="w-full h-full object-cover transition-all duration-1000" 
-                :class="isBlurred ? 'blur-[100px] scale-110 opacity-40' : 'opacity-100'"></video>
-            
-            <!-- КНОПКА РАЗБЛОКИРОВКИ (Появляется когда партнер найден) -->
-            <div x-show="isBlurred && (state === 'connected' || isInCall)" 
-                class="absolute inset-0 z-[60] flex items-center justify-center bg-black/20 backdrop-blur-sm transition-all"
-                x-transition>
-                <div class="text-center p-10 bg-[#050505]/80 backdrop-blur-2xl rounded-[3rem] border border-white/10 shadow-2xl">
-                    <div class="w-20 h-20 bg-indigo-600/20 rounded-3xl flex items-center justify-center mx-auto mb-6 border border-indigo-500/30">
-                        <span class="text-3xl">🛡️</span>
+            <!-- ЗОНА ВИДЕО -->
+            <div class="flex-1 relative bg-black overflow-hidden">
+                
+                <!-- КАРТОЧКА СОБЕСЕДНИКА (Информативность) -->
+                <div x-show="state === 'connected' && partnerData" 
+                    class="absolute top-10 left-10 z-[90] bg-black/60 backdrop-blur-2xl p-6 rounded-[2.5rem] border border-white/10 flex flex-col gap-4 animate-in fade-in slide-in-from-left-4 min-w-[280px]"
+                    x-transition>
+                    <div class="flex items-center gap-4">
+                        <div class="w-14 h-14 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl flex items-center justify-center font-black text-2xl shadow-lg" x-text="partnerData?.name?.[0] || '?'"></div>
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <span class="text-lg font-black uppercase tracking-tighter" x-text="partnerData?.name"></span>
+                                <span class="bg-indigo-500 text-[9px] font-black px-2 py-0.5 rounded-full" x-text="'LVL ' + partnerData?.level"></span>
+                            </div>
+                            <div class="text-[10px] text-indigo-400 font-black uppercase tracking-[0.2em] mt-0.5" x-text="partnerData?.rank_name"></div>
+                        </div>
                     </div>
-                    <h3 class="text-white font-black uppercase text-[10px] tracking-[0.3em] mb-8">Безопасный просмотр</h3>
-                    <button @click="isBlurred = false" 
-                            class="bg-white text-black px-12 py-5 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-2xl hover:bg-indigo-600 hover:text-white transition-all active:scale-95">
-                        Открыть камеру
-                    </button>
+                    
+                    <!-- ОБЩИЕ ИНТЕРЕСЫ -->
+                    <template x-if="partnerData?.common_interests?.length > 0">
+                        <div class="pt-4 border-t border-white/5">
+                            <p class="text-[8px] font-black uppercase text-gray-500 tracking-widest mb-2 italic">Общие интересы:</p>
+                            <div class="flex flex-wrap gap-1.5">
+                                <template x-for="tag in partnerData.common_interests" :key="tag">
+                                    <span class="px-2 py-1 bg-green-500/10 border border-green-500/20 rounded-md text-[9px] font-bold text-green-400" x-text="'#' + tag"></span>
+                                </template>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+
+                <!-- Само видео -->
+                <video x-ref="remoteVideo" autoplay playsinline 
+                    class="w-full h-full object-cover transition-all duration-1000" 
+                    :class="isBlurred ? 'blur-[100px] scale-110 opacity-40' : 'opacity-100'"></video>
+                
+                <!-- КНОПКА РАЗБЛОКИРОВКИ -->
+                <div x-show="isBlurred && (state === 'connected' || isInCall)" 
+                    class="absolute inset-0 z-[60] flex items-center justify-center bg-black/20 backdrop-blur-sm transition-all"
+                    x-transition>
+                    <div class="text-center p-10 bg-[#050505]/80 backdrop-blur-2xl rounded-[3rem] border border-white/10 shadow-2xl">
+                        <div class="w-20 h-20 bg-indigo-600/20 rounded-3xl flex items-center justify-center mx-auto mb-6 border border-indigo-500/30">
+                            <span class="text-3xl">🛡️</span>
+                        </div>
+                        <h3 class="text-white font-black uppercase text-[10px] tracking-[0.3em] mb-8 italic">Безопасный просмотр</h3>
+                        <button @click="isBlurred = false" 
+                                class="bg-white text-black px-12 py-5 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-2xl hover:bg-indigo-600 hover:text-white transition-all active:scale-95">
+                            Открыть камеру
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Оверлей восстановления связи -->
+                <div x-show="isReconnecting" class="absolute inset-0 z-[70] bg-black/60 backdrop-blur-md flex flex-col items-center justify-center">
+                    <div class="w-16 h-16 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+                    <p class="text-indigo-400 font-black uppercase text-[10px] tracking-[0.3em]">Восстановление связи...</p>
+                </div>
+
+                <!-- Состояния поиска -->
+                <div x-show="!isInCall && state !== 'connected'" class="absolute inset-0 flex flex-col items-center justify-center bg-[#050505] z-20">
+                    <template x-if="state === 'searching'">
+                        <div class="flex flex-col items-center">
+                            <div class="w-32 h-32 border-2 border-indigo-500/10 rounded-full animate-ping mb-10 flex items-center justify-center text-4xl">📡</div>
+                            <h3 class="text-white font-black uppercase text-[11px] tracking-[0.5em] animate-pulse italic">Ищем кого-то особенного...</h3>
+                        </div>
+                    </template>
+                    <template x-if="state === 'idle'">
+                        <div class="text-center opacity-40">
+                            <span class="text-6xl block mb-6">🌊</span>
+                            <span class="font-black uppercase text-xs tracking-[0.3em]">Caspian 2.1 Roulette</span>
+                        </div>
+                    </template>
+                </div>
+
+                <!-- PIP (Ваше видео) -->
+                <div x-show="showSelfVideo" class="absolute bottom-10 left-10 w-48 md:w-64 aspect-video bg-[#111] rounded-3xl overflow-hidden shadow-2xl border border-white/10 z-[80] transition-all">
+                    <video x-ref="localVideo" autoplay muted playsinline class="w-full h-full object-cover scale-x-[-1]"></video>
                 </div>
             </div>
-
-            <!-- Оверлей восстановления связи -->
-            <div x-show="isReconnecting" class="absolute inset-0 z-[70] bg-black/60 backdrop-blur-md flex flex-col items-center justify-center">
-                <div class="w-16 h-16 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-                <p class="text-indigo-400 font-black uppercase text-[10px] tracking-[0.3em]">Восстановление...</p>
-            </div>
-
-            <!-- Состояния поиска (оставь как было) -->
-            <div x-show="!isInCall && state !== 'connected'" class="absolute inset-0 flex flex-col items-center justify-center bg-[#050505] z-20">
-                <template x-if="state === 'searching'">
-                    <div class="flex flex-col items-center">
-                        <div class="w-32 h-32 border-2 border-indigo-500/10 rounded-full animate-ping mb-10 flex items-center justify-center text-4xl">📡</div>
-                        <h3 class="text-white font-black uppercase text-[11px] tracking-[0.5em] animate-pulse">Поиск...</h3>
-                    </div>
-                </template>
-                <template x-if="state === 'idle'">
-                    <div class="text-center opacity-40">
-                        <span class="text-6xl block mb-6">🌊</span>
-                        <span class="font-black uppercase text-xs tracking-[0.3em]">Caspian Roulette</span>
-                    </div>
-                </template>
-            </div>
-
-            <!-- PIP (Ваше видео) -->
-            <div x-show="showSelfVideo" class="absolute bottom-10 left-10 w-48 md:w-64 aspect-video bg-[#111] rounded-3xl overflow-hidden shadow-2xl border border-white/10 z-[80] transition-all">
-                <video x-ref="localVideo" autoplay muted playsinline class="w-full h-full object-cover scale-x-[-1]"></video>
-            </div>
-        </div>
 
             <!-- ПРАВАЯ ПАНЕЛЬ -->
             <div class="w-full lg:w-[400px] flex flex-col bg-[#080808] border-l border-white/5 relative z-10" x-data="{ tab: 'chat' }">
@@ -77,26 +106,30 @@
                                      class="p-4 text-[13px] font-medium max-w-[85%] break-words shadow-lg" x-text="msg.text"></div>
                             </div>
                         </template>
+                        
+                        <!-- ИНДИКАТОР ПЕЧАТАЕТ -->
+                        <div x-show="isPartnerTyping" class="flex gap-2 p-3 bg-white/5 rounded-2xl rounded-tl-none border border-white/5 w-fit animate-pulse">
+                            <div class="w-1.5 h-1.5 bg-gray-500 rounded-full animate-bounce"></div>
+                            <div class="w-1.5 h-1.5 bg-gray-500 rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
+                            <div class="w-1.5 h-1.5 bg-gray-500 rounded-full animate-bounce" style="animation-delay: 0.4s"></div>
+                        </div>
                     </div>
 
                     <div class="p-6 border-t border-white/5 bg-[#0a0a0a]">
                         <div class="flex gap-3 bg-black/40 p-2.5 rounded-2xl border border-white/10 focus-within:border-indigo-500/50 transition-all">
-                            <input type="text" x-model="chatInput" @keyup.enter="sendMsg()" placeholder="Написать..." class="flex-1 bg-transparent border-none text-sm focus:ring-0 px-4 text-white">
-                            <button @click="sendMsg()" class="bg-white text-black w-12 h-12 rounded-xl flex items-center justify-center hover:bg-indigo-500 hover:text-white transition-all shadow-lg">➔</button>
+                            <input type="text" x-model="chatInput" @input="sendTyping()" @keyup.enter="sendMsg()" placeholder="Написать сообщение..." class="flex-1 bg-transparent border-none text-sm focus:ring-0 px-4 text-white">
+                            <button @click="sendMsg()" class="bg-white text-black w-12 h-12 rounded-xl flex items-center justify-center hover:bg-indigo-500 hover:text-white transition-all shadow-lg font-bold">➔</button>
                         </div>
                     </div>
                 </div>
 
-                <!-- ОБНОВЛЕННАЯ ВКЛАДКА ДРУЗЕЙ -->
+                <!-- ВКЛАДКА ДРУЗЕЙ -->
                 <div x-show="tab === 'friends'" class="flex-1 overflow-y-auto p-6 space-y-3 scrollbar-hide">
-                    <!-- Добавь инициализацию списка онлайна, если её нет в x-data chat.blade.php -->
                     <template x-for="friend in friendsList" :key="friend.id">
                         <div class="p-4 bg-white/[0.02] border border-white/5 rounded-2xl flex items-center justify-between group hover:border-indigo-500/30 transition-all">
                             <div class="flex items-center gap-3">
                                 <div class="relative">
                                     <div class="w-10 h-10 bg-indigo-600/20 text-indigo-400 rounded-xl flex items-center justify-center font-black" x-text="friend.name[0]"></div>
-                                    
-                                    <!-- Проверка через Echo (onlineList) -->
                                     <div class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 border-2 border-[#080808] rounded-full" 
                                         :class="onlineList.some(u => u.id === friend.id) ? 'bg-green-500' : 'bg-gray-700'"></div>
                                 </div>
@@ -107,15 +140,15 @@
                                         x-text="onlineList.some(u => u.id === friend.id) ? 'В сети' : friend.last_seen_human"></div>
                                 </div>
                             </div>
-                            <button @click="callFriend(friend.id)" class="w-10 h-10 bg-indigo-500 text-white rounded-xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all">📞</button>
+                            <button @click="callFriend(friend.id)" class="w-10 h-10 bg-indigo-500 text-white rounded-xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all shadow-lg">📞</button>
                         </div>
                     </template>
                 </div>
             </div>
 
-            <!-- УПРАВЛЕНИЕ (ОСТАЛОСЬ ПРЕЖНИМ) -->
+            <!-- УПРАВЛЕНИЕ -->
             <div class="absolute bottom-10 left-1/2 -translate-x-1/2 lg:left-[calc(50%-200px)] z-[100] flex items-center gap-3 px-6 py-4 bg-[#121212]/90 backdrop-blur-3xl border border-white/10 rounded-3xl shadow-2xl">
-                <button @click="toggleMic()" :class="micEnabled ? 'bg-white/5' : 'bg-red-600'" class="w-12 h-12 rounded-xl flex items-center justify-center text-lg transition-all">
+                <button @click="toggleMic()" :class="micEnabled ? 'bg-white/5' : 'bg-red-600'" class="w-12 h-12 rounded-xl flex items-center justify-center text-lg transition-all shadow-inner">
                     <span x-text="micEnabled ? '🎤' : '🔇'"></span>
                 </button>
                 <button @click="isBlurred = !isBlurred" :class="isBlurred ? 'bg-indigo-600' : 'bg-white/5'" class="w-12 h-12 rounded-xl flex items-center justify-center text-lg transition-all active:scale-90">
@@ -125,7 +158,7 @@
                 <div class="w-px h-8 bg-white/10 mx-2"></div>
 
                 <template x-if="state === 'idle'">
-                    <button @click="startSearch()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-10 py-4 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-xl transition-all">Начать поиск</button>
+                    <button @click="startSearch()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-10 py-4 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-xl transition-all active:scale-95">Начать поиск</button>
                 </template>
                 
                 <template x-if="state === 'searching'">
@@ -149,10 +182,10 @@
                 <div class="bg-[#0a0a0a] border border-white/10 p-12 rounded-[3rem] text-center max-w-sm w-full shadow-2xl">
                     <div class="w-24 h-24 bg-indigo-600 rounded-[2rem] flex items-center justify-center text-4xl mx-auto mb-8 animate-bounce">📞</div>
                     <h2 class="text-2xl font-black mb-2 uppercase tracking-tighter" x-text="incomingCall?.fromName"></h2>
-                    <p class="text-gray-500 text-[10px] font-bold uppercase tracking-[0.2em] mb-10">Входящий видеозвонок...</p>
+                    <p class="text-gray-500 text-[10px] font-bold uppercase tracking-[0.2em] mb-10 italic">Входящий видеозвонок...</p>
                     <div class="flex gap-3">
-                        <button @click="acceptCall()" class="flex-1 bg-green-600 text-white py-5 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl">Принять</button>
-                        <button @click="rejectCall()" class="flex-1 bg-white/5 text-gray-500 py-5 rounded-2xl font-black text-[10px] uppercase tracking-widest">Отклонить</button>
+                        <button @click="acceptCall()" class="flex-1 bg-green-600 text-white py-5 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl hover:bg-green-500 transition-all">Принять</button>
+                        <button @click="rejectCall()" class="flex-1 bg-white/5 text-gray-500 py-5 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-white/10 transition-all">Отклонить</button>
                     </div>
                 </div>
             </div>
@@ -164,8 +197,8 @@
 
         window.videoChatApp = function(myId) {
             return {
-                state: 'idle', isInCall: false, partnerId: null, isFriend: false,
-                pc: null, dc: null, localStream: null, iceQueue: [],
+                state: 'idle', isInCall: false, partnerId: null, partnerData: null, isFriend: false,
+                pc: null, dc: null, localStream: null, iceQueue: [], onlineList: [],
                 micEnabled: true, camEnabled: true, isBlurred: false, isReconnecting: false,
                 showSelfVideo: true, incomingCall: null, friendsList: [],
                 messages: [], chatInput: '', connectionTimeout: null,
@@ -179,9 +212,11 @@
                         .here(u => this.onlineList = u)
                         .joining(u => this.onlineList.push(u))
                         .leaving(u => this.onlineList = this.onlineList.filter(x => x.id !== u.id));
+                    
                     window.Echo.private(`user.${myId}`)
                         .listen('.MatchFoundEvent', (e) => this.handleMatch(e))
                         .listen('.WebRTCSignalEvent', (e) => this.handleSignal(e));
+                    
                     await this.initMedia();
                     this.loadFriends();
                 },
@@ -195,19 +230,26 @@
 
                 async handleMatch(e) {
                     if (this.state !== 'searching' && !this.incomingCall) return;
-                    this.partnerId = Number(e.partnerId);
+                    
+                    // Сохраняем расширенные данные о партнере из события
+                    this.partnerId = Number(e.partnerData.id);
+                    this.partnerData = e.partnerData;
                     this.isFriend = !!e.isFriend;
+                    
                     this.state = 'connected';
                     this.isBlurred = true;
                     this.initPC();
+                    
+                    // Тот, у кого ID больше, инициирует Offer
                     if (myId > this.partnerId) setTimeout(() => this.sendOffer(), 1000);
 
                     if (this.connectionTimeout) clearTimeout(this.connectionTimeout);
                     this.connectionTimeout = setTimeout(() => {
                         if (!this.isInCall && this.state === 'connected') {
+                            window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'Собеседник не ответил', type: 'info' } }));
                             this.startSearch();
                         }
-                    }, 15000);
+                    }, 20000);
                 },
 
                 async handleSignal(e) {
@@ -232,7 +274,6 @@
                         return;
                     }
 
-                    // Обработка сигнала "Печатает"
                     if (msg.type === 'typing') this.showTypingIndicator();
 
                     try {
@@ -255,7 +296,7 @@
                             this.playMsgSound();
                             this.scrollChat();
                         }
-                    } catch(e) { console.error("WebRTC Error:", e); }
+                    } catch(e) { console.error("WebRTC Signal Error:", e); }
                 },
 
                 initPC() {
@@ -289,15 +330,10 @@
                 },
 
                 sendTyping() {
-                    // Троттлинг: отправляем сигнал не чаще чем раз в 2 секунды
                     if (Date.now() - this.lastTypingSent < 2000) return;
                     this.lastTypingSent = Date.now();
-
-                    if (this.dc && this.dc.readyState === 'open') {
-                        this.dc.send(JSON.stringify({type:'typing'}));
-                    } else {
-                        this.signal({type:'typing'});
-                    }
+                    if (this.dc && this.dc.readyState === 'open') this.dc.send(JSON.stringify({type:'typing'}));
+                    else this.signal({type:'typing'});
                 },
 
                 showTypingIndicator() {
@@ -320,7 +356,6 @@
                     if (this.dc && this.dc.readyState === 'open') this.dc.send(JSON.stringify({type:'text', text: txt}));
                     else this.signal({type:'text', text: txt});
                     this.chatInput = '';
-                    this.isPartnerTyping = false; // Скрываем у себя на всякий случай
                     this.scrollChat();
                 },
 
@@ -346,7 +381,8 @@
                 reset() {
                     if (this.pc) { this.pc.close(); this.pc = null; }
                     this.stopRingtone();
-                    this.partnerId = null; 
+                    this.partnerId = null;
+                    this.partnerData = null;
                     this.isInCall = false; 
                     this.state = 'idle';
                     this.messages = []; 
@@ -354,6 +390,7 @@
                     this.iceQueue = [];
                     this.isPartnerTyping = false;
                     if (this.$refs.remoteVideo) this.$refs.remoteVideo.srcObject = null;
+                    if (this.connectionTimeout) clearTimeout(this.connectionTimeout);
                 },
 
                 drainIce() { while(this.iceQueue.length > 0) this.pc.addIceCandidate(new RTCIceCandidate(this.iceQueue.shift())).catch(()=>{}); },
@@ -362,11 +399,12 @@
                     try {
                         this.localStream = await navigator.mediaDevices.getUserMedia({video:true, audio:true});
                         this.$refs.localVideo.srcObject = this.localStream;
-                    } catch(e) {}
+                    } catch(e) {
+                        window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'Камера или микрофон недоступны', type: 'error' } }));
+                    }
                 },
 
                 toggleMic() { this.micEnabled = !this.micEnabled; if(this.localStream) this.localStream.getAudioTracks()[0].enabled = this.micEnabled; },
-                toggleCam() { this.camEnabled = !this.camEnabled; if(this.localStream) this.localStream.getVideoTracks()[0].enabled = this.camEnabled; },
                 sanitizeSdp(s) { return s.split('\n').map(l => l.trim()).filter(l => l.length > 0).join('\r\n') + '\r\n'; },
                 
                 scrollChat() { 
@@ -409,7 +447,7 @@
                 },
                 stopRingtone() { this.ringtone.pause(); this.ringtone.currentTime = 0; },
                 
-                async report() { if(confirm('Жалоба?')) { await window.axios.post('/report', {reported_id:this.partnerId, reason:'abuse'}); this.startSearch(); } },
+                async report() { if(confirm('Пожаловаться на пользователя?')) { await window.axios.post('/report', {reported_id:this.partnerId, reason:'abuse'}); this.startSearch(); } },
                 async addContact() { 
                     const res = await window.axios.post('/chat/contact/add', {contactId:this.partnerId}); 
                     this.isFriend = res.data.isFriend;
@@ -422,6 +460,13 @@
     <style>
         [x-cloak] { display: none !important; }
         .scrollbar-hide::-webkit-scrollbar { display: none; }
-        video { background: #000; transition: filter 0.6s ease; }
+        video { background: #000; transition: filter 0.6s cubic-bezier(0.4, 0, 0.2, 1); }
+        .animate-blob { animation: blob 7s infinite; }
+        @keyframes blob {
+            0% { transform: translate(0px, 0px) scale(1); }
+            33% { transform: translate(30px, -50px) scale(1.1); }
+            66% { transform: translate(-20px, 20px) scale(0.9); }
+            100% { transform: translate(0px, 0px) scale(1); }
+        }
     </style>
 </x-app-layout>

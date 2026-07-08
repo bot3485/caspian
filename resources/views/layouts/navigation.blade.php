@@ -34,7 +34,9 @@
                             </div>
                             <div class="text-left">
                                 <p class="text-[10px] font-black text-white leading-none uppercase tracking-tighter">{{ Auth::user()->name }}</p>
-                                <p class="text-[9px] font-bold text-indigo-400 mt-1 uppercase tracking-widest">Premium user</p>
+                                <p class="text-[9px] font-bold mt-1 uppercase tracking-widest {{ Auth::user()->is_premium ? 'text-indigo-400' : 'text-gray-500' }}">
+                                    {{ Auth::user()->rank_name }} {{ Auth::user()->is_premium ? '★' : '' }}
+                                </p>
                             </div>
                             <svg class="w-4 h-4 text-gray-500 group-hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                         </button>

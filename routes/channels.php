@@ -22,8 +22,9 @@ Broadcast::channel('online-status', function ($user) {
 });
 
 Broadcast::channel('room.{uuid}', function ($user, $uuid) {
-    if (Room::where('uuid', $uuid)->exists()) {
-        return ['id' => $user->id, 'name' => $user->name];
+    if (App\Models\Room::where('uuid', $uuid)->exists()) {
+        // ОЧЕНЬ ВАЖНО: возвращаем массив, чтобы канал стал Presence
+        return ['id' => $user->id, 'name' => $user->name]; 
     }
     return false;
 });

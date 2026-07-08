@@ -13,15 +13,16 @@ class MatchFoundEvent implements ShouldBroadcastNow
 
     /**
      * PHP 8.4: Asymmetric Visibility.
+     * partnerData contains: id, name, level, rank_name, karma, interests
      */
-    public private(set) int $partnerId;
+    public private(set) array $partnerData;
     public private(set) bool $isFriend;
     private int $targetUserId;
 
-    public function __construct(int $targetUserId, int $partnerId, bool $isFriend = false)
+    public function __construct(int $targetUserId, array $partnerData, bool $isFriend = false)
     {
         $this->targetUserId = $targetUserId;
-        $this->partnerId = $partnerId;
+        $this->partnerData = $partnerData;
         $this->isFriend = $isFriend;
     }
 

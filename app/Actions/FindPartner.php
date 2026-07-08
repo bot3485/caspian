@@ -15,19 +15,19 @@ class FindPartner
     private string $queueLow  = 'matchmaking_low';
 
     /**
-     * Основная логика поиска партнера.
+     * Основная логика поиска партнера с расширенной информацией.
      */
-public function execute(int $userId): ?int
+    public function execute(int $userId): ?int
     {
-        // 1. Сначала ПРИНУДИТЕЛЬНО удаляем самого себя из всех очередей, 
-        // прежде чем начать новый поиск, чтобы не найти свою же старую сессию.
+        // 1. Принудительно удаляем себя из очередей перед началом нового поиска
         $this->removeFromQueue($userId);
 
         $user = User::find($userId);
         if (!$user) return null;
 
+        // Задержка для пользователей с низкой кармой
         if ($user->karma < 50) {
-            sleep(rand(3, 5)); // Немного уменьшил задержку для комфорта
+            sleep(rand(3, 5)); 
         }
 
         if ($user->banned_until && $user->banned_until->isFuture()) return null;
@@ -48,10 +48,9 @@ public function execute(int $userId): ?int
                 continue;
             }
 
-            // ПРОВЕРКА: Жива ли запись в БД и обновлялась ли она недавно?
+            // Проверка активности партнера в БД (обновление в последние 20 секунд)
             $matchEntry = Matchmaking::where('user_id', $tempPartnerId)
                 ->where('status', MatchmakingStatus::Searching)
-                // Если запись не обновлялась более 20 секунд — партнер "отвалился"
                 ->where('updated_at', '>=', now()->subSeconds(20))
                 ->first();
 
@@ -62,6 +61,7 @@ public function execute(int $userId): ?int
                 $partnerInterests = is_array($partner->interests) ? $partner->interests : [];
                 $common = array_intersect($myInterests, $partnerInterests);
 
+                // Если есть свои интересы, но нет общих с партнером — пропускаем (но не более 5 раз)
                 if (!empty($myInterests) && !empty($partnerInterests) && empty($common) && count($skipped) < 5) {
                     $skipped[] = $tempPartnerId;
                     continue;
@@ -72,44 +72,79 @@ public function execute(int $userId): ?int
             }
         }
 
+        // Возвращаем пропущенных в очередь
         foreach ($skipped as $sid) {
             Redis::rpush($myQueue, $sid);
         }
 
         if (!$partnerId) {
             $this->addToQueue($userId, $myQueue);
-            // КРИТИЧНО: Обновляем таймштамп в БД, чтобы другие видели, что мы "свежие"
             Matchmaking::where('user_id', $userId)->update(['updated_at' => now()]);
             return null;
         }
 
+        // Данные партнера для меня
+        $partner = User::find($partnerId);
+        $commonWithPartner = array_values(array_intersect($myInterests, (array)$partner->interests));
+        
+        $partnerDataForMe = [
+            'id' => $partner->id,
+            'name' => $partner->name,
+            'level' => $partner->level,
+            'rank_name' => $partner->rank_name, // Предполагается наличие атрибута в модели User
+            'karma' => $partner->karma,
+            'common_interests' => $commonWithPartner,
+        ];
+
+        // Мои данные для партнера
+        $myDataForPartner = [
+            'id' => $user->id,
+            'name' => $user->name,
+            'level' => $user->level,
+            'rank_name' => $user->rank_name,
+            'karma' => $user->karma,
+            'common_interests' => $commonWithPartner,
+        ];
+
         DB::transaction(function () use ($userId, $partnerId) {
-            Matchmaking::where('user_id', $userId)->update(['status' => MatchmakingStatus::Matched, 'partner_id' => $partnerId, 'updated_at' => now()]);
-            Matchmaking::where('user_id', $partnerId)->update(['status' => MatchmakingStatus::Matched, 'partner_id' => $userId, 'updated_at' => now()]);
+            Matchmaking::where('user_id', $userId)->update([
+                'status' => MatchmakingStatus::Matched, 
+                'partner_id' => $partnerId, 
+                'updated_at' => now()
+            ]);
+            Matchmaking::where('user_id', $partnerId)->update([
+                'status' => MatchmakingStatus::Matched, 
+                'partner_id' => $userId, 
+                'updated_at' => now()
+            ]);
 
             Redis::setex("allow_signal:{$userId}:{$partnerId}", 60, 1);
             Redis::setex("allow_signal:{$partnerId}:{$userId}", 60, 1);
             Redis::setex("user_last_partner:{$userId}", 300, $partnerId);
         });
 
-        broadcast(new MatchFoundEvent($userId, $partnerId, DB::table('contacts')->where('user_id', $userId)->where('contact_id', $partnerId)->exists()));
-        broadcast(new MatchFoundEvent($partnerId, $userId, DB::table('contacts')->where('user_id', $partnerId)->where('contact_id', $userId)->exists()));
+        // Отправляем события с полным набором данных
+        broadcast(new MatchFoundEvent(
+            $userId, 
+            $partnerDataForMe, 
+            DB::table('contacts')->where('user_id', $userId)->where('contact_id', $partnerId)->exists()
+        ));
+        
+        broadcast(new MatchFoundEvent(
+            $partnerId, 
+            $myDataForPartner, 
+            DB::table('contacts')->where('user_id', $partnerId)->where('contact_id', $userId)->exists()
+        ));
 
         return $partnerId;
     }
 
-    /**
-     * Добавление пользователя в очередь Redis.
-     */
     private function addToQueue(int $userId, string $queue): void
     {
         $this->removeFromQueue($userId);
         Redis::rpush($queue, $userId);
     }
 
-    /**
-     * Полное удаление пользователя из всех очередей.
-     */
     public function removeFromQueue(int $userId): void
     {
         Redis::lrem($this->queueHigh, 0, $userId);

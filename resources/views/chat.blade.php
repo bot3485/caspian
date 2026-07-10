@@ -33,9 +33,15 @@
                 </div>
             </div>
 
-            <!-- ИНДИКАТОР ПИНГА -->
+            <!-- ИНДИКАТОР ПИНГА (RGB) -->
             <div x-show="state === 'connected' && ping > 0" class="absolute top-6 right-6 z-[90] bg-black/20 px-3 py-1.5 rounded-full border border-white/5">
-                <span class="text-[8px] font-black text-gray-400 uppercase tracking-widest">Ping: <span :class="ping < 100 ? 'text-green-500' : 'text-amber-500'" x-text="ping + 'ms'"></span></span>
+                <span class="text-[8px] font-black text-gray-400 uppercase tracking-widest">Ping: 
+                    <span x-text="ping + 'ms'" :class="{
+                        'text-green-500': ping < 100,
+                        'text-yellow-500': ping >= 100 && ping <= 200,
+                        'text-red-500': ping > 200
+                    }"></span>
+                </span>
             </div>
 
             <!-- ВИДЕО СОБЕСЕДНИКА -->
@@ -165,7 +171,7 @@ window.videoChatApp = function(myId, myInterests, iceServers) {
         micEnabled: true, camEnabled: true, isRemoteBlurred: false,
         showSelfVideo: true, messages: [], chatInput: '', ping: 0, beautyFilter: localStorage.getItem('beauty_filter') === 'true',
         showDeviceModal: false, devices: [], selectedCam: '', selectedMic: '',
-        isPartnerTyping: false, msgSound: new Audio('/sounds/message.mp3'),
+        isPartnerTyping: false, typingPartnerName: '', msgSound: new Audio('/sounds/message.mp3'),
         audioUnlocked: false, iceQueue: [], lastTypingSent: 0,
         rtcConfig: { 
             iceServers: iceServers, 
@@ -184,10 +190,16 @@ window.videoChatApp = function(myId, myInterests, iceServers) {
                 .listen('.WebRTCSignalEvent', (e) => this.handleSignal(e))
                 .listen('.MessageSentEvent', (e) => this.handleIncomingMsg(e))
                 .listen('.UserTypingEvent', (e) => {
-                    if (e.senderId === this.partnerId) {
+                    // ЕСЛИ печатает наш текущий собеседник в рулетке ИЛИ активный друг
+                    if (e.senderId === this.partnerId || (this.activeFriend && e.senderId === this.activeFriend.id)) {
                         this.isPartnerTyping = true;
+                        
+                        // Пытаемся найти имя для вывода "X печатает..."
+                        if(this.partnerId === e.senderId) this.typingPartnerName = this.partnerData?.name || 'Собеседник';
+                        else if(this.activeFriend?.id === e.senderId) this.typingPartnerName = this.activeFriend.name;
+                        
                         clearTimeout(this.typingTimeout);
-                        this.typingTimeout = setTimeout(() => this.isPartnerTyping = false, 3000);
+                        this.typingTimeout = setTimeout(() => { this.isPartnerTyping = false; }, 3000);
                     }
                 });
 
@@ -211,6 +223,7 @@ window.videoChatApp = function(myId, myInterests, iceServers) {
                 });
                 setTimeout(() => { this.signal({ type: 'call-accepted' }); }, 1000);
             }
+            this.startStats();
         },
 
         normalizeSdp(sdp) {
@@ -229,10 +242,19 @@ window.videoChatApp = function(myId, myInterests, iceServers) {
             this.pc = new RTCPeerConnection(this.rtcConfig);
             this.pc.onicecandidate = (e) => { if (e.candidate) this.signal({ type: 'ice', candidate: e.candidate }); };
             this.pc.ontrack = (e) => { if (this.$refs.remoteVideo) this.$refs.remoteVideo.srcObject = e.streams[0]; };
+            
             this.pc.oniceconnectionstatechange = () => {
-                if (['failed', 'disconnected', 'closed'].includes(this.pc.iceConnectionState)) this.handlePartnerState('offline');
+                if (['failed'].includes(this.pc.iceConnectionState)) {
+                    // АВТОМАТИЧЕСКИЙ ICE RESTART ПРИ СБОЕ
+                    this.pc.createOffer({ iceRestart: true }).then(offer => {
+                        this.pc.setLocalDescription(offer);
+                        this.signal({ type: 'offer', sdp: offer.sdp });
+                    });
+                }
+                if (['disconnected', 'closed'].includes(this.pc.iceConnectionState)) this.handlePartnerState('offline');
                 else if (this.pc.iceConnectionState === 'connected' || this.pc.iceConnectionState === 'completed') this.handlePartnerState('active');
             };
+
             if (this.localStream) { this.localStream.getTracks().forEach(t => this.pc.addTrack(t, this.localStream)); }
         },
 
@@ -299,7 +321,7 @@ window.videoChatApp = function(myId, myInterests, iceServers) {
             this.activeFriend = friend;
             const res = await window.axios.get(`/chat/history/${friend.id}`);
             this.friendMessages = res.data.messages;
-            this.$nextTick(() => { if(this.$refs.friendChatBox) this.$refs.friendChatBox.scrollTop = this.$refs.friendChatBox.scrollHeight; });
+            this.scrollFriendChat();
         },
 
         async sendFriendMsg() {
@@ -307,7 +329,7 @@ window.videoChatApp = function(myId, myInterests, iceServers) {
             const text = this.friendChatInput; this.friendChatInput = '';
             const res = await window.axios.post('/chat/message/send', { receiver_id: this.activeFriend.id, message: text });
             this.friendMessages.push(res.data.message);
-            this.$nextTick(() => { if(this.$refs.friendChatBox) this.$refs.friendChatBox.scrollTop = this.$refs.friendChatBox.scrollHeight; });
+            this.scrollFriendChat();
         },
 
         handleIncomingMsg(e) {
@@ -318,7 +340,7 @@ window.videoChatApp = function(myId, myInterests, iceServers) {
             }
             if (this.activeFriend && msg.sender_id === this.activeFriend.id) {
                 this.friendMessages.push(msg);
-                this.$nextTick(() => { if(this.$refs.friendChatBox) this.$refs.friendChatBox.scrollTop = this.$refs.friendChatBox.scrollHeight; });
+                this.scrollFriendChat();
             }
             if(this.audioUnlocked) this.msgSound.play().catch(()=>{});
             if (!this.activeFriend || this.activeFriend.id !== msg.sender_id) {
@@ -380,8 +402,15 @@ window.videoChatApp = function(myId, myInterests, iceServers) {
             this.scrollChat();
             window.axios.post('/chat/message/send', { receiver_id: this.partnerId, message: t });
         },
-        sendTypingSignal() { if (this.partnerId && Date.now() - this.lastTypingSent > 2000) { this.lastTypingSent = Date.now(); window.axios.post('/chat/message/typing', { receiver_id: this.partnerId }); } },
+        sendTypingSignal() { 
+            const rid = this.activeFriend ? this.activeFriend.id : this.partnerId;
+            if (rid && Date.now() - this.lastTypingSent > 2000) { 
+                this.lastTypingSent = Date.now(); 
+                window.axios.post('/chat/message/typing', { receiver_id: rid }); 
+            } 
+        },
         scrollChat() { this.$nextTick(() => { if(this.$refs.chatBox) this.$refs.chatBox.scrollTop = this.$refs.chatBox.scrollHeight; }); },
+        scrollFriendChat() { this.$nextTick(() => { if(this.$refs.friendChatBox) this.$refs.friendChatBox.scrollTop = this.$refs.friendChatBox.scrollHeight; }); },
         toggleMic() { this.micEnabled = !this.micEnabled; if(this.localStream) this.localStream.getAudioTracks()[0].enabled = this.micEnabled; },
         toggleCam() { this.camEnabled = !this.camEnabled; if(this.localStream) this.localStream.getVideoTracks()[0].enabled = this.camEnabled; },
         toggleBeauty() { this.beautyFilter = !this.beautyFilter; localStorage.setItem('beauty_filter', this.beautyFilter); },
@@ -411,7 +440,7 @@ window.videoChatApp = function(myId, myInterests, iceServers) {
                 if (this.pc?.iceConnectionState === 'connected') { 
                     const stats = await this.pc.getStats(); 
                     stats.forEach(r => { if (r.type === 'candidate-pair' && r.state === 'succeeded') this.ping = Math.round(r.currentRoundTripTime * 1000); }); 
-                } 
+                } else { this.ping = 0; }
             }, 3000); 
         }
     }

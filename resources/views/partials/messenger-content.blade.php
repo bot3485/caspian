@@ -23,13 +23,13 @@
     <!-- 1. ЧАТ РУЛЕТКИ -->
     <div x-show="tab === 'chat' && !activeFriend" class="flex-1 flex flex-col overflow-hidden">
         
-        <!-- ПРОВЕРКА: Если мы в звонке с другом - блокируем чат рулетки -->
+        <!-- ПРОВЕРКА: Если мы в звонке с другом -->
         <template x-if="isCallingFriend && state === 'connected'">
             <div class="flex-1 flex flex-col items-center justify-center p-10 text-center space-y-4">
                 <div class="w-16 h-16 bg-indigo-500/10 rounded-full flex items-center justify-center text-2xl">🔒</div>
                 <p class="text-[11px] font-black uppercase tracking-widest text-indigo-400">Чат рулетки отключен</p>
                 <p class="text-[10px] text-gray-500 leading-relaxed">Вы находитесь в приватном звонке. Используйте вкладку "Друзья" для переписки.</p>
-                <button @click="tab = 'friends'; openFriendChat(partnerData)" 
+                <button @click="openFriendChat(partnerData)" 
                         class="bg-indigo-600 px-6 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest shadow-lg shadow-indigo-500/20 active:scale-95 transition-all">
                     Перейти в чат с другом
                 </button>
@@ -47,8 +47,9 @@
                         </div>
                     </template>
                 </div>
+                <!-- Индикатор печати -->
                 <div class="px-6 py-2 h-8 shrink-0" x-show="isPartnerTyping" x-transition>
-                    <span class="text-[8px] font-black text-indigo-400 animate-pulse uppercase tracking-widest">Печатает...</span>
+                    <span class="text-[8px] font-black text-indigo-400 animate-pulse uppercase tracking-widest" x-text="typingPartnerName + ' печатает...'"></span>
                 </div>
                 <div class="p-4 bg-[#0a0a0a] border-t border-white/5 pb-safe shrink-0">
                     <div class="flex gap-2 bg-black/40 p-2 rounded-2xl border border-white/5">
@@ -121,9 +122,14 @@
             </template>
         </div>
 
+        <!-- Индикатор печати для друга -->
+        <div class="px-6 py-2 h-8 shrink-0" x-show="isPartnerTyping" x-transition>
+            <span class="text-[8px] font-black text-indigo-400 animate-pulse uppercase tracking-widest" x-text="typingPartnerName + ' печатает...'"></span>
+        </div>
+
         <div class="p-4 bg-[#0a0a0a] border-t border-white/5 pb-safe shrink-0">
             <div class="flex gap-2 bg-black/40 p-2 rounded-2xl border border-white/5">
-                <input type="text" x-model="friendChatInput" @keyup.enter="sendFriendMsg()" 
+                <input type="text" x-model="friendChatInput" @input="sendTypingSignal()" @keyup.enter="sendFriendMsg()" 
                        placeholder="Написать сообщение..." class="flex-1 bg-transparent border-none text-sm focus:ring-0 px-4 h-12 text-white">
                 <button @click="sendFriendMsg()" class="bg-indigo-600 text-white w-12 h-12 rounded-xl hover:bg-indigo-500 transition-colors">➔</button>
             </div>
@@ -143,6 +149,9 @@
                 </div>
                 <button @click="openFriendChat(h)" class="w-10 h-10 bg-white/5 text-white rounded-xl flex items-center justify-center hover:bg-white/10 active:scale-90 transition-all">💬</button>
             </div>
+        </template>
+        <template x-if="historyList.length === 0">
+            <div class="text-center py-10 opacity-20 text-[10px] font-black uppercase tracking-widest">История пуста</div>
         </template>
     </div>
 

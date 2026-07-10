@@ -20,11 +20,25 @@
 <!-- Контент вкладок -->
 <div class="flex-1 flex flex-col overflow-hidden bg-[#050505]">
     
-    <!-- 1. ЧАТ РУЛЕТКИ (СЛУЧАЙНЫЙ ПАРТНЕР) -->
+    <!-- 1. ЧАТ РУЛЕТКИ -->
     <div x-show="tab === 'chat' && !activeFriend" class="flex-1 flex flex-col overflow-hidden">
-        <template x-if="state === 'connected'">
+        
+        <!-- ПРОВЕРКА: Если мы в звонке с другом - блокируем чат рулетки -->
+        <template x-if="isCallingFriend && state === 'connected'">
+            <div class="flex-1 flex flex-col items-center justify-center p-10 text-center space-y-4">
+                <div class="w-16 h-16 bg-indigo-500/10 rounded-full flex items-center justify-center text-2xl">🔒</div>
+                <p class="text-[11px] font-black uppercase tracking-widest text-indigo-400">Чат рулетки отключен</p>
+                <p class="text-[10px] text-gray-500 leading-relaxed">Вы находитесь в приватном звонке. Используйте вкладку "Друзья" для переписки.</p>
+                <button @click="tab = 'friends'; openFriendChat(partnerData)" 
+                        class="bg-indigo-600 px-6 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest shadow-lg shadow-indigo-500/20 active:scale-95 transition-all">
+                    Перейти в чат с другом
+                </button>
+            </div>
+        </template>
+
+        <!-- ОБЫЧНЫЙ ЧАТ РУЛЕТКИ -->
+        <template x-if="state === 'connected' && !isCallingFriend">
             <div class="flex-1 flex flex-col overflow-hidden">
-                <!-- Контейнер сообщений -->
                 <div class="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar" x-ref="chatBox">
                     <template x-for="msg in messages" :key="msg.timestamp">
                         <div :class="msg.isMe ? 'items-end' : 'items-start'" class="flex flex-col">
@@ -33,11 +47,9 @@
                         </div>
                     </template>
                 </div>
-                <!-- Индикатор печати -->
                 <div class="px-6 py-2 h-8 shrink-0" x-show="isPartnerTyping" x-transition>
                     <span class="text-[8px] font-black text-indigo-400 animate-pulse uppercase tracking-widest">Печатает...</span>
                 </div>
-                <!-- Ввод сообщения -->
                 <div class="p-4 bg-[#0a0a0a] border-t border-white/5 pb-safe shrink-0">
                     <div class="flex gap-2 bg-black/40 p-2 rounded-2xl border border-white/5">
                         <input type="text" x-model="chatInput" @input="sendTypingSignal()" @keyup.enter="sendMsg()" 
@@ -47,6 +59,7 @@
                 </div>
             </div>
         </template>
+
         <template x-if="state !== 'connected'">
             <div class="flex-1 flex flex-col items-center justify-center opacity-30 p-10 text-center">
                 <div class="text-5xl mb-6">🎲</div>
@@ -77,7 +90,6 @@
 
     <!-- 3. ПЕРСОНАЛЬНЫЙ ЧАТ С ДРУГОМ -->
     <div x-show="activeFriend" class="flex-1 flex flex-col overflow-hidden" x-transition>
-        <!-- Шапка чата -->
         <div class="p-4 bg-[#0a0a0a] border-b border-white/5 flex items-center justify-between shrink-0">
             <div class="flex items-center gap-3">
                 <button @click="activeFriend = null" class="w-8 h-8 flex items-center justify-center bg-white/5 rounded-full text-gray-400 hover:text-white transition-colors">←</button>
@@ -87,7 +99,6 @@
                          x-text="activeFriend?.is_online ? 'Онлайн' : 'Офлайн'"></div>
                 </div>
             </div>
-            <!-- Кнопка звонка внутри чата -->
             <button @click="callFriend(activeFriend)" :disabled="!activeFriend?.is_online"
                     :class="activeFriend?.is_online ? 'bg-indigo-600 shadow-lg shadow-indigo-600/20' : 'bg-white/5 opacity-20'"
                     class="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95">
@@ -95,11 +106,9 @@
             </button>
         </div>
 
-        <!-- Сообщения с другом -->
         <div class="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar" x-ref="friendChatBox">
             <template x-for="msg in friendMessages" :key="msg.id">
                 <div :class="msg.sender_id === {{ auth()->id() }} ? 'items-end' : 'items-start'" class="flex flex-col">
-                    <!-- Стилизация системных сообщений (пропущенные вызовы) -->
                     <template x-if="msg.message.includes('📞')">
                          <div class="bg-red-500/10 border border-red-500/20 px-4 py-2 rounded-xl text-[10px] font-bold text-red-400 uppercase tracking-tighter mb-2" x-text="msg.message"></div>
                     </template>
@@ -112,7 +121,6 @@
             </template>
         </div>
 
-        <!-- Поле ввода для друга -->
         <div class="p-4 bg-[#0a0a0a] border-t border-white/5 pb-safe shrink-0">
             <div class="flex gap-2 bg-black/40 p-2 rounded-2xl border border-white/5">
                 <input type="text" x-model="friendChatInput" @keyup.enter="sendFriendMsg()" 

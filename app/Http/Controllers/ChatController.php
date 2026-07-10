@@ -68,7 +68,9 @@ class ChatController extends Controller
     /**
      * Логика прямого звонка другу
      */
-    public function callContact(Request $request): JsonResponse
+// app/Http/Controllers/ChatController.php
+
+ public function callContact(Request $request): JsonResponse
     {
         $request->validate(['contactId' => 'required|integer']);
         $receiverId = (int)$request->contactId;
@@ -76,12 +78,13 @@ class ChatController extends Controller
 
         if ($senderId === $receiverId) return response()->json(['error' => 'Self-call'], 400);
 
-        // 1. Проверяем занятость (статус Matched)
+        // ПРОВЕРКА ЗАНЯТОСТИ
         $isBusy = Matchmaking::where('user_id', $receiverId)
             ->where('status', MatchmakingStatus::Matched)
             ->exists();
 
         if ($isBusy) {
+            // Создаем системное сообщение о пропущенном вызове
             $msg = Message::create([
                 'sender_id' => $senderId,
                 'receiver_id' => $receiverId,
@@ -89,22 +92,15 @@ class ChatController extends Controller
             ]);
             broadcast(new MessageSentEvent($msg->toArray()));
 
-            return response()->json([
-                'status' => 'busy', 
-                'message' => 'Собеседник сейчас занят'
-            ]);
+            return response()->json(['status' => 'busy', 'message' => 'Собеседник сейчас занят']);
         }
 
-        // 2. Выходим из рулетки перед звонком
         $this->leaveChatAction->execute($senderId);
-
-        // 3. Устанавливаем статус Matched, чтобы разрешить сигналы
         Matchmaking::updateOrCreate(
             ['user_id' => $senderId],
             ['status' => MatchmakingStatus::Matched, 'partner_id' => $receiverId, 'updated_at' => now()]
         );
         
-        // Права в Redis
         Redis::setex("allow_signal:{$senderId}:{$receiverId}", 300, "1");
         Redis::setex("allow_signal:{$receiverId}:{$senderId}", 300, "1");
         

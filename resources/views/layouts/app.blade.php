@@ -122,10 +122,20 @@
                 initGlobal() {
                     this.ringtone.loop = true;
                     @auth
-                    window.Echo.private('user.{{ auth()->id() }}').listen('.WebRTCSignalEvent', (e) => {
-                        if (e.data.type === 'incoming-call') { this.incomingCall = e.data; this.callTimestamp = Date.now(); this.playRingtone(); }
-                        if (['hang-up', 'peer-disconnected'].includes(e.data.type)) { this.stopRingtone(); this.incomingCall = null; }
-                    });
+                window.Echo.private('user.{{ auth()->id() }}').listen('.WebRTCSignalEvent', (e) => {
+                    if (e.data.type === 'incoming-call') {
+                        // Если у юзера уже открыта страница чата и он в статусе connected — он занят
+                        // Это сработает, если юзер на других вкладках сайта
+                        if (window.location.pathname === '/chat' && window.videoChatAppInstance?.state === 'connected') {
+                            // Бэкенд уже отправил 'busy' и создал сообщение, здесь просто игнорируем или шлем hang-up
+                            return; 
+                        }
+                        
+                        this.incomingCall = e.data; 
+                        this.callTimestamp = Date.now(); 
+                        this.playRingtone(); 
+                    }
+                });
                     @endauth
                 },
                 async unlockAudio() {

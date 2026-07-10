@@ -198,25 +198,18 @@ window.videoChatApp = function(myId, myInterests, iceServers) {
             await this.initMedia();
             this.loadFriends(); this.loadHistory(); this.loadBlocked();
 
-            // ОБРАБОТКА ВХОДЯЩЕГО ПРИНЯТОГО ВЫЗОВА
             const urlParams = new URLSearchParams(window.location.search);
             if (urlParams.has('accept_call')) {
                 const friendId = parseInt(urlParams.get('accept_call'));
-                // Очищаем URL, чтобы при обновлении не звонило снова
                 window.history.replaceState({}, document.title, window.location.pathname);
-                
                 this.partnerId = friendId;
                 this.state = 'connected'; 
-                
-                // Получаем данные друга для UI
+                this.isCallingFriend = true;
                 window.axios.get(`/chat/user-info/${friendId}`).then(res => {
                     this.partnerData = res.data;
+                    this.openFriendChat(res.data);
                 });
-
-                // Сигнализируем звонящему, что мы открыли вкладку и готовы
-                setTimeout(() => {
-                    this.signal({ type: 'call-accepted' });
-                }, 1000);
+                setTimeout(() => { this.signal({ type: 'call-accepted' }); }, 1000);
             }
         },
 
@@ -233,26 +226,14 @@ window.videoChatApp = function(myId, myInterests, iceServers) {
 
         initPC() {
             if (this.pc) return;
-            console.log("Создание PeerConnection...");
             this.pc = new RTCPeerConnection(this.rtcConfig);
-            
-            this.pc.onicecandidate = (e) => {
-                if (e.candidate) this.signal({ type: 'ice', candidate: e.candidate });
-            };
-
-            this.pc.ontrack = (e) => { 
-                if (this.$refs.remoteVideo) this.$refs.remoteVideo.srcObject = e.streams[0]; 
-            };
-
+            this.pc.onicecandidate = (e) => { if (e.candidate) this.signal({ type: 'ice', candidate: e.candidate }); };
+            this.pc.ontrack = (e) => { if (this.$refs.remoteVideo) this.$refs.remoteVideo.srcObject = e.streams[0]; };
             this.pc.oniceconnectionstatechange = () => {
-                console.log("ICE State:", this.pc.iceConnectionState);
                 if (['failed', 'disconnected', 'closed'].includes(this.pc.iceConnectionState)) this.handlePartnerState('offline');
                 else if (this.pc.iceConnectionState === 'connected' || this.pc.iceConnectionState === 'completed') this.handlePartnerState('active');
             };
-
-            if (this.localStream) {
-                this.localStream.getTracks().forEach(t => this.pc.addTrack(t, this.localStream));
-            }
+            if (this.localStream) { this.localStream.getTracks().forEach(t => this.pc.addTrack(t, this.localStream)); }
         },
 
         async handleSignal(e) {
@@ -262,10 +243,7 @@ window.videoChatApp = function(myId, myInterests, iceServers) {
                 if(msg.type === 'peer-skipped') this.startSearch(); 
                 return; 
             }
-
             if (msg.type === 'user-state-changed') { this.handlePartnerState(msg.state); return; }
-
-            // Если друг принял звонок - я становлюсь инициатором (Offer)
             if (msg.type === 'call-accepted') {
                 this.state = 'connected';
                 window.axios.get(`/chat/user-info/${msg.from}`).then(res => { this.partnerData = res.data; });
@@ -273,9 +251,7 @@ window.videoChatApp = function(myId, myInterests, iceServers) {
                 this.sendOffer();
                 return;
             }
-
             if (!this.pc && ['offer', 'ice'].includes(msg.type)) this.initPC();
-
             try {
                 if (msg.type === 'offer') {
                     await this.pc.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp: this.normalizeSdp(msg.sdp) }));
@@ -310,13 +286,16 @@ window.videoChatApp = function(myId, myInterests, iceServers) {
             this.partnerData = e.partnerData;
             this.isFriend = !!e.isFriend;
             this.state = 'connected';
+            this.isCallingFriend = false;
+            this.tab = 'chat';
+            this.activeFriend = null;
             if (myId > this.partnerId) {
                 setTimeout(() => { this.initPC(); this.sendOffer(); }, 1500);
             }
         },
 
-        // --- МЕССЕНДЖЕР ---
         async openFriendChat(friend) {
+            this.tab = 'friends';
             this.activeFriend = friend;
             const res = await window.axios.get(`/chat/history/${friend.id}`);
             this.friendMessages = res.data.messages;
@@ -333,7 +312,7 @@ window.videoChatApp = function(myId, myInterests, iceServers) {
 
         handleIncomingMsg(e) {
             const msg = e.messageData;
-            if (this.state === 'connected' && msg.sender_id === this.partnerId) {
+            if (this.state === 'connected' && !this.isCallingFriend && msg.sender_id === this.partnerId) {
                 this.messages.push({isMe: false, text: msg.message, timestamp: Date.now()});
                 this.scrollChat();
             }
@@ -357,10 +336,10 @@ window.videoChatApp = function(myId, myInterests, iceServers) {
             this.partnerId = f.id;
             this.state = 'searching';
             this.isCallingFriend = true;
+            this.openFriendChat(f);
             this.mobileSidebarOpen = false;
         },
 
-        // --- БАЗОВЫЕ МЕТОДЫ ---
         signal(data) {
             if (this.partnerId) window.axios.post('/chat/signal', { partnerId: this.partnerId, data: { ...data, from: myId } }).catch(() => {});
         },
@@ -380,7 +359,7 @@ window.videoChatApp = function(myId, myInterests, iceServers) {
 
         async startSearch() {
             if (this.partnerId) this.signal({ type: 'peer-skipped' });
-            this.reset(); this.state = 'searching';
+            this.reset(); this.state = 'searching'; this.isCallingFriend = false;
             await window.axios.post('/chat/search');
         },
 
@@ -392,6 +371,10 @@ window.videoChatApp = function(myId, myInterests, iceServers) {
 
         async sendMsg() {
             if (!this.chatInput.trim() || !this.partnerId) return;
+            if (this.isCallingFriend) {
+                window.dispatchEvent(new CustomEvent('toast', {detail: {msg: 'Используйте чат с другом', type:'info'}}));
+                return;
+            }
             const t = this.chatInput; this.chatInput = '';
             this.messages.push({isMe: true, text: t, timestamp: Date.now()});
             this.scrollChat();

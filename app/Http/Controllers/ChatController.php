@@ -22,18 +22,32 @@ class ChatController extends Controller
         protected FindPartner $findPartnerAction
     ) {}
 
+    public function index()
+    {
+        $userId = Auth::id();
+        // При заходе на страницу ГАРАНТИРОВАННО удаляем пользователя из всех очередей
+        (new \App\Actions\LeaveChat())->execute($userId);
+        
+        return view('chat');
+    }
+
     public function startSearching(Request $request): JsonResponse
     {
         $userId = Auth::id();
+        
+        // 1. Сначала полностью чистим всё, что могло остаться
         $this->leaveChatAction->execute($userId);
         
-        Matchmaking::create([
+        // 2. Создаем запись в БД со статусом SEARCHING и свежим временем
+        \App\Models\Matchmaking::create([
             'user_id' => $userId, 
-            'status' => MatchmakingStatus::Searching, 
+            'status' => \App\Enums\MatchmakingStatus::Searching, 
             'updated_at' => now()
         ]);
         
+        // 3. Только ТЕПЕРЬ запускаем поиск партнера
         $partnerId = $this->findPartnerAction->execute($userId);
+        
         return response()->json([
             'status' => $partnerId ? 'matched' : 'searching', 
             'partnerId' => $partnerId
@@ -140,18 +154,21 @@ class ChatController extends Controller
         $receiverId = (int)$request->contactId;
         $senderId = Auth::id();
 
-        $isBlocked = DB::table('blocks')
-            ->where(fn($q) => $q->where('blocker_id', $receiverId)->where('blocked_id', $senderId))
-            ->orWhere(fn($q) => $q->where('blocker_id', $senderId)->where('blocked_id', $receiverId))
-            ->exists();
+        // 1. Создаем временный "матч" в базе, чтобы сигналы проходили проверку безопасности
+        \App\Models\Matchmaking::updateOrCreate(
+            ['user_id' => $senderId],
+            ['status' => \App\Enums\MatchmakingStatus::Matched, 'partner_id' => $receiverId, 'updated_at' => now()]
+        );
+        \App\Models\Matchmaking::updateOrCreate(
+            ['user_id' => $receiverId],
+            ['status' => \App\Enums\MatchmakingStatus::Matched, 'partner_id' => $senderId, 'updated_at' => now()]
+        );
 
-        if ($isBlocked) return response()->json(['error' => 'Blocked'], 403);
-
-        // Даем временные права на передачу WebRTC сигналов вне очереди
+        // 2. Даем права в Redis
         Redis::setex("allow_signal:{$senderId}:{$receiverId}", 300, 1);
         Redis::setex("allow_signal:{$receiverId}:{$senderId}", 300, 1);
         
-        broadcast(new WebRTCSignalEvent($receiverId, [
+        broadcast(new \App\Events\WebRTCSignalEvent($receiverId, [
             'type' => 'incoming-call',
             'fromName' => Auth::user()->name,
             'fromId' => $senderId

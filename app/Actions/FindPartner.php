@@ -14,25 +14,36 @@ class FindPartner
     private string $queueHigh = 'matchmaking_high';
     private string $queueLow  = 'matchmaking_low';
 
+    
     public function execute(int $userId): ?int
     {
-        $this->removeFromQueue($userId);
+        // Мы НЕ добавляем себя в очередь в начале метода.
+        // Сначала пытаемся найти тех, кто УЖЕ в очереди.
         
         $user = User::find($userId);
-        if (!$user || ($user->banned_until && $user->banned_until->isFuture())) return null;
-
         $myQueue = ($user->karma < 50) ? $this->queueLow : $this->queueHigh;
         
-        // Пытаемся достать кого-то из очереди
         $partnerId = null;
-        $maxAttempts = 15;
+        $maxAttempts = 20;
 
         while ($maxAttempts-- > 0 && ($tempId = Redis::lpop($myQueue))) {
             $tempId = (int)$tempId;
-            
             if ($tempId === $userId) continue;
 
-            // Проверка блокировок
+            // КРИТИЧЕСКАЯ ПРОВЕРКА:
+            // Партнер валиден ТОЛЬКО если у него есть запись в БД со статусом Searching
+            // и он обновил её не более 10 секунд назад
+            $matchEntry = Matchmaking::where('user_id', $tempId)
+                ->where('status', MatchmakingStatus::Searching)
+                ->where('updated_at', '>=', now()->subSeconds(10)) 
+                ->first();
+
+            if (!$matchEntry) {
+                // Если записи в БД нет или она старая - этот ID в Redis "мусорный", пропускаем
+                continue;
+            }
+
+            // Проверка черного списка
             $isBlocked = DB::table('blocks')
                 ->where(fn($q) => $q->where('blocker_id', $userId)->where('blocked_id', $tempId))
                 ->orWhere(fn($q) => $q->where('blocker_id', $tempId)->where('blocked_id', $userId))
@@ -40,22 +51,17 @@ class FindPartner
 
             if ($isBlocked) continue;
 
-            // Если прошел проверки - это наш партнер
             $partnerId = $tempId;
             break;
         }
 
         if (!$partnerId) {
-            // Никого не нашли - встаем в очередь сами
+            // Если никого не нашли, добавляем СЕБЯ в Redis очередь
+            // Теперь мы стали тем, кого могут найти другие
             Redis::rpush($myQueue, $userId);
-            Matchmaking::updateOrCreate(
-                ['user_id' => $userId],
-                ['status' => MatchmakingStatus::Searching, 'updated_at' => now()]
-            );
             return null;
         }
 
-        // ПАРТНЕР НАЙДЕН - ФИНАЛИЗИРУЕМ
         return $this->finalizeMatch($userId, $partnerId, $user);
     }
 

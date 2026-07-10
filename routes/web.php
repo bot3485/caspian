@@ -77,8 +77,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // --- ВИДЕО-ЧАТ (РУЛЕТКА) И МЕССЕНДЖЕР ---
 
     Route::prefix('chat')->group(function () {
-        // Главная страница чата
-        Route::get('/', function () { return view('chat'); })->name('chat');
+        // ИЗМЕНЕНО: Направляем на метод index для очистки старых сессий при входе
+        Route::get('/', [ChatController::class, 'index'])->name('chat');
 
         Route::controller(ChatController::class)->group(function () {
             // Matchmaking и Сигналы
@@ -86,14 +86,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::post('/leave', 'leaveChat')->name('chat.leave');
             Route::post('/signal', 'sendSignal')->name('chat.signal');
             
-            // Быстрое получение данных партнера (для мессенджера и звонков)
+            // Быстрое получение данных партнера
             Route::get('/user-info/{user}', function (User $user) {
                 return response()->json([
                     'id' => $user->id,
                     'name' => $user->name,
                     'level' => $user->level,
                     'rank_name' => $user->rank_name,
-                    'status' => $user->status_data, // Используем динамический атрибут из Этапа 5
+                    'status' => $user->status_data, 
                 ]);
             })->name('chat.user-info');
 
@@ -102,7 +102,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::post('/contact/add', 'addContact')->name('chat.contact.add');
             Route::post('/contact/call', 'callContact')->name('chat.contact.call');
             
-            // История и Мессенджер (Data Persistence)
+            // История и Мессенджер
             Route::get('/history-all', 'getInteractionHistory')->name('chat.history.all');
             Route::get('/history/{contactId}', 'getChatHistory')->name('chat.history.single');
             Route::post('/message/send', 'sendMessage')->name('chat.message.send');

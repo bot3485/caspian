@@ -136,24 +136,59 @@
         </div>
     </div>
 
-    <!-- 4. ИСТОРИЯ ВСТРЕЧ -->
-    <div x-show="tab === 'history' && !activeFriend" class="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar">
-        <template x-for="h in historyList" :key="h.id + h.last_at">
-            <div class="p-4 bg-white/[0.02] border border-white/5 rounded-3xl flex items-center justify-between group">
+   <div x-show="tab === 'history' && !activeFriend" class="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
+    <template x-for="h in historyList" :key="h.id">
+        <div class="p-4 bg-white/[0.03] border border-white/5 rounded-[2rem] flex flex-col gap-4 group hover:border-indigo-500/30 transition-all">
+            
+            <div class="flex items-center justify-between">
                 <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 bg-white/5 text-gray-500 rounded-2xl flex items-center justify-center font-black text-xs" x-text="h.name[0]"></div>
+                    <div class="relative">
+                        <div class="w-12 h-12 bg-gradient-to-br from-gray-800 to-gray-900 rounded-2xl flex items-center justify-center font-black text-white" x-text="h.name[0]"></div>
+                        <div x-show="h.is_online" class="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 border-4 border-[#050505] rounded-full"></div>
+                    </div>
                     <div>
-                        <div class="text-xs font-bold text-white" x-text="h.name"></div>
-                        <div class="text-[7px] font-black uppercase text-gray-600 mt-1" x-text="'Встречались: ' + h.last_met_diff"></div>
+                        <div class="text-sm font-black text-white flex items-center gap-2">
+                            <span x-text="h.name"></span>
+                            <span class="text-[8px] bg-white/10 px-1.5 py-0.5 rounded text-gray-400" x-text="'LVL ' + h.level"></span>
+                        </div>
+                        <div class="text-[9px] font-bold text-gray-500 uppercase tracking-tighter" x-text="'Встреча: ' + h.last_met_diff"></div>
                     </div>
                 </div>
-                <button @click="openFriendChat(h)" class="w-10 h-10 bg-white/5 text-white rounded-xl flex items-center justify-center hover:bg-white/10 active:scale-90 transition-all">💬</button>
+
+                <!-- Красный флаг (Блокировка) -->
+                <button @click="if(confirm('Заблокировать пользователя?')) { 
+                            window.axios.post('/chat/block', {userId: h.id}).then(() => loadHistory()) 
+                        }" 
+                        title="Пожаловаться и в ЧС"
+                        class="w-10 h-10 flex items-center justify-center rounded-xl bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-all">
+                    🚩
+                </button>
             </div>
-        </template>
-        <template x-if="historyList.length === 0">
-            <div class="text-center py-10 opacity-20 text-[10px] font-black uppercase tracking-widest">История пуста</div>
-        </template>
-    </div>
+
+            <div class="flex gap-2">
+                <!-- Кнопка написать -->
+                <button @click="openFriendChat(h)" 
+                        class="flex-1 bg-white/5 hover:bg-indigo-600 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest text-white transition-all">
+                    💬 Написать
+                </button>
+                
+                <!-- Кнопка профиля или доп действий (опционально) -->
+                <button x-show="!h.is_blocked" 
+                        @click="window.axios.post('/chat/contact/add', {contactId: h.id}).then(() => { h.is_friend = true; window.dispatchEvent(new CustomEvent('toast', {detail: {msg: 'Добавлен в друзья', type: 'success'}})) })"
+                        class="px-4 bg-white/5 hover:bg-green-600/20 hover:text-green-500 rounded-xl text-lg transition-all">
+                    +
+                </button>
+            </div>
+        </div>
+    </template>
+
+    <template x-if="historyList.length === 0">
+        <div class="text-center py-20 opacity-20">
+            <div class="text-4xl mb-4">⌛</div>
+            <p class="text-[10px] font-black uppercase tracking-[0.2em]">История пуста</p>
+        </div>
+    </template>
+</div>
 
     <!-- 5. ЧЕРНЫЙ СПИСОК -->
     <div x-show="tab === 'blacklist' && !activeFriend" class="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar">

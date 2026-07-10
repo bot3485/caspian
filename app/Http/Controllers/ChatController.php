@@ -185,30 +185,47 @@ class ChatController extends Controller
         return response()->json(['status' => 'ok']);
     }
 
-    public function getInteractionHistory(): JsonResponse 
-    {
-        $userId = Auth::id();
-        // Получаем последние 50 уникальных взаимодействий
-        $history = DB::table('interactions')
-            ->where('user_id', $userId)
-            ->join('users', 'interactions.partner_id', '=', 'users.id')
-            ->select('users.id', 'users.name', 'users.last_seen', 'interactions.last_at')
-            ->orderByDesc('interactions.last_at')
-            ->limit(50)
-            ->get()
-            ->map(function($record) {
-                $u = User::find($record->id);
-                return [
-                    'id' => $record->id,
-                    'name' => $record->name,
-                    'is_online' => $u ? $u->isOnline() : false,
-                    'last_seen_human' => $u ? $u->getLastSeenForHumans() : 'Давно',
-                    'last_met_diff' => \Carbon\Carbon::parse($record->last_at)->diffForHumans()
-                ];
-            });
+public function getInteractionHistory(): JsonResponse 
+{
+    $userId = Auth::id();
 
-        return response()->json(['history' => $history]);
-    }
+    // Получаем последние уникальные взаимодействия
+    $history = DB::table('interactions')
+        ->where('user_id', $userId)
+        ->join('users', 'interactions.partner_id', '=', 'users.id')
+        ->select(
+            'users.id', 
+            'users.name', 
+            'users.last_seen', 
+            'interactions.last_at'
+        )
+        ->orderByDesc('interactions.last_at')
+        ->limit(50)
+        ->get()
+        ->map(function($record) use ($userId) {
+            $u = User::find($record->id);
+            
+            // Проверяем, не заблокирован ли он нами
+            $isBlocked = DB::table('blocks')
+                ->where('blocker_id', $userId)
+                ->where('blocked_id', $record->id)
+                ->exists();
+
+            return [
+                'id' => $record->id,
+                'name' => $record->name,
+                'is_online' => $u ? $u->isOnline() : false,
+                'last_seen_human' => $u ? $u->getLastSeenForHumans() : 'Давно',
+                'last_met_diff' => \Carbon\Carbon::parse($record->last_at)->diffForHumans(),
+                'is_blocked' => $isBlocked,
+                // Для того чтобы Alpine понимал, что это данные пользователя
+                'level' => $u->level ?? 1,
+                'rank_name' => $u->rank_name ?? 'Newbie'
+            ];
+        });
+
+    return response()->json(['history' => $history]);
+}
 
     public function getBlockedUsers(): JsonResponse
     {
@@ -223,4 +240,20 @@ class ChatController extends Controller
         DB::table('blocks')->where('blocker_id', Auth::id())->where('blocked_id', $request->blockedId)->delete();
         return response()->json(['status' => 'unblocked']);
     }
+
+    public function blockUser(Request $request): JsonResponse
+{
+    $request->validate(['userId' => 'required|integer|exists:users,id']);
+    $blockerId = Auth::id();
+    $blockedId = (int)$request->userId;
+
+    if ($blockerId === $blockedId) return response()->json(['error' => 'Self-block'], 400);
+
+    DB::table('blocks')->updateOrInsert([
+        'blocker_id' => $blockerId,
+        'blocked_id' => $blockedId
+    ], ['created_at' => now(), 'updated_at' => now()]);
+
+    return response()->json(['status' => 'blocked']);
+}
 }

@@ -1,8 +1,6 @@
 <x-app-layout>
     <div class="h-[calc(100svh-0px)] md:h-[calc(100vh-64px)] bg-[#050505] relative overflow-hidden text-white font-sans selection:bg-indigo-500/30 flex" 
-         x-data="window.videoChatApp({{ auth()->id() }}, {{ json_encode(auth()->user()->interests ?? []) }})"
-         @touchstart="touchStart = $event.touches[0].clientY"
-         @touchend="handleSwipe($event)"
+         x-data="window.videoChatApp({{ auth()->id() }}, {{ json_encode(auth()->user()->interests ?? []) }}, @js(config('webrtc.ice_servers')))"
          @click="unlockAudio()">
         
         <!-- ДЕКОРАТИВНЫЕ СВЕЧЕНИЯ -->
@@ -26,13 +24,18 @@
                         <div class="flex items-center gap-1.5 mt-0.5 opacity-80">
                             <div class="w-1.5 h-1.5 rounded-full" :class="partnerState === 'active' ? 'bg-green-500 shadow-[0_0_8px_#22c55e]' : (partnerState === 'away' ? 'bg-amber-500' : 'bg-red-500')"></div>
                             <span class="text-[8px] font-black uppercase tracking-widest">
-                                <span x-show="partnerState === 'active'" x-text="partnerData?.rank_name"></span>
+                                <span x-show="partnerState === 'active'" x-text="partnerData?.rank_name || 'Собеседник'"></span>
                                 <span x-show="partnerState === 'away'" class="text-amber-500 italic font-bold">Вне вкладки</span>
-                                <span x-show="partnerState === 'offline'" class="text-red-500 italic font-bold">Связь прервана</span>
+                                <span x-show="partnerState === 'offline'" class="text-red-500 italic font-bold">Потеря связи...</span>
                             </span>
                         </div>
                     </div>
                 </div>
+            </div>
+
+            <!-- ИНДИКАТОР ПИНГА -->
+            <div x-show="state === 'connected' && ping > 0" class="absolute top-6 right-6 z-[90] bg-black/20 px-3 py-1.5 rounded-full border border-white/5">
+                <span class="text-[8px] font-black text-gray-400 uppercase tracking-widest">Ping: <span :class="ping < 100 ? 'text-green-500' : 'text-amber-500'" x-text="ping + 'ms'"></span></span>
             </div>
 
             <!-- ВИДЕО СОБЕСЕДНИКА -->
@@ -40,10 +43,15 @@
                    class="w-full h-full object-cover transition-all duration-700" 
                    :class="isRemoteBlurred ? 'blur-[100px] scale-110 opacity-50' : 'opacity-100'"></video>
             
-            <!-- ИНДИКАТОР ЗАБЛЮРЕННОСТИ -->
-            <div x-show="isRemoteBlurred" class="absolute inset-0 flex flex-col items-center justify-center bg-indigo-950/20 backdrop-blur-3xl z-[85] pointer-events-none">
-                <span class="text-6xl mb-4">🙈</span>
-                <p class="text-[10px] font-black uppercase tracking-[0.5em]">Собеседник скрыт</p>
+            <!-- СОСТОЯНИЕ: ОЖИДАНИЕ/ПОИСК -->
+            <div x-show="state === 'searching' || state === 'idle'" class="absolute inset-0 flex flex-col items-center justify-center bg-[#050505] z-[110]">
+                <div class="relative w-20 h-20 mb-6">
+                    <div class="absolute inset-0 border-2 border-indigo-500/30 rounded-full" :class="state === 'searching' && 'animate-ping'"></div>
+                    <div class="absolute inset-0 flex items-center justify-center text-3xl" x-text="state === 'searching' ? '📡' : '👋'"></div>
+                </div>
+                <h3 class="text-white font-black uppercase text-[9px] tracking-[0.4em]" 
+                    :class="state === 'searching' && 'animate-pulse'"
+                    x-text="state === 'searching' ? (isCallingFriend ? 'Вызов друга...' : 'Поиск собеседника...') : 'Нажми старт для общения'"></h3>
             </div>
 
             <!-- PIP СВОЁ ВИДЕО -->
@@ -55,23 +63,18 @@
                 <div x-show="!camEnabled" class="absolute inset-0 flex items-center justify-center bg-gray-950/80 text-xl">🚫</div>
             </div>
 
-            <!-- ЭКРАН ПОИСКА -->
-            <div x-show="state === 'searching'" class="absolute inset-0 flex flex-col items-center justify-center bg-[#050505] z-[110]">
-                <div class="relative w-20 h-20 mb-6">
-                    <div class="absolute inset-0 border-2 border-indigo-500/30 rounded-full animate-ping"></div>
-                    <div class="absolute inset-0 flex items-center justify-center text-3xl">📡</div>
-                </div>
-                <h3 class="text-white font-black uppercase text-[9px] tracking-[0.4em] animate-pulse" x-text="isCallingFriend ? 'Вызов друга...' : 'Поиск собеседника...'"></h3>
-            </div>
-
             <!-- ПАНЕЛЬ УПРАВЛЕНИЯ -->
             <div class="absolute bottom-24 md:bottom-10 left-0 right-0 px-4 z-[130] flex flex-col items-center gap-3 pointer-events-none">
                 <div class="pointer-events-auto flex flex-col items-center gap-3 w-full max-w-lg">
                     
                     <!-- ДОП КНОПКИ -->
                     <div x-show="controlsOpen" x-transition class="flex items-center gap-1.5 p-1.5 bg-black/60 backdrop-blur-3xl border border-white/10 rounded-2xl shadow-2xl">
-                        <button @click="toggleMic()" :class="micEnabled ? 'bg-white/5' : 'bg-red-600'" class="w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center transition-all">🎤</button>
-                        <button @click="toggleCam()" :class="camEnabled ? 'bg-white/5' : 'bg-red-600'" class="w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center transition-all">📷</button>
+                        <button @click="toggleMic()" :class="micEnabled ? 'bg-white/5' : 'bg-red-600 shadow-[0_0_15px_rgba(220,38,38,0.4)]'" class="w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center transition-all">
+                            <span x-text="micEnabled ? '🎤' : '🔇'"></span>
+                        </button>
+                        <button @click="toggleCam()" :class="camEnabled ? 'bg-white/5' : 'bg-red-600 shadow-[0_0_15px_rgba(220,38,38,0.4)]'" class="w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center transition-all">
+                            <span x-text="camEnabled ? '📷' : '🚫'"></span>
+                        </button>
                         <button @click="isRemoteBlurred = !isRemoteBlurred" :class="isRemoteBlurred ? 'bg-indigo-600 shadow-lg' : 'bg-white/5'" class="w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center transition-all">🙈</button>
                         <button @click="toggleBeauty()" :class="beautyFilter ? 'bg-pink-600 shadow-lg' : 'bg-white/5'" class="w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center transition-all">✨</button>
                         <button @click="getDevices()" class="w-10 h-10 md:w-12 md:h-12 bg-white/5 rounded-xl flex items-center justify-center">⚙️</button>
@@ -82,7 +85,7 @@
                                 <button @click="toggleContact()" :class="isFriend ? 'bg-green-600/20 text-green-400' : 'bg-white/5 text-white'" class="h-10 md:h-12 px-4 rounded-xl border border-white/5 font-black text-[9px] uppercase tracking-widest">
                                     <span x-text="isFriend ? 'Друг ✓' : '+ Друг'"></span>
                                 </button>
-                                <button @click="report(partnerId)" class="w-10 h-10 md:w-12 md:h-12 bg-red-600/10 text-red-500 rounded-xl flex items-center justify-center">🚩</button>
+                                <button @click="reportPartner()" class="w-10 h-10 md:w-12 md:h-12 bg-red-600/10 text-red-500 rounded-xl flex items-center justify-center">🚩</button>
                             </div>
                         </template>
                     </div>
@@ -111,7 +114,7 @@
             </div>
         </div>
 
-        <!-- МЕССЕНДЖЕР -->
+        <!-- МЕССЕНДЖЕР (Desktop) -->
         <div x-show="sidebarOpen" x-transition class="hidden lg:flex flex-col bg-[#080808] border-l border-white/5 w-[400px] shrink-0 relative overflow-hidden">
             <div class="p-6 border-b border-white/5 bg-[#0a0a0a] flex justify-between items-center">
                 <h2 class="text-xs font-black uppercase tracking-[0.3em] italic">Messenger</h2>
@@ -120,181 +123,315 @@
             @include('partials.messenger-content')
         </div>
 
+        <!-- МЕССЕНДЖЕР (Mobile Bottom Sheet) -->
         <div x-show="mobileSidebarOpen" class="fixed inset-0 z-[240] bg-black/60 backdrop-blur-sm lg:hidden" @click="mobileSidebarOpen = false" x-cloak x-transition.opacity></div>
         <div :class="mobileSidebarOpen ? 'translate-y-0' : 'translate-y-full'" class="fixed inset-x-0 bottom-0 z-[250] h-[85vh] lg:hidden flex flex-col bg-[#080808] border-t border-white/5 rounded-t-[3rem] transition-transform duration-500 overflow-hidden">
             <div class="p-4 flex justify-center border-b border-white/5 shrink-0" @click="mobileSidebarOpen = false"><div class="w-12 h-1 bg-white/10 rounded-full"></div></div>
             @include('partials.messenger-content')
         </div>
 
-        <!-- МОДАЛКА НАСТРОЕК -->
+        <!-- МОДАЛКА НАСТРОЕК УСТРОЙСТВ -->
         <div x-show="showDeviceModal" x-cloak class="fixed inset-0 z-[400] flex items-center justify-center p-6 bg-black/90 backdrop-blur-xl" x-transition>
             <div class="bg-[#0f0f0f] border border-white/10 w-full max-w-sm rounded-[2.5rem] p-8 shadow-2xl">
-                <h3 class="text-lg font-black uppercase tracking-tighter mb-8 text-center italic text-white">Настройки</h3>
+                <h3 class="text-lg font-black uppercase tracking-tighter mb-8 text-center italic text-white">Устройства</h3>
                 <div class="space-y-6">
                     <template x-for="kind in ['video', 'audio']">
                         <div>
                             <label class="text-[9px] font-black uppercase text-gray-500 mb-2 block ml-1" x-text="kind === 'video' ? 'Камера' : 'Микрофон'"></label>
                             <div class="max-h-40 overflow-y-auto space-y-2 custom-scrollbar">
                                 <template x-for="d in devices.filter(x => x.kind === (kind + 'input'))">
-                                    <button @click="switchDevice(kind, d.deviceId)" :class="(kind === 'video' ? selectedCam : selectedMic) === d.deviceId ? 'border-indigo-500 bg-indigo-500/10 text-white' : 'border-white/5 bg-white/5 text-gray-400'" class="w-full text-left px-4 py-4 rounded-2xl border text-[11px] font-bold truncate transition-all" x-text="d.label || (kind + ' ' + d.deviceId.slice(0,5))"></button>
+                                    <button @click="switchDevice(kind, d.deviceId)" 
+                                            :class="(kind === 'video' ? selectedCam : selectedMic) === d.deviceId ? 'border-indigo-500 bg-indigo-500/10 text-white' : 'border-white/5 bg-white/5 text-gray-400'" 
+                                            class="w-full text-left px-4 py-4 rounded-2xl border text-[11px] font-bold truncate transition-all" 
+                                            x-text="d.label || (kind + ' ' + d.deviceId.slice(0,5))"></button>
                                 </template>
                             </div>
                         </div>
                     </template>
                 </div>
-                <button @click="showDeviceModal = false" class="w-full mt-8 bg-white text-black py-5 rounded-3xl font-black text-[10px] uppercase shadow-xl active:scale-95 transition-all">Готово</button>
+                <button @click="showDeviceModal = false" class="w-full mt-8 bg-white text-black py-5 rounded-3xl font-black text-[10px] uppercase shadow-xl active:scale-95 transition-all">Закрыть</button>
             </div>
         </div>
     </div>
 
-    <script>
-    window.rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }], bundlePolicy: "balanced" };
+<script>
+window.videoChatApp = function(myId, myInterests, iceServers) {
+    return {
+        sidebarOpen: false, mobileSidebarOpen: false, tab: 'chat', controlsOpen: true,
+        state: 'idle', partnerId: null, partnerData: null, isFriend: false,
+        partnerState: 'active', offlineTimer: null, isCallingFriend: false,
+        activeFriend: null, friendMessages: [], friendChatInput: '',
+        pc: null, localStream: null, onlineList: [], friendsList: [], historyList: [], blockedList: [],
+        micEnabled: true, camEnabled: true, isRemoteBlurred: false,
+        showSelfVideo: true, messages: [], chatInput: '', ping: 0, beautyFilter: localStorage.getItem('beauty_filter') === 'true',
+        showDeviceModal: false, devices: [], selectedCam: '', selectedMic: '',
+        isPartnerTyping: false, msgSound: new Audio('/sounds/message.mp3'),
+        audioUnlocked: false, iceQueue: [], lastTypingSent: 0,
+        rtcConfig: { 
+            iceServers: iceServers, 
+            bundlePolicy: "balanced",
+            iceCandidatePoolSize: 10
+        },
 
-    window.videoChatApp = function(myId, myInterests) {
-        return {
-            sidebarOpen: false, mobileSidebarOpen: false, tab: 'chat', controlsOpen: true, touchStart: 0,
-            state: 'idle', partnerId: null, partnerData: null, isFriend: false,
-            partnerState: 'active', offlineTimer: null, isCallingFriend: false,
-            pc: null, localStream: null, onlineList: [], friendsList: [], historyList: [], blockedList: [],
-            micEnabled: true, camEnabled: true, isRemoteBlurred: false,
-            showSelfVideo: true, messages: [], chatInput: '', ping: 0, beautyFilter: localStorage.getItem('beauty_filter') === 'true',
-            showDeviceModal: false, devices: [], selectedCam: '', selectedMic: '',
-            xpPopups: [], matchInterests: [], showIceBreaker: false, myInterests: myInterests,
-            isPartnerTyping: false, msgSound: new Audio('/sounds/message.mp3'),
-            audioUnlocked: false, iceQueue: [], currentLevel: {{ auth()->user()->level }}, lastTypingSent: 0,
+        async init() {
+            window.Echo.join('online-status')
+                .here(u => this.onlineList = u)
+                .joining(u => this.onlineList.push(u))
+                .leaving(u => this.onlineList = this.onlineList.filter(x => x.id !== u.id));
 
-            async init() {
-                window.Echo.join('online-status').here(u => this.onlineList = u).joining(u => this.onlineList.push(u)).leaving(u => this.onlineList = this.onlineList.filter(x => x.id !== u.id));
-                window.Echo.private(`user.${myId}`)
-                    .listen('.MatchFoundEvent', (e) => this.handleMatch(e))
-                    .listen('.WebRTCSignalEvent', (e) => this.handleSignal(e))
-                    .listen('.MessageSentEvent', (e) => this.handleIncomingMsg(e))
-                    .listen('.UserTypingEvent', (e) => {
-                        if (e.senderId === this.partnerId) {
-                            this.isPartnerTyping = true;
-                            clearTimeout(this.typingTimeout);
-                            this.typingTimeout = setTimeout(() => this.isPartnerTyping = false, 3000);
-                        }
-                    })
-                    .listen('.XpGainedEvent', (e) => this.showXpPopup(e.xpGained, e.totalXp, e.currentLevel));
-                
-                document.addEventListener('visibilitychange', () => { 
-                    const s = document.hidden ? 'away' : 'active';
-                    if (this.partnerId) this.signal({ type: 'user-state-changed', state: s }); 
-                });
-                
-                window.addEventListener('online', () => { if (this.pc) this.pc.restartIce(); });
-                await this.initMedia();
-                this.loadFriends(); this.loadHistory(); this.loadBlocked();
-                setInterval(() => { if (this.state !== 'idle') window.axios.post('/ping').catch(()=>{}); }, 15000);
-            },
-
-            unlockAudio() { if (!this.audioUnlocked) { this.msgSound.play().then(() => { this.msgSound.pause(); this.audioUnlocked = true; }).catch(() => {}); } },
-            normalizeSdp(sdp) { if (typeof sdp !== 'string') sdp = sdp.sdp || ""; return sdp.split('\n').map(l => l.trim()).filter(l => l.length > 0).join('\r\n') + '\r\n'; },
-
-            scrollChat() { 
-                this.$nextTick(() => { 
-                    const box = this.$refs.chatBox;
-                    if(box) box.scrollTop = box.scrollHeight; 
-                }); 
-            },
-
-            initPC() {
-                if (this.pc) return;
-                this.pc = new RTCPeerConnection(window.rtcConfig);
-                this.pc.onicecandidate = (e) => e.candidate && this.signal({type:'ice', candidate: e.candidate});
-                this.pc.ontrack = (e) => { if (this.$refs.remoteVideo) { this.$refs.remoteVideo.srcObject = e.streams[0]; this.$refs.remoteVideo.play().catch(()=>{}); } };
-                this.pc.oniceconnectionstatechange = () => {
-                    if (this.pc.iceConnectionState === 'failed') this.pc.restartIce();
-                    if (['disconnected', 'closed'].includes(this.pc.iceConnectionState)) this.handlePartnerState('offline');
-                    else if (this.pc.iceConnectionState === 'connected') this.handlePartnerState('active');
-                };
-                if (this.localStream) this.localStream.getTracks().forEach(t => this.pc.addTrack(t, this.localStream));
-                this.startStats();
-            },
-
-            async handleSignal(e) {
-                const msg = e.data; const senderId = Number(msg.from);
-                if (msg.type === 'peer-disconnected') { this.reset(); if (this.state === 'searching') return; return; }
-                if (msg.type === 'user-state-changed') { this.handlePartnerState(msg.state); return; }
-                if (msg.type === 'privacy-toggled') { this.isBlurredByPartner = msg.enabled; return; }
-                if (msg.type === 'receiver-ready') { this.initPC(); this.sendOffer(); return; }
-                if (!this.pc && ['offer', 'ice'].includes(msg.type)) this.initPC();
-
-                try {
-                    if (msg.type === 'offer') {
-                        if (this.pc.signalingState !== "stable") return;
-                        await this.pc.setRemoteDescription(new RTCSessionDescription({type: 'offer', sdp: this.normalizeSdp(msg.sdp)}));
-                        const answer = await this.pc.createAnswer();
-                        await this.pc.setLocalDescription(answer);
-                        this.signal({ type: 'answer', sdp: answer.sdp });
-                        this.processIceQueue();
-                    } else if (msg.type === 'answer') {
-                        if (this.pc.signalingState !== "have-local-offer") return;
-                        await this.pc.setRemoteDescription(new RTCSessionDescription({type: 'answer', sdp: this.normalizeSdp(msg.sdp)}));
-                        this.processIceQueue();
-                    } else if (msg.type === 'ice' && msg.candidate) {
-                        if (this.pc?.remoteDescription) await this.pc.addIceCandidate(new RTCIceCandidate(msg.candidate)).catch(()=>{});
-                        else this.iceQueue.push(msg.candidate);
+            window.Echo.private(`user.${myId}`)
+                .listen('.MatchFoundEvent', (e) => this.handleMatch(e))
+                .listen('.WebRTCSignalEvent', (e) => this.handleSignal(e))
+                .listen('.MessageSentEvent', (e) => this.handleIncomingMsg(e))
+                .listen('.UserTypingEvent', (e) => {
+                    if (e.senderId === this.partnerId) {
+                        this.isPartnerTyping = true;
+                        clearTimeout(this.typingTimeout);
+                        this.typingTimeout = setTimeout(() => this.isPartnerTyping = false, 3000);
                     }
-                } catch(err) { console.warn('Signaling Error:', err); }
-            },
+                });
 
-            async sendOffer() { if(!this.pc) return; const offer = await this.pc.createOffer(); await this.pc.setLocalDescription(offer); this.signal({ type: 'offer', sdp: offer.sdp }); },
-            processIceQueue() { while(this.iceQueue.length > 0) { this.pc.addIceCandidate(new RTCIceCandidate(this.iceQueue.shift())).catch(()=>{}); } },
-            handleIncomingMsg(e) { if (e.messageData.sender_id === this.partnerId) { this.messages.push({isMe: false, text: e.messageData.message, timestamp: Date.now()}); this.scrollChat(); if(this.audioUnlocked) this.msgSound.play().catch(()=>{}); } },
+            document.addEventListener('visibilitychange', () => { 
+                if (this.partnerId) this.signal({ type: 'user-state-changed', state: document.hidden ? 'away' : 'active' }); 
+            });
 
-            async sendMsg() {
-                if (!this.chatInput.trim() || !this.partnerId) return;
-                const t = this.chatInput; this.chatInput = '';
-                this.messages.push({isMe: true, text: t, timestamp: Date.now()});
+            await this.initMedia();
+            this.loadFriends(); this.loadHistory(); this.loadBlocked();
+
+            // ОБРАБОТКА ВХОДЯЩЕГО ПРИНЯТОГО ВЫЗОВА
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.has('accept_call')) {
+                const friendId = parseInt(urlParams.get('accept_call'));
+                // Очищаем URL, чтобы при обновлении не звонило снова
+                window.history.replaceState({}, document.title, window.location.pathname);
+                
+                this.partnerId = friendId;
+                this.state = 'connected'; 
+                
+                // Получаем данные друга для UI
+                window.axios.get(`/chat/user-info/${friendId}`).then(res => {
+                    this.partnerData = res.data;
+                });
+
+                // Сигнализируем звонящему, что мы открыли вкладку и готовы
+                setTimeout(() => {
+                    this.signal({ type: 'call-accepted' });
+                }, 1000);
+            }
+        },
+
+        normalizeSdp(sdp) {
+            if (!sdp) return "";
+            return sdp.trim().split('\n').map(line => line.trim()).join('\r\n') + '\r\n';
+        },
+
+        unlockAudio() { 
+            if (!this.audioUnlocked) { 
+                this.msgSound.play().then(() => { this.msgSound.pause(); this.audioUnlocked = true; }).catch(() => {}); 
+            } 
+        },
+
+        initPC() {
+            if (this.pc) return;
+            console.log("Создание PeerConnection...");
+            this.pc = new RTCPeerConnection(this.rtcConfig);
+            
+            this.pc.onicecandidate = (e) => {
+                if (e.candidate) this.signal({ type: 'ice', candidate: e.candidate });
+            };
+
+            this.pc.ontrack = (e) => { 
+                if (this.$refs.remoteVideo) this.$refs.remoteVideo.srcObject = e.streams[0]; 
+            };
+
+            this.pc.oniceconnectionstatechange = () => {
+                console.log("ICE State:", this.pc.iceConnectionState);
+                if (['failed', 'disconnected', 'closed'].includes(this.pc.iceConnectionState)) this.handlePartnerState('offline');
+                else if (this.pc.iceConnectionState === 'connected' || this.pc.iceConnectionState === 'completed') this.handlePartnerState('active');
+            };
+
+            if (this.localStream) {
+                this.localStream.getTracks().forEach(t => this.pc.addTrack(t, this.localStream));
+            }
+        },
+
+        async handleSignal(e) {
+            const msg = e.data;
+            if (msg.type === 'peer-disconnected' || msg.type === 'peer-skipped' || msg.type === 'hang-up') { 
+                this.reset(); 
+                if(msg.type === 'peer-skipped') this.startSearch(); 
+                return; 
+            }
+
+            if (msg.type === 'user-state-changed') { this.handlePartnerState(msg.state); return; }
+
+            // Если друг принял звонок - я становлюсь инициатором (Offer)
+            if (msg.type === 'call-accepted') {
+                this.state = 'connected';
+                window.axios.get(`/chat/user-info/${msg.from}`).then(res => { this.partnerData = res.data; });
+                this.initPC();
+                this.sendOffer();
+                return;
+            }
+
+            if (!this.pc && ['offer', 'ice'].includes(msg.type)) this.initPC();
+
+            try {
+                if (msg.type === 'offer') {
+                    await this.pc.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp: this.normalizeSdp(msg.sdp) }));
+                    const answer = await this.pc.createAnswer();
+                    await this.pc.setLocalDescription(answer);
+                    this.signal({ type: 'answer', sdp: answer.sdp });
+                    this.processIceQueue();
+                } 
+                else if (msg.type === 'answer') {
+                    await this.pc.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp: this.normalizeSdp(msg.sdp) }));
+                    this.processIceQueue();
+                } 
+                else if (msg.type === 'ice' && msg.candidate) {
+                    if (this.pc.remoteDescription) await this.pc.addIceCandidate(new RTCIceCandidate(msg.candidate)).catch(e => {});
+                    else this.iceQueue.push(msg.candidate);
+                }
+            } catch(err) { console.error('Signal Error:', err); }
+        },
+
+        processIceQueue() { while(this.iceQueue.length > 0) this.pc.addIceCandidate(new RTCIceCandidate(this.iceQueue.shift())).catch(e => {}); },
+
+        async sendOffer() {
+            if(!this.pc) return;
+            const offer = await this.pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
+            await this.pc.setLocalDescription(offer);
+            this.signal({ type: 'offer', sdp: offer.sdp });
+        },
+
+        async handleMatch(e) {
+            this.reset();
+            this.partnerId = Number(e.partnerData.id);
+            this.partnerData = e.partnerData;
+            this.isFriend = !!e.isFriend;
+            this.state = 'connected';
+            if (myId > this.partnerId) {
+                setTimeout(() => { this.initPC(); this.sendOffer(); }, 1500);
+            }
+        },
+
+        // --- МЕССЕНДЖЕР ---
+        async openFriendChat(friend) {
+            this.activeFriend = friend;
+            const res = await window.axios.get(`/chat/history/${friend.id}`);
+            this.friendMessages = res.data.messages;
+            this.$nextTick(() => { if(this.$refs.friendChatBox) this.$refs.friendChatBox.scrollTop = this.$refs.friendChatBox.scrollHeight; });
+        },
+
+        async sendFriendMsg() {
+            if (!this.friendChatInput.trim() || !this.activeFriend) return;
+            const text = this.friendChatInput; this.friendChatInput = '';
+            const res = await window.axios.post('/chat/message/send', { receiver_id: this.activeFriend.id, message: text });
+            this.friendMessages.push(res.data.message);
+            this.$nextTick(() => { if(this.$refs.friendChatBox) this.$refs.friendChatBox.scrollTop = this.$refs.friendChatBox.scrollHeight; });
+        },
+
+        handleIncomingMsg(e) {
+            const msg = e.messageData;
+            if (this.state === 'connected' && msg.sender_id === this.partnerId) {
+                this.messages.push({isMe: false, text: msg.message, timestamp: Date.now()});
                 this.scrollChat();
-                window.axios.post('/chat/message/send', { receiver_id: this.partnerId, message: t }).catch(()=>{});
-            },
+            }
+            if (this.activeFriend && msg.sender_id === this.activeFriend.id) {
+                this.friendMessages.push(msg);
+                this.$nextTick(() => { if(this.$refs.friendChatBox) this.$refs.friendChatBox.scrollTop = this.$refs.friendChatBox.scrollHeight; });
+            }
+            if(this.audioUnlocked) this.msgSound.play().catch(()=>{});
+            if (!this.activeFriend || this.activeFriend.id !== msg.sender_id) {
+                window.dispatchEvent(new CustomEvent('toast', {detail: {msg: 'Новое сообщение', type:'info'}}));
+            }
+        },
 
-            sendTypingSignal() { if (this.partnerId && Date.now() - this.lastTypingSent > 2000) { this.lastTypingSent = Date.now(); window.axios.post('/chat/message/typing', { receiver_id: this.partnerId }); } },
-            async startSearch() { if(this.partnerId) this.signal({type:'peer-skipped'}); this.reset(); this.state = 'searching'; await window.axios.post('/chat/search'); },
-            async handleMatch(e) { this.reset(); this.partnerId = Number(e.partnerData.id); this.partnerData = e.partnerData; this.isFriend = !!e.isFriend; this.state = 'connected'; if (e.partnerData.common_interests?.length) { this.matchInterests = e.partnerData.common_interests; this.showIceBreaker = true; setTimeout(() => this.showIceBreaker = false, 4000); } this.initPC(); if (myId > this.partnerId) setTimeout(()=>this.sendOffer(), 1500); },
-            stopSearch() { this.reset(); window.axios.post('/chat/leave'); },
-            reset() { 
-                clearInterval(this.statsInterval); 
-                if (this.pc) { this.pc.onicecandidate = null; this.pc.ontrack = null; this.pc.close(); this.pc = null; } 
-                this.partnerId = null; this.partnerData = null; this.state = 'idle'; this.messages = []; this.iceQueue = []; 
-                this.isRemoteBlurred = false; this.partnerState = 'active'; this.isPartnerTyping = false;
-                if (this.$refs.remoteVideo) { this.$refs.remoteVideo.srcObject = null; this.$refs.remoteVideo.load(); } 
-            },
-            signal(data) { if (this.partnerId) window.axios.post('/chat/signal', { partnerId: this.partnerId, data: { ...data, from: myId } }).catch(()=>{}); },
-            async initMedia() { 
-                try { 
-                    this.localStream = await navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720 }, audio: true }); 
-                    this.$refs.localVideo.srcObject = this.localStream; 
-                } catch(e){ console.error("Camera error"); } 
-            },
-            toggleMic() { this.micEnabled = !this.micEnabled; if(this.localStream) this.localStream.getAudioTracks()[0].enabled = this.micEnabled; },
-            toggleCam() { this.camEnabled = !this.camEnabled; if(this.localStream) this.localStream.getVideoTracks()[0].enabled = this.camEnabled; },
-            toggleBeauty() { this.beautyFilter = !this.beautyFilter; localStorage.setItem('beauty_filter', this.beautyFilter); },
-            getDevices() { navigator.mediaDevices.enumerateDevices().then(d => { this.devices = d.filter(x => x.kind.includes('input')); this.showDeviceModal = true; }); },
-            async switchDevice(kind, id) {
-                const c = kind === 'video' ? { video: { deviceId: id } } : { audio: { deviceId: id } };
-                const s = await navigator.mediaDevices.getUserMedia(c);
-                const t = s.getTracks()[0];
-                if (this.pc) { const send = this.pc.getSenders().find(x => x.track.kind === t.kind); if (send) send.replaceTrack(t); }
-                const old = this.localStream.getTracks().find(x => x.kind === t.kind);
-                this.localStream.removeTrack(old); this.localStream.addTrack(t);
-                if (kind === 'video') { this.selectedCam = id; this.$refs.localVideo.srcObject = this.localStream; } else this.selectedMic = id;
-            },
-            async toggleContact() { const res = await window.axios.post('/chat/contact/add', { contactId: this.partnerId }); this.isFriend = res.data.isFriend; this.loadFriends(); },
-            async report(id) { if(confirm('Заблокировать?')) { await window.axios.post('/report', {reported_id:id, reason:'abuse'}); this.startSearch(); } },
-            loadFriends() { window.axios.get('/chat/contacts').then(r => this.friendsList = r.data.contacts); },
-            loadHistory() { window.axios.get('/chat/history-all').then(r => this.historyList = r.data.history); },
-            loadBlocked() { window.axios.get('/chat/blocked').then(r => this.blockedList = r.data.blocked); },
-            async unblock(id) { await window.axios.post('/chat/unblock', { blockedId: id }); this.loadBlocked(); },
-            async callFriend(f) { this.partnerId = f.id; this.state = 'searching'; this.isCallingFriend = true; await window.axios.post('/chat/contact/call', { contactId: f.id }); },
-            handlePartnerState(s) { this.partnerState = s; if (s === 'offline') this.offlineTimer = setTimeout(() => this.stopSearch(), 30000); else clearTimeout(this.offlineTimer); },
-            showXpPopup(a, tx, cl) { const id = Date.now(); this.xpPopups.push({ id, amount: a }); if(cl > this.currentLevel) { window.dispatchEvent(new CustomEvent('toast', {detail: {msg: 'Уровень: '+cl, type:'success'}})); this.currentLevel = cl; } setTimeout(() => this.xpPopups = this.xpPopups.filter(p => p.id !== id), 4000); },
-            startStats() { this.statsInterval = setInterval(async () => { if (this.pc?.iceConnectionState === 'connected') { const s = await this.pc.getStats(); s.forEach(r => { if (r.type === 'candidate-pair' && r.state === 'succeeded') this.ping = Math.round(r.currentRoundTripTime * 1000); }); } }, 3000); },
-            handleSwipe(e) { if (!this.mobileSidebarOpen && (this.touchStart - e.changedTouches[0].clientY > 100)) this.startSearch(); },
+        async callFriend(f) {
+            const res = await window.axios.post('/chat/contact/call', { contactId: f.id });
+            if (res.data.status === 'busy') {
+                window.dispatchEvent(new CustomEvent('toast', {detail: {msg: res.data.message, type:'error'}}));
+                return;
+            }
+            this.reset();
+            this.partnerId = f.id;
+            this.state = 'searching';
+            this.isCallingFriend = true;
+            this.mobileSidebarOpen = false;
+        },
+
+        // --- БАЗОВЫЕ МЕТОДЫ ---
+        signal(data) {
+            if (this.partnerId) window.axios.post('/chat/signal', { partnerId: this.partnerId, data: { ...data, from: myId } }).catch(() => {});
+        },
+
+        async initMedia() {
+            try {
+                this.localStream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 }, audio: true });
+                this.$refs.localVideo.srcObject = this.localStream;
+            } catch(e) { window.dispatchEvent(new CustomEvent('toast', {detail: {msg: 'Ошибка камеры', type:'error'}})); }
+        },
+
+        reset() {
+            if (this.pc) { this.pc.onicecandidate = null; this.pc.ontrack = null; this.pc.close(); this.pc = null; }
+            this.partnerId = null; this.partnerData = null; this.state = 'idle'; this.messages = []; this.iceQueue = []; this.isCallingFriend = false;
+            if (this.$refs.remoteVideo) this.$refs.remoteVideo.srcObject = null;
+        },
+
+        async startSearch() {
+            if (this.partnerId) this.signal({ type: 'peer-skipped' });
+            this.reset(); this.state = 'searching';
+            await window.axios.post('/chat/search');
+        },
+
+        stopSearch() { 
+            if (this.partnerId) this.signal({ type: 'hang-up' });
+            this.reset(); 
+            window.axios.post('/chat/leave'); 
+        },
+
+        async sendMsg() {
+            if (!this.chatInput.trim() || !this.partnerId) return;
+            const t = this.chatInput; this.chatInput = '';
+            this.messages.push({isMe: true, text: t, timestamp: Date.now()});
+            this.scrollChat();
+            window.axios.post('/chat/message/send', { receiver_id: this.partnerId, message: t });
+        },
+        sendTypingSignal() { if (this.partnerId && Date.now() - this.lastTypingSent > 2000) { this.lastTypingSent = Date.now(); window.axios.post('/chat/message/typing', { receiver_id: this.partnerId }); } },
+        scrollChat() { this.$nextTick(() => { if(this.$refs.chatBox) this.$refs.chatBox.scrollTop = this.$refs.chatBox.scrollHeight; }); },
+        toggleMic() { this.micEnabled = !this.micEnabled; if(this.localStream) this.localStream.getAudioTracks()[0].enabled = this.micEnabled; },
+        toggleCam() { this.camEnabled = !this.camEnabled; if(this.localStream) this.localStream.getVideoTracks()[0].enabled = this.camEnabled; },
+        toggleBeauty() { this.beautyFilter = !this.beautyFilter; localStorage.setItem('beauty_filter', this.beautyFilter); },
+        getDevices() { navigator.mediaDevices.enumerateDevices().then(d => { this.devices = d.filter(x => x.kind.includes('input')); this.showDeviceModal = true; }); },
+        
+        async switchDevice(kind, id) {
+            const constraints = kind === 'video' ? { video: { deviceId: { exact: id } } } : { audio: { deviceId: { exact: id } } };
+            try {
+                const newStream = await navigator.mediaDevices.getUserMedia(constraints);
+                const newTrack = newStream.getTracks()[0];
+                if (this.pc) { const sender = this.pc.getSenders().find(s => s.track && s.track.kind === newTrack.kind); if (sender) sender.replaceTrack(newTrack); }
+                const oldTrack = this.localStream.getTracks().find(t => t.kind === newTrack.kind);
+                if(oldTrack) oldTrack.stop();
+                this.localStream.removeTrack(oldTrack); this.localStream.addTrack(newTrack);
+                if (kind === 'video') { this.selectedCam = id; this.$refs.localVideo.srcObject = this.localStream; }
+            } catch(e) { console.error(e); }
+        },
+        async toggleContact() { const res = await window.axios.post('/chat/contact/add', { contactId: this.partnerId }); this.isFriend = res.data.isFriend; this.loadFriends(); },
+        async reportPartner() { if(confirm('Заблокировать?')) { await window.axios.post('/report', {reported_id: this.partnerId, reason: 'abuse'}); this.startSearch(); } },
+        loadFriends() { window.axios.get('/chat/contacts').then(r => this.friendsList = r.data.contacts); },
+        loadHistory() { window.axios.get('/chat/history-all').then(r => this.historyList = r.data.history); },
+        loadBlocked() { window.axios.get('/chat/blocked').then(r => this.blockedList = r.data.blocked); },
+        async unblock(id) { await window.axios.post('/chat/unblock', { blockedId: id }); this.loadBlocked(); },
+        handlePartnerState(s) { this.partnerState = s; if (s === 'offline') this.offlineTimer = setTimeout(() => { if (this.partnerState === 'offline') this.startSearch(); }, 15000); else clearTimeout(this.offlineTimer); },
+        startStats() { 
+            this.statsInterval = setInterval(async () => { 
+                if (this.pc?.iceConnectionState === 'connected') { 
+                    const stats = await this.pc.getStats(); 
+                    stats.forEach(r => { if (r.type === 'candidate-pair' && r.state === 'succeeded') this.ping = Math.round(r.currentRoundTripTime * 1000); }); 
+                } 
+            }, 3000); 
         }
-    };
-    </script>
+    }
+};
+</script>
 </x-app-layout>

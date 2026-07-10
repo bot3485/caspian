@@ -21,6 +21,15 @@ Route::post('_boost/browser-logs', [BrowserLogController::class, 'store']);
 // --- РОУТЫ С АВТОРИЗАЦИЕЙ ---
 Route::middleware(['auth', 'verified'])->group(function () {
 
+Route::get('/chat/user-info/{user}', function (App\Models\User $user) {
+    return response()->json([
+        'id' => $user->id,
+        'name' => $user->name,
+        'level' => $user->level,
+        'rank_name' => $user->rank_name,
+    ]);
+});
+
     // ГЛАВНАЯ ПАНЕЛЬ (Dashboard)
     Route::get('/dashboard', function () {
         return view('dashboard', [

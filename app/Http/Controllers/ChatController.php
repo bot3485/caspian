@@ -26,37 +26,51 @@ class ChatController extends Controller
     {
         $userId = Auth::id();
         $this->leaveChatAction->execute($userId);
-        Matchmaking::create(['user_id' => $userId, 'status' => MatchmakingStatus::Searching, 'updated_at' => now()]);
+        
+        Matchmaking::create([
+            'user_id' => $userId, 
+            'status' => MatchmakingStatus::Searching, 
+            'updated_at' => now()
+        ]);
+        
         $partnerId = $this->findPartnerAction->execute($userId);
-        return response()->json(['status' => $partnerId ? 'matched' : 'searching', 'partnerId' => $partnerId]);
+        return response()->json([
+            'status' => $partnerId ? 'matched' : 'searching', 
+            'partnerId' => $partnerId
+        ]);
     }
 
     public function sendSignal(Request $request): JsonResponse
-    {
-        $validated = $request->validate([
-            'partnerId' => 'required|integer', 
-            'data' => 'required|array'
-        ]);
+        {
+            $validated = $request->validate([
+                'partnerId' => 'required|integer', 
+                'data' => 'required|array'
+            ]);
 
-        $senderId = Auth::id();
-        $receiverId = (int)$validated['partnerId'];
-        $data = $validated['data'];
+            $senderId = (int)Auth::id();
+            $receiverId = (int)$validated['partnerId'];
+            $data = $validated['data'];
 
-        // Продлеваем жизнь сессии в БД при каждом сигнале (Heartbeat)
-        Matchmaking::where('user_id', $senderId)->update(['updated_at' => now()]);
+            // Продлеваем жизнь сессии
+            Matchmaking::where('user_id', $senderId)->update(['updated_at' => now()]);
 
-        $isAllowedMatch = Redis::exists("allow_signal:{$senderId}:{$receiverId}");
-        $isAllowedRoom = isset($data['roomUuid']) && \App\Models\Room::where('uuid', $data['roomUuid'])->exists();
+            $matchKey = "allow_signal:{$senderId}:{$receiverId}";
+            $isAllowedMatch = Redis::exists($matchKey);
+            
+            // Для комнат
+            $isAllowedRoom = isset($data['roomUuid']) && \App\Models\Room::where('uuid', $data['roomUuid'])->exists();
 
-        if (!$isAllowedMatch && !$isAllowedRoom) {
-            return response()->json(['error' => 'Unauthorized signaling'], 403);
+            if (!$isAllowedMatch && !$isAllowedRoom) {
+                // ЛОГ ДЛЯ ОТЛАДКИ (потом можно убрать)
+                \Log::warning("403 Forbidden Signal: Sender {$senderId} to Receiver {$receiverId}. Key {$matchKey} not found.");
+                return response()->json(['error' => 'Unauthorized signaling'], 403);
+            }
+
+            $data['from'] = $senderId;
+
+            broadcast(new \App\Events\WebRTCSignalEvent($receiverId, $data));
+            return response()->json(['status' => 'signal_sent']);
         }
-
-        $data['from'] = $senderId;
-
-        broadcast(new WebRTCSignalEvent($receiverId, $data));
-        return response()->json(['status' => 'signal_sent']);
-    }
 
     public function leaveChat(Request $request): JsonResponse
     {
@@ -64,7 +78,6 @@ class ChatController extends Controller
         return response()->json(['status' => 'left']);
     }
 
-    // ТУТ ИСПРАВЛЕННЫЙ TOGGLE КОНТАКТОВ
     public function addContact(Request $request): JsonResponse 
     {
         $request->validate(['contactId' => 'required|integer|exists:users,id']);
@@ -80,7 +93,12 @@ class ChatController extends Controller
             return response()->json(['action' => 'removed', 'isFriend' => false]);
         }
 
-        DB::table('contacts')->insert(['user_id' => $userId, 'contact_id' => $contactId, 'created_at' => now(), 'updated_at' => now()]);
+        DB::table('contacts')->insert([
+            'user_id' => $userId, 
+            'contact_id' => $contactId, 
+            'created_at' => now(), 
+            'updated_at' => now()
+        ]);
         return response()->json(['action' => 'added', 'isFriend' => true]);
     }
 
@@ -88,27 +106,21 @@ class ChatController extends Controller
     { 
         $userId = Auth::id();
         $contacts = \App\Models\User::whereIn('id', function($query) use ($userId) {
-                $query->select('contact_id')
-                    ->from('contacts')
-                    ->where('user_id', $userId);
+                $query->select('contact_id')->from('contacts')->where('user_id', $userId);
             })
-            // Если человек в ЧС, он просто не попадает в выборку, но запись в contacts остается!
             ->whereNotExists(function($query) use ($userId) {
-                $query->select(DB::raw(1))
-                    ->from('blocks')
+                $query->select(DB::raw(1))->from('blocks')
                     ->where('blocker_id', $userId)
                     ->whereColumn('blocked_id', 'users.id');
             })
             ->select('id', 'name', 'last_seen')
             ->get()
-            ->map(function($user) {
-                return [
-                    'id' => $user->id,
-                    'name' => $user->name,
-                    'is_online' => $user->isOnline(),
-                    'last_seen_human' => $user->getLastSeenForHumans(),
-                ];
-            });
+            ->map(fn($user) => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'is_online' => $user->isOnline(),
+                'last_seen_human' => $user->getLastSeenForHumans(),
+            ]);
             
         return response()->json(['contacts' => $contacts]);
     }
@@ -119,18 +131,18 @@ class ChatController extends Controller
         $receiverId = (int)$request->contactId;
         $senderId = Auth::id();
 
-        // ПРОВЕРКА ЧС
         $isBlocked = DB::table('blocks')
-            ->where('blocker_id', $receiverId)->where('blocked_id', $senderId)
-            ->orWhere('blocker_id', $senderId)->where('blocked_id', $receiverId)
+            ->where(fn($q) => $q->where('blocker_id', $receiverId)->where('blocked_id', $senderId))
+            ->orWhere(fn($q) => $q->where('blocker_id', $senderId)->where('blocked_id', $receiverId))
             ->exists();
 
         if ($isBlocked) return response()->json(['error' => 'Blocked'], 403);
 
+        // Даем временные права на передачу WebRTC сигналов вне очереди
         Redis::setex("allow_signal:{$senderId}:{$receiverId}", 300, 1);
         Redis::setex("allow_signal:{$receiverId}:{$senderId}", 300, 1);
         
-        broadcast(new \App\Events\WebRTCSignalEvent($receiverId, [
+        broadcast(new WebRTCSignalEvent($receiverId, [
             'type' => 'incoming-call',
             'fromName' => Auth::user()->name,
             'fromId' => $senderId
@@ -150,23 +162,25 @@ class ChatController extends Controller
         return response()->json(['messages' => $messages]);
     }
 
-public function sendMessage(Request $request): JsonResponse
+    public function sendMessage(Request $request): JsonResponse
     {
         $validated = $request->validate(['receiver_id' => 'required|integer', 'message' => 'required|string']);
         $senderId = Auth::id();
         $receiverId = $validated['receiver_id'];
 
-        // ПРОВЕРКА: Не заблокирован ли пользователь
         $isBlocked = DB::table('blocks')
             ->where(fn($q) => $q->where('blocker_id', $senderId)->where('blocked_id', $receiverId))
             ->orWhere(fn($q) => $q->where('blocker_id', $receiverId)->where('blocked_id', $senderId))
             ->exists();
 
-        if ($isBlocked) {
-            return response()->json(['error' => 'User is blocked'], 403);
-        }
+        if ($isBlocked) return response()->json(['error' => 'User is blocked'], 403);
 
-        $message = Message::create(['sender_id' => $senderId, 'receiver_id' => $receiverId, 'message' => $validated['message']]);
+        $message = Message::create([
+            'sender_id' => $senderId, 
+            'receiver_id' => $receiverId, 
+            'message' => $validated['message']
+        ]);
+        
         broadcast(new MessageSentEvent($message->toArray()))->toOthers();
         return response()->json(['status' => 'sent', 'message' => $message]);
     }
@@ -177,8 +191,6 @@ public function sendMessage(Request $request): JsonResponse
         return response()->json(['status' => 'sent']);
     }
 
-// Исправленный метод getInteractionHistory в ChatController.php
-
     public function getInteractionHistory(): JsonResponse 
     {
         $userId = Auth::id();
@@ -187,13 +199,14 @@ public function sendMessage(Request $request): JsonResponse
             ->join('users', 'interactions.partner_id', '=', 'users.id')
             ->where('interactions.user_id', $userId)
             ->whereNotExists(function($query) use ($userId) {
-                $query->select(DB::raw(1))
-                    ->from('blocks')
+                $query->select(DB::raw(1))->from('blocks')
                     ->where('blocker_id', $userId)
                     ->whereColumn('blocked_id', 'interactions.partner_id');
             })
             ->select('users.id', 'users.name', 'users.last_seen', 'interactions.last_at')
+            ->orderByDesc('interactions.last_at')
             ->get()
+            ->unique('id') // Убираем дубликаты
             ->map(function($user) {
                 $u = \App\Models\User::find($user->id);
                 return [
@@ -205,20 +218,13 @@ public function sendMessage(Request $request): JsonResponse
                     'last_at' => $user->last_at
                 ];
             })
+            ->values()
             ->toArray();
 
-        // Правильная сортировка: Сначала Онлайн (true > false), затем по дате
-        usort($history, function($a, $b) {
-            if ($a['is_online'] === $b['is_online']) {
-                return strcmp($b['last_at'], $a['last_at']);
-            }
-            return $b['is_online'] <=> $a['is_online'];
-        });
-
-        return response()->json(['history' => array_values($history)]);
+        return response()->json(['history' => $history]);
     }
 
-        public function getBlockedUsers(): JsonResponse
+    public function getBlockedUsers(): JsonResponse
     {
         $userId = Auth::id();
         $blocked = DB::table('blocks')
@@ -231,10 +237,9 @@ public function sendMessage(Request $request): JsonResponse
         return response()->json(['blocked' => $blocked]);
     }
 
-        public function unblockUser(Request $request): JsonResponse
+    public function unblockUser(Request $request): JsonResponse
     {
         $request->validate(['blockedId' => 'required|integer']);
-        
         DB::table('blocks')
             ->where('blocker_id', Auth::id())
             ->where('blocked_id', $request->blockedId)

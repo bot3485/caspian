@@ -84,11 +84,9 @@
                     <span class="text-xl">🏠</span>
                     <span class="text-[7px] font-black uppercase tracking-widest">Home</span>
                 </a>
-                <a href="{{ route('chat') }}" class="relative flex flex-col items-center group">
-                    <div class="absolute -top-9 w-14 h-14 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-2xl border-4 border-[#050505]">
-                        <span class="text-2xl">🎲</span>
-                    </div>
-                    <span class="mt-6 text-[7px] font-black uppercase tracking-widest {{ request()->routeIs('chat') ? 'text-indigo-400' : 'text-gray-500' }}">Roulette</span>
+                <a href="{{ route('chat') }}" class="flex flex-col items-center gap-1 {{ request()->routeIs('chat') ? 'text-indigo-400' : 'text-gray-500' }}">
+                    <span class="text-xl">🎲</span>
+                    <span class="text-[7px] font-black uppercase tracking-widest">Roulette</span>
                 </a>
                 <a href="{{ route('rooms.index') }}" class="flex flex-col items-center gap-1 {{ request()->routeIs('rooms.*') ? 'text-indigo-400' : 'text-gray-500' }}">
                     <span class="text-xl">👥</span>

@@ -42,7 +42,9 @@ class ChatController extends Controller
         $receiverId = (int)$validated['partnerId'];
         $data = $validated['data'];
 
-        // 1. Проверка прав (Рулетка или Комната)
+        // Продлеваем жизнь сессии в БД при каждом сигнале (Heartbeat)
+        Matchmaking::where('user_id', $senderId)->update(['updated_at' => now()]);
+
         $isAllowedMatch = Redis::exists("allow_signal:{$senderId}:{$receiverId}");
         $isAllowedRoom = isset($data['roomUuid']) && \App\Models\Room::where('uuid', $data['roomUuid'])->exists();
 

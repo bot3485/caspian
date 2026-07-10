@@ -24,7 +24,7 @@
                     x-data="{ globalOnline: 0 }" 
                     x-init="window.Echo.join('online-status').here(u => globalOnline = u.length).joining(u => globalOnline++).leaving(u => globalOnline--)">
                     <div class="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse shadow-[0_0_8px_#22c55e]"></div>
-                    <span class="text-[9px] font-black text-white leading-none uppercase" x-text="globalOnline"></span>
+                    <span class="text-[9px] font-black text-white leading-none uppercase" x-text="globalOnline"></span> <span class="text-[9px] font-black text-white leading-none uppercase" >online</span>
                 </div>
 
                 <!-- Десктопное меню профиля -->

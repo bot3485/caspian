@@ -15,13 +15,6 @@
                     </h1>
                     <p class="text-gray-500 font-bold text-[10px] uppercase tracking-[0.4em] mt-2">Next-Gen Video Ecosystem</p>
                 </div>
-                
-                <div class="flex items-center gap-4 bg-white/5 border border-white/10 px-6 py-3 rounded-2xl backdrop-blur-xl"
-                     x-data="{ onlineCount: 0 }" 
-                     x-init="window.Echo.join('online-status').here(u => onlineCount = u.length).joining(u => onlineCount++).leaving(u => onlineCount--)">
-                    <div class="w-3 h-3 bg-green-500 rounded-full animate-pulse shadow-[0_0_12px_#22c55e]"></div>
-                    <p class="text-sm font-black italic" x-text="onlineCount + ' Online'"></p>
-                </div>
             </div>
 
             <!-- Bento Grid -->

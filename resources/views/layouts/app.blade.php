@@ -15,27 +15,28 @@
     
     <style>
         [x-cloak] { display: none !important; }
-        :root { --app-height: 100vh; }
-        html, body { 
-            height: var(--app-height);
-            overflow: hidden; /* Запрещаем скролл всему телу, скроллить будем внутри компонентов */
-            background: #050505;
-        }
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(99, 102, 241, 0.3); border-radius: 10px; }
         
-        /* Анимация появления Bottom Sheet */
-        .bottom-sheet-enter { transform: translateY(100%); }
-        .bottom-sheet-enter-active { transform: translateY(0); transition: transform 0.4s cubic-bezier(0.23, 1, 0.32, 1); }
+        /* Исправленная логика скролла */
+        html, body { 
+            min-height: 100%;
+            background: #050505;
+            /* Убираем глобальный overflow: hidden */
+            overflow-x: hidden; 
+        }
+
+        body {
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Кастомный скроллбар для эстетики */
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(99, 102, 241, 0.3); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(99, 102, 241, 0.5); }
     </style>
-    <script>
-        const appHeight = () => document.documentElement.style.setProperty('--app-height', `${window.innerHeight}px`);
-        window.addEventListener('resize', appHeight);
-        appHeight();
-    </script>
 </head>
-<body class="font-sans antialiased selection:bg-indigo-500/30" 
+<body class="font-sans antialiased text-white selection:bg-indigo-500/30" 
       x-data="globalCallHandler()" 
       x-init="initGlobal()"
       @click="unlockAudio()" 
@@ -55,15 +56,16 @@
         </template>
     </div>
 
-    <div class="flex flex-col relative min-h-screen">
+    <!-- Контейнер приложения -->
+    <div class="flex flex-col min-h-screen relative">
         
         <!-- DESKTOP NAV -->
         <div class="hidden lg:block shrink-0">
             @include('layouts.navigation')
         </div>
 
-        <!-- MAIN -->
-        <main class="flex-1 relative">
+        <!-- MAIN CONTENT (Теперь скроллится естественно) -->
+        <main class="flex-1 flex flex-col">
             {{ $slot }}
         </main>
 
@@ -89,10 +91,10 @@
             </div>
         </nav>
 
-        <!-- CALL MODAL (Incoming) -->
+        <!-- CALL MODAL -->
         <div x-show="incomingCall" x-cloak class="fixed inset-0 z-[999] flex items-center justify-center bg-black/90 backdrop-blur-2xl p-6">
-            <div class="bg-[#0a0a0a] border border-white/10 p-8 rounded-[3rem] text-center max-w-sm w-full">
-                <div class="w-20 h-20 bg-indigo-600 rounded-[2rem] flex items-center justify-center text-4xl mx-auto mb-6 animate-pulse shadow-2xl shadow-indigo-500/20">📞</div>
+            <div class="bg-[#0a0a0a] border border-white/10 p-8 rounded-[3rem] text-center max-w-sm w-full shadow-2xl">
+                <div class="w-20 h-20 bg-indigo-600 rounded-[2rem] flex items-center justify-center text-4xl mx-auto mb-6 animate-pulse">📞</div>
                 <h2 class="text-2xl font-black mb-2 uppercase" x-text="incomingCall?.fromName"></h2>
                 <p class="text-indigo-400 text-[10px] font-black uppercase tracking-widest mb-10">Входящий вызов...</p>
                 <div class="flex flex-col gap-3">
@@ -117,41 +119,26 @@
         function globalCallHandler() {
             return {
                 incomingCall: null, callTimestamp: 0,
-                ringtone: new Audio('/sounds/call.mp3'), msgSound: new Audio('/sounds/message.mp3'),
-                audioUnlocked: false, soundEnabled: true,
+                ringtone: new Audio('/sounds/call.mp3'),
+                audioUnlocked: false,
                 initGlobal() {
-                    this.ringtone.loop = true;
                     @auth
-                window.Echo.private('user.{{ auth()->id() }}').listen('.WebRTCSignalEvent', (e) => {
-                    if (e.data.type === 'incoming-call') {
-                        // Если у юзера уже открыта страница чата и он в статусе connected — он занят
-                        // Это сработает, если юзер на других вкладках сайта
-                        if (window.location.pathname === '/chat' && window.videoChatAppInstance?.state === 'connected') {
-                            // Бэкенд уже отправил 'busy' и создал сообщение, здесь просто игнорируем или шлем hang-up
-                            return; 
+                    window.Echo.private('user.{{ auth()->id() }}').listen('.WebRTCSignalEvent', (e) => {
+                        if (e.data.type === 'incoming-call') {
+                            this.incomingCall = e.data; 
+                            this.playRingtone(); 
                         }
-                        
-                        this.incomingCall = e.data; 
-                        this.callTimestamp = Date.now(); 
-                        this.playRingtone(); 
-                    }
-                });
+                    });
                     @endauth
                 },
                 async unlockAudio() {
                     if (this.audioUnlocked) return;
-                    const sounds = [this.ringtone, this.msgSound];
-                    for (let s of sounds) { try { s.muted = true; await s.play(); s.pause(); s.currentTime = 0; s.muted = false; } catch (e) { this.soundEnabled = false; } }
-                    this.audioUnlocked = true;
-                    if (this.incomingCall && (Date.now() - this.callTimestamp < 15000)) this.playRingtone();
+                    try { await this.ringtone.play(); this.ringtone.pause(); this.audioUnlocked = true; } catch (e) {}
                 },
-                playRingtone() { if (this.soundEnabled) this.ringtone.play().catch(() => {}); },
+                playRingtone() { this.ringtone.play().catch(() => {}); },
                 stopRingtone() { this.ringtone.pause(); this.ringtone.currentTime = 0; },
                 acceptCall() { this.stopRingtone(); window.location.href = '/chat?accept_call=' + this.incomingCall.fromId; },
-                rejectCall() {
-                    window.axios.post('/chat/signal', { partnerId: this.incomingCall.fromId, data: { type: 'hang-up', from: {{ auth()->id() }} } });
-                    this.stopRingtone(); this.incomingCall = null;
-                }
+                rejectCall() { this.stopRingtone(); this.incomingCall = null; }
             }
         }
     </script>

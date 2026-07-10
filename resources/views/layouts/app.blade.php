@@ -15,32 +15,29 @@
     
     <style>
         [x-cloak] { display: none !important; }
-        
-        /* Исправленная логика скролла */
+        :root { --app-height: 100vh; }
         html, body { 
-            min-height: 100%;
+            height: var(--app-height);
+            /*overflow: hidden; /* Запрещаем скролл всему телу, скроллить будем внутри компонентов */
             background: #050505;
-            /* Убираем глобальный overflow: hidden */
-            overflow-x: hidden; 
         }
-
-        body {
-            display: flex;
-            flex-direction: column;
-        }
-
-        /* Кастомный скроллбар для эстетики */
-        ::-webkit-scrollbar { width: 5px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: rgba(99, 102, 241, 0.3); border-radius: 10px; }
-        ::-webkit-scrollbar-thumb:hover { background: rgba(99, 102, 241, 0.5); }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(99, 102, 241, 0.3); border-radius: 10px; }
+        
+        /* Анимация появления Bottom Sheet */
+        .bottom-sheet-enter { transform: translateY(100%); }
+        .bottom-sheet-enter-active { transform: translateY(0); transition: transform 0.4s cubic-bezier(0.23, 1, 0.32, 1); }
     </style>
+    <script>
+        const appHeight = () => document.documentElement.style.setProperty('--app-height', `${window.innerHeight}px`);
+        window.addEventListener('resize', appHeight);
+        appHeight();
+    </script>
 </head>
-<body class="font-sans antialiased text-white selection:bg-indigo-500/30" 
-      x-data="globalCallHandler()" 
-      x-init="initGlobal()"
-      @click="unlockAudio()" 
-      @touchstart.once="unlockAudio()">
+<body class="font-sans antialiased text-white" 
+      x-data="{ ...globalCallHandler(), mobileMenuOpen: false }" 
+      x-init="initGlobal()">
 
     <!-- ГЛОБАЛЬНАЯ СИСТЕМА УВЕДОМЛЕНИЙ -->
     <div x-data="toastSystem()" @toast.window="add($event.detail)" class="fixed top-6 left-1/2 -translate-x-1/2 z-[1000] w-full max-w-xs space-y-2 pointer-events-none">
@@ -56,21 +53,13 @@
         </template>
     </div>
 
-    <!-- Контейнер приложения -->
     <div class="flex flex-col min-h-screen relative">
-        
-        <!-- DESKTOP NAV -->
-        <div class="hidden lg:block shrink-0">
-            @include('layouts.navigation')
-        </div>
+        @include('layouts.navigation')
 
-        <!-- MAIN CONTENT (Теперь скроллится естественно) -->
-        <main class="flex-1 flex flex-col">
-            {{ $slot }}
-        </main>
+        <main class="flex-1 flex flex-col">{{ $slot }}</main>
 
-        <!-- MOBILE NAV -->
-        <nav class="lg:hidden fixed bottom-0 left-0 right-0 z-[200] bg-black/60 backdrop-blur-3xl border-t border-white/5 pb-safe">
+               <!-- MOBILE NAV -->
+        <nav class="lg:hidden fixed bottom-0 left-0 right-0 z-[400] bg-black/80 backdrop-blur-3xl border-t border-white/5 pb-safe">
             <div class="flex justify-around items-center h-16">
                 <a href="{{ route('dashboard') }}" class="flex flex-col items-center gap-1 {{ request()->routeIs('dashboard') ? 'text-indigo-400' : 'text-gray-500' }}">
                     <span class="text-xl">🏠</span>
@@ -84,26 +73,56 @@
                     <span class="text-xl">👥</span>
                     <span class="text-[7px] font-black uppercase tracking-widest">Spaces</span>
                 </a>
-                <a href="{{ route('profile.edit') }}" class="flex flex-col items-center gap-1 {{ request()->routeIs('profile.edit') ? 'text-indigo-400' : 'text-gray-500' }}">
-                    <span class="text-xl">👤</span>
-                    <span class="text-[7px] font-black uppercase tracking-widest">Profile</span>
-                </a>
+                <!-- Кнопка Профиль теперь открывает меню -->
+                <button @click="mobileMenuOpen = true" class="flex flex-col items-center gap-1 text-gray-500">
+                    <div class="w-6 h-6 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center text-[10px] font-black text-white">
+                        {{ substr(Auth::user()->name, 0, 1) }}
+                    </div>
+                    <span class="text-[7px] font-black uppercase tracking-widest">Account</span>
+                </button>
             </div>
         </nav>
 
-        <!-- CALL MODAL -->
-        <div x-show="incomingCall" x-cloak class="fixed inset-0 z-[999] flex items-center justify-center bg-black/90 backdrop-blur-2xl p-6">
-            <div class="bg-[#0a0a0a] border border-white/10 p-8 rounded-[3rem] text-center max-w-sm w-full shadow-2xl">
-                <div class="w-20 h-20 bg-indigo-600 rounded-[2rem] flex items-center justify-center text-4xl mx-auto mb-6 animate-pulse">📞</div>
-                <h2 class="text-2xl font-black mb-2 uppercase" x-text="incomingCall?.fromName"></h2>
-                <p class="text-indigo-400 text-[10px] font-black uppercase tracking-widest mb-10">Входящий вызов...</p>
-                <div class="flex flex-col gap-3">
-                    <button @click="acceptCall()" class="w-full bg-white text-black py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-indigo-500 hover:text-white transition-all">Принять</button>
-                    <button @click="rejectCall()" class="w-full bg-white/5 text-gray-500 py-4 rounded-2xl font-black text-xs uppercase tracking-widest">Отклонить</button>
+        <!-- MOBILE ACCOUNT MENU (Bottom Sheet) -->
+        <div x-show="mobileMenuOpen" class="fixed inset-0 z-[500] bg-black/60 backdrop-blur-sm" @click="mobileMenuOpen = false" x-transition.opacity></div>
+        <div x-show="mobileMenuOpen" 
+             x-transition:enter="transition ease-out duration-300 transform"
+             x-transition:enter-start="translate-y-full"
+             x-transition:enter-end="translate-y-0"
+             x-transition:leave="transition ease-in duration-200 transform"
+             x-transition:leave-start="translate-y-0"
+             x-transition:leave-end="translate-y-full"
+             class="fixed inset-x-0 bottom-0 z-[510] bg-[#0a0a0a] border-t border-white/10 rounded-t-[2.5rem] p-8 pb-12">
+            
+            <div class="w-12 h-1 bg-white/10 rounded-full mx-auto mb-8"></div>
+            
+            <div class="flex items-center gap-4 mb-8">
+                <div class="w-16 h-16 bg-indigo-600 rounded-2xl flex items-center justify-center text-2xl font-black">
+                    {{ substr(Auth::user()->name, 0, 1) }}
                 </div>
+                <div>
+                    <h3 class="text-xl font-black uppercase">{{ Auth::user()->name }}</h3>
+                    <p class="text-indigo-400 text-xs font-bold uppercase tracking-widest">{{ Auth::user()->rank_name }}</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 gap-3">
+                <a href="{{ route('profile.edit') }}" class="w-full bg-white/5 py-4 rounded-2xl text-center font-black text-xs uppercase tracking-widest">
+                    ⚙️ Настройки профиля
+                </a>
+                <form method="POST" action="{{ route('logout') }}">
+                    @csrf
+                    <button type="submit" class="w-full bg-red-600/10 text-red-500 py-4 rounded-2xl font-black text-xs uppercase tracking-widest border border-red-500/20">
+                        🚪 Выйти из аккаунта
+                    </button>
+                </form>
+                <button @click="mobileMenuOpen = false" class="w-full py-4 text-gray-500 font-black text-[10px] uppercase tracking-[0.3em]">
+                    Закрыть
+                </button>
             </div>
         </div>
     </div>
+</body>
 
     <script>
         function toastSystem() {
@@ -119,26 +138,31 @@
         function globalCallHandler() {
             return {
                 incomingCall: null, callTimestamp: 0,
-                ringtone: new Audio('/sounds/call.mp3'),
-                audioUnlocked: false,
+                ringtone: new Audio('/sounds/call.mp3'), msgSound: new Audio('/sounds/message.mp3'),
+                audioUnlocked: false, soundEnabled: true,
                 initGlobal() {
+                    this.ringtone.loop = true;
                     @auth
                     window.Echo.private('user.{{ auth()->id() }}').listen('.WebRTCSignalEvent', (e) => {
-                        if (e.data.type === 'incoming-call') {
-                            this.incomingCall = e.data; 
-                            this.playRingtone(); 
-                        }
+                        if (e.data.type === 'incoming-call') { this.incomingCall = e.data; this.callTimestamp = Date.now(); this.playRingtone(); }
+                        if (['hang-up', 'peer-disconnected'].includes(e.data.type)) { this.stopRingtone(); this.incomingCall = null; }
                     });
                     @endauth
                 },
                 async unlockAudio() {
                     if (this.audioUnlocked) return;
-                    try { await this.ringtone.play(); this.ringtone.pause(); this.audioUnlocked = true; } catch (e) {}
+                    const sounds = [this.ringtone, this.msgSound];
+                    for (let s of sounds) { try { s.muted = true; await s.play(); s.pause(); s.currentTime = 0; s.muted = false; } catch (e) { this.soundEnabled = false; } }
+                    this.audioUnlocked = true;
+                    if (this.incomingCall && (Date.now() - this.callTimestamp < 15000)) this.playRingtone();
                 },
-                playRingtone() { this.ringtone.play().catch(() => {}); },
+                playRingtone() { if (this.soundEnabled) this.ringtone.play().catch(() => {}); },
                 stopRingtone() { this.ringtone.pause(); this.ringtone.currentTime = 0; },
                 acceptCall() { this.stopRingtone(); window.location.href = '/chat?accept_call=' + this.incomingCall.fromId; },
-                rejectCall() { this.stopRingtone(); this.incomingCall = null; }
+                rejectCall() {
+                    window.axios.post('/chat/signal', { partnerId: this.incomingCall.fromId, data: { type: 'hang-up', from: {{ auth()->id() }} } });
+                    this.stopRingtone(); this.incomingCall = null;
+                }
             }
         }
     </script>

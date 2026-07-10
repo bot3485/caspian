@@ -1,58 +1,57 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# 🌊 Caspian 2.6 — Next-Gen Video Ecosystem
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Caspian — это высокотехнологичная платформа для видеокоммуникаций в реальном времени, построенная на острие современных технологий: **Laravel 13**, **Reverb (WebSockets)** и **WebRTC**. Версия 2.6 фокусируется на "Immersive Experience" — создании глубокого погружения и идеальной адаптивности для мобильных устройств.
 
-## About Laravel
+## 🚀 Технологический стек
+- **Backend:** PHP 8.5 / Laravel 13
+- **Real-time:** Laravel Reverb (высокопроизводительный сервер сокетов)
+- **Video:** WebRTC P2P (Mesh network) с ICE Restart логикой
+- **Frontend:** Alpine.js / Tailwind CSS 4 (Next-gen CSS engine)
+- **Database:** PostgreSQL/MySQL + Redis (для очередей и кэша активности)
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## 💎 Ключевые особенности v2.6
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+### 📱 Ультимативная мобильность
+- **Adaptive Bento Dashboard:** Умный интерфейс главной страницы, который подстраивается под любой экран.
+- **Floating Island Controls:** Уникальная система управления вызовами, вдохновленная современными мобильными ОС.
+- **Bottom Sheet Navigation:** Все списки друзей, чаты и настройки доступны в один клик через удобные мобильные меню.
+- **Gesture Support:** Переключайте собеседников привычными свайпами, как в любимых соцсетях.
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+### 🎮 Геймификация и Социализация
+- **XP & Levels:** Получайте опыт за общение и повышайте свой ранг в глобальной таблице лидеров.
+- **Karma System:** Рейтинг доверия, защищающий сообщество от токсичных пользователей.
+- **Smart Contacts:** Мгновенное сохранение интересных людей в список друзей прямо во время разговора.
+- **Live Spaces:** Групповые комнаты до 6 человек с возможностью демонстрации экрана.
 
-## Learning Laravel
+### 🛡 Безопасность и Стабильность
+- **System-wide Blacklist:** Мгновенная блокировка и система жалоб (Report) с автоматическими санкциями.
+- **Network Resilience:** Автоматическое восстановление потока при смене сети (Wi-Fi/4G).
+- **Toast Alerts:** Красивая система уведомлений о событиях в реальном времени.
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+## 📦 Быстрый старт
 
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+1. **Клонируйте репозиторий:**
+   ```bash
+   composer install
+   npm install && npm run build
 
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
 
-## Agentic Development
+   _____
 
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
 
-```bash
-composer require laravel/boost --dev
+   ## 💎 Ключевые особенности v2.7 "Resilience & Engagement"
 
-php artisan boost:install
-```
+### 🔋 Сетевая устойчивость (Resilience)
+- **Auto-Reconnect:** Автоматическое переподключение WebRTC (ICE Restart) при кратковременных сбоях сети.
+- **Smart Timeout:** 30-секундный защитный таймер — если собеседник потерял связь, система автоматически вернет вас в поиск.
+- **Status Sync:** Отслеживание активности партнера в реальном времени (фоновый режим, потеря сети).
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+### 🎮 Геймификация и Социализация
+- **XP Popups:** Живые уведомления о прогрессе вашего уровня прямо в процессе общения.
+- **Interest Matching:** Алгоритм подсвечивает общие интересы (Ice Breakers) в момент соединения, помогая начать разговор.
+- **Full Messenger:** Четырехпанельный мессенджер (Чат, Друзья, История встреч, Черный список) с поддержкой звуков и индикацией печати.
 
-## Contributing
-
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
-
-## Code of Conduct
-
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
-
-## Security Vulnerabilities
-
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
-
-## License
-
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+### 📱 Ультимативная мобильность
+- **Isolated Gestures:** Умная обработка жестов, которая различает скролл чата и свайп для поиска нового партнера.
+- **Safe Area Layout:** Интерфейс полностью адаптирован под системные меню iOS/Android и вырезы на экранах.
+- **Floating Island 2.0:** Улучшенная панель управления вызовом, которая не перекрывает важные элементы чата.

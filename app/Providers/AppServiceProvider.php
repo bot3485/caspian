@@ -19,6 +19,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        // Мы удалили отсюда Event::listen для Presence каналов.
+        // Теперь счетчик комнат (current_occupancy) обновляется 
+        // через RoomController@syncOccupancy по сигналу от клиента.
+        // Это предотвращает баг 0/6 при перезагрузке страницы.
     }
 }

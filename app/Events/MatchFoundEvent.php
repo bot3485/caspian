@@ -2,32 +2,34 @@
 
 namespace App\Events;
 
-use Illuminate\Broadcasting\Channel;
-use Illuminate\Broadcasting\InteractsWithSockets;
-use Illuminate\Broadcasting\PrivateChannel;
-use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
+use Illuminate\Broadcasting\{InteractsWithSockets, PrivateChannel};
+use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
-class MatchFoundEvent implements ShouldBroadcast
+class MatchFoundEvent implements ShouldBroadcastNow
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
-    private $targetUserId;
-    public $partnerId;
+    /**
+     * PHP 8.4: Asymmetric Visibility.
+     * partnerData contains: id, name, level, rank_name, karma, interests
+     */
+    public private(set) array $partnerData;
+    public private(set) bool $isFriend;
+    private int $targetUserId;
 
-    // Конструктор принимает: 1. Кому доставить, 2. ID собеседника для фронтенда
-    public function __construct($targetUserId, $partnerId)
+    public function __construct(int $targetUserId, array $partnerData, bool $isFriend = false)
     {
         $this->targetUserId = $targetUserId;
-        $this->partnerId = $partnerId;
+        $this->partnerData = $partnerData;
+        $this->isFriend = $isFriend;
     }
 
     public function broadcastOn(): array
     {
-        // Отправляем строго в приватный канал конкретного получателя
         return [
-            new PrivateChannel('user.' . $this->targetUserId),
+            new PrivateChannel("user.{$this->targetUserId}"),
         ];
     }
 

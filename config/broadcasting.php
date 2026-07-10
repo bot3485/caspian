@@ -32,14 +32,15 @@ return [
 
         'reverb' => [
             'driver' => 'reverb',
-            'key' => 'vyks9t0oswy3jofj2wvl',
-            'secret' => 'cdqjrmp9aghhm6ugfrqx',
-            'app_id' => '365586',
+            'key' => env('REVERB_APP_KEY'),
+            'secret' => env('REVERB_APP_SECRET'),
+            'app_id' => env('REVERB_APP_ID'),
             'options' => [
-                'host' => '127.0.0.1',
-                'port' => 8080,
-                'scheme' => 'http',
-                'useTLS' => false,
+                'host' => env('REVERB_HOST', '127.0.0.1'),
+                'port' => env('REVERB_PORT', 8080),
+                'scheme' => env('REVERB_SCHEME', 'http'),
+                // Важно: серверу внутри не нужен TLS, если Nginx стоит перед ним
+                'useTLS' => false, 
             ],
         ],
         'pusher' => [

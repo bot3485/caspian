@@ -2,31 +2,25 @@
 
 namespace App\Events;
 
-use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 
-class WebRTCSignalEvent implements ShouldBroadcast
+class WebRTCSignalEvent implements ShouldBroadcastNow
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
-    public $partnerId;
-    public $data;
-
-    public function __construct($partnerId, $data)
-    {
-        $this->partnerId = $partnerId;
-        $this->data = $data; // Тут будут сидеть sdp-пакеты и ice-кандидаты
-    }
+    public function __construct(
+        public int $partnerId,
+        public array $data
+    ) {}
 
     public function broadcastOn(): array
     {
-        // Вещаем в приватный канал того пользователя, КОМУ предназначены сигналы
         return [
-            new PrivateChannel('user.' . $this->partnerId),
+            new PrivateChannel("user.{$this->partnerId}"),
         ];
     }
 

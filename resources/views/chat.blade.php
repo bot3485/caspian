@@ -1,284 +1,477 @@
 <x-app-layout>
-    <div class="py-12">
-        <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+    <div class="h-[calc(100svh-0px)] md:h-[calc(100vh-64px)] bg-[#050505] relative overflow-hidden text-white font-sans selection:bg-indigo-500/30" 
+         x-data="window.videoChatApp({{ auth()->id() }}, {{ json_encode(auth()->user()->interests ?? []) }})"
+         @touchstart="touchStart = $event.touches[0].clientY"
+         @touchend="handleSwipe($event)">
+        
+        <!-- ДЕКОРАТИВНЫЕ СВЕЧЕНИЯ -->
+        <div class="absolute inset-0 overflow-hidden pointer-events-none">
+            <div class="absolute -top-[10%] -left-[10%] w-[50%] h-[50%] bg-indigo-600/10 blur-[120px] rounded-full animate-pulse"></div>
+            <div class="absolute -bottom-[10%] -right-[10%] w-[50%] h-[50%] bg-purple-600/10 blur-[120px] rounded-full animate-pulse" style="animation-delay: 2s"></div>
+        </div>
+
+        <div class="relative h-full flex flex-col lg:flex-row">
+            
+            <!-- ЗОНА ВИДЕО -->
+            <div class="flex-1 relative bg-black overflow-hidden h-full">
                 
-                <div class="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div class="bg-black rounded-lg overflow-hidden h-72 flex items-center justify-center relative">
-                        <video id="localVideo" autoplay muted playsinline class="w-full h-full object-cover"></video>
-                        <div class="absolute bottom-2 left-2 bg-black bg-opacity-50 text-white px-2 py-1 text-xs rounded">Вы</div>
-                    </div>
-                    
-                    <div class="bg-black rounded-lg overflow-hidden h-72 flex items-center justify-center relative">
-                        <video id="remoteVideo" autoplay playsinline class="w-full h-full object-cover"></video>
-                        <div id="remoteStatus" class="absolute text-gray-400 font-bold text-sm">Собеседник отключен</div>
+                <!-- ICE BREAKER OVERLAY (ИНТЕРЕСЫ) -->
+                <div x-show="showIceBreaker" x-cloak x-transition
+                     class="absolute inset-0 flex items-center justify-center z-[120] pointer-events-none px-6">
+                    <div class="bg-indigo-600 p-1 rounded-[3rem] shadow-[0_0_100px_rgba(99,102,241,0.5)]">
+                        <div class="bg-[#050505] backdrop-blur-3xl p-10 rounded-[2.8rem] text-center border border-white/10">
+                            <div class="text-4xl mb-4">🤝</div>
+                            <h2 class="text-2xl font-black uppercase italic tracking-tighter mb-2">Общие интересы!</h2>
+                            <div class="flex flex-wrap justify-center gap-2 mt-4">
+                                <template x-for="interest in matchInterests">
+                                    <span class="px-4 py-2 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase" x-text="interest"></span>
+                                </template>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                <div class="bg-white p-6 rounded-lg shadow h-fit">
-                    <h2 class="text-xl font-bold mb-4">Управление чатом</h2>
-                    <button id="startSearch" class="w-full bg-blue-500 text-white py-2 rounded mb-2 hover:bg-blue-600 transition">
-                        Начать поиск
+                <!-- XP POPUPS -->
+                <div class="fixed bottom-36 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 pointer-events-none z-[200]">
+                    <template x-for="popup in xpPopups" :key="popup.id">
+                        <div x-transition class="bg-indigo-600 text-white px-6 py-3 rounded-full font-black text-[10px] uppercase tracking-widest shadow-2xl flex items-center gap-3 border border-indigo-400/30">
+                            <span class="text-base">⚡</span>
+                            <span x-text="'+' + popup.amount + ' XP'"></span>
+                        </div>
+                    </template>
+                </div>
+
+                <!-- ВЕРХНЯЯ ПАНЕЛЬ ПАРТНЕРА -->
+                <div x-show="state === 'connected' && partnerData" 
+                    class="absolute top-4 left-4 z-[90] w-auto max-w-[calc(100%-80px)]" 
+                    x-transition>
+                    <div class="bg-black/60 backdrop-blur-2xl p-2.5 md:p-4 rounded-3xl border border-white/10 flex items-center gap-3 shadow-2xl">
+                        <div class="w-10 h-10 md:w-12 md:h-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl flex items-center justify-center font-black text-lg shadow-lg shrink-0" x-text="partnerData?.name?.[0]"></div>
+                        <div class="min-w-0 pr-2">
+                            <div class="flex items-center gap-2">
+                                <span class="text-sm md:text-base font-black uppercase tracking-tighter truncate" x-text="partnerData?.name"></span>
+                                <span class="bg-indigo-600 text-[7px] font-black px-1.5 py-0.5 rounded-full" x-text="'LVL ' + (partnerData?.level || 1)"></span>
+                            </div>
+                            <div class="flex items-center gap-2 mt-0.5 opacity-60">
+                                <div class="w-1.5 h-1.5 rounded-full" :class="partnerState === 'active' ? 'bg-green-500 shadow-[0_0_8px_#22c55e]' : (partnerState === 'away' ? 'bg-amber-500' : 'bg-red-500')"></div>
+                                <div class="text-[8px] font-black uppercase tracking-widest truncate">
+                                    <span x-show="partnerState === 'active'" x-text="partnerData?.rank_name"></span>
+                                    <span x-show="partnerState === 'away'" class="text-amber-500 font-bold">(вне вкладки)</span>
+                                    <span x-show="partnerState === 'offline'" class="text-red-500 font-bold italic">обрыв связи</span>
+                                </div>
+                                <div class="text-[8px] font-black" x-text="'• ' + ping + 'ms'"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- КНОПКА МЕССЕНДЖЕРА (МОБИЛЬНАЯ) -->
+                <button @click="mobileSidebarOpen = true" 
+                        class="lg:hidden absolute top-4 right-4 z-[90] w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-lg border border-white/20 active:scale-90 transition-all">
+                    <span class="text-xl">💬</span>
+                </button>
+
+                <!-- ОСНОВНОЕ ВИДЕО -->
+                <video x-ref="remoteVideo" autoplay playsinline class="w-full h-full object-cover transition-all duration-700" :class="isBlurred ? 'blur-[80px] scale-105 opacity-40' : 'opacity-100'"></video>
+                
+                <!-- PIP СВОЁ ВИДЕО -->
+                <div x-show="showSelfVideo" 
+                     class="absolute bottom-40 md:bottom-10 md:left-10 right-4 w-28 md:w-64 aspect-[3/4] md:aspect-video bg-[#111] rounded-3xl overflow-hidden shadow-2xl border border-white/10 z-[80] transition-all duration-500">
+                    <video x-ref="localVideo" autoplay muted playsinline class="w-full h-full object-cover scale-x-[-1]" :class="!camEnabled && 'opacity-0'"></video>
+                    <div x-show="!camEnabled" class="absolute inset-0 flex items-center justify-center bg-gray-950/80"><span class="text-xl">🚫</span></div>
+                </div>
+
+                <!-- ЭКРАН ПОИСКА -->
+                <div x-show="state === 'searching'" class="absolute inset-0 flex flex-col items-center justify-center bg-[#050505] z-[110] px-6">
+                    <div class="relative w-24 h-24 mb-12">
+                        <div class="absolute inset-0 border-2 border-indigo-500/20 rounded-full animate-ping"></div>
+                        <div class="absolute inset-0 flex items-center justify-center text-3xl">📡</div>
+                    </div>
+                    <div class="text-center">
+                        <h3 class="text-white font-black uppercase text-[10px] tracking-[0.5em] animate-pulse" 
+                            x-text="isCallingFriend ? 'Вызываем друга...' : 'Ищем собеседника...'"></h3>
+                    </div>
+                </div>
+
+                <!-- ПАНЕЛЬ УПРАВЛЕНИЯ -->
+                <div class="absolute bottom-24 md:bottom-8 left-0 right-0 px-4 z-[130] flex flex-col items-center gap-3">
+                    <div x-show="controlsOpen" x-transition class="flex items-center gap-2 p-1.5 bg-black/40 backdrop-blur-3xl border border-white/10 rounded-2xl shadow-2xl">
+                        <button @click="toggleMic()" :class="micEnabled ? 'bg-white/5 text-white' : 'bg-red-600 text-white'" class="w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center transition-all">🎤</button>
+                        <button @click="toggleCam()" :class="camEnabled ? 'bg-white/5 text-white' : 'bg-red-600 text-white'" class="w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center transition-all">📷</button>
+                        <button @click="isBlurred = !isBlurred" :class="isBlurred ? 'bg-indigo-600' : 'bg-white/5'" class="w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center transition-all">🙈</button>
+                        <button @click="getDevices()" class="w-10 h-10 md:w-12 md:h-12 bg-white/5 text-white rounded-xl flex items-center justify-center transition-all hover:bg-white/20">⚙️</button>
+                        
+                        <template x-if="state === 'connected'">
+                            <div class="flex items-center gap-2">
+                                <div class="w-px h-6 bg-white/10 mx-1"></div>
+                                <button @click="toggleContact()" :class="isFriend ? 'bg-green-600/20 text-green-400' : 'bg-white/5 text-white'" class="h-10 md:h-12 px-4 rounded-xl border border-white/5 font-black text-[9px] uppercase tracking-widest transition-all">
+                                    <span x-text="isFriend ? 'В друзьях ✓' : '+ Друг'"></span>
+                                </button>
+                                <button @click="report(partnerId)" class="w-10 h-10 md:w-12 md:h-12 bg-red-600/10 text-red-500 rounded-xl flex items-center justify-center hover:bg-red-600 transition-all">🚩</button>
+                            </div>
+                        </template>
+                    </div>
+
+                    <div class="flex items-center gap-2 p-2 bg-[#121212]/95 backdrop-blur-3xl border border-white/10 rounded-[2.5rem] shadow-2xl">
+                        <button @click="controlsOpen = !controlsOpen" class="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center transition-all">
+                            <span class="text-xs" x-text="controlsOpen ? '▼' : '⚡'"></span>
+                        </button>
+                        <div class="flex items-center gap-2 pr-1">
+                            <template x-if="state === 'idle'">
+                                <button @click="startSearch()" class="bg-indigo-600 px-10 h-12 rounded-full font-black text-[10px] uppercase tracking-widest shadow-lg">Начать поиск</button>
+                            </template>
+                            <template x-if="state === 'searching'">
+                                <button @click="stopSearch()" class="bg-red-600 px-10 h-12 rounded-full font-black text-[10px] uppercase tracking-widest">Остановить</button>
+                            </template>
+                            <template x-if="state === 'connected'">
+                                <div class="flex items-center gap-2">
+                                    <button @click="stopSearch()" class="bg-red-600/20 text-red-500 px-6 h-12 rounded-full font-black text-[10px] uppercase tracking-widest transition-all">Стоп</button>
+                                    <button @click="startSearch()" class="bg-white text-black px-10 h-12 rounded-full font-black text-[10px] uppercase tracking-widest shadow-xl transition-all">Далее ➔</button>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- МЕССЕНДЖЕР -->
+            <div x-show="mobileSidebarOpen" class="fixed inset-0 z-[240] bg-black/60 backdrop-blur-sm lg:hidden" @click="mobileSidebarOpen = false" x-transition:enter="opacity-0" x-transition:leave="opacity-0"></div>
+
+            <div :class="mobileSidebarOpen ? 'translate-y-0' : 'translate-y-full lg:translate-y-0'" 
+                 class="fixed inset-x-0 bottom-0 z-[250] h-[85vh] lg:h-full lg:relative lg:inset-auto lg:w-[400px] flex flex-col bg-[#080808] border-t lg:border-t-0 lg:border-l border-white/5 rounded-t-[3rem] lg:rounded-none transition-transform duration-500 overflow-hidden">
+                
+                <!-- ВЕРХНЯЯ ПАНЕЛЬ С КНОПКОЙ ЗАКРЫТИЯ (ТОЛЬКО ДЛЯ МОБИЛОК) -->
+                <div class="bg-[#0a0a0a] flex items-center justify-between px-6 py-4 border-b border-white/5 lg:hidden">
+                    <button @click="mobileSidebarOpen = false" class="flex items-center gap-2 group">
+                        <span class="w-8 h-8 bg-white/5 rounded-full flex items-center justify-center group-active:scale-90 transition-all text-indigo-500 font-bold">✕</span>
+                        <span class="text-[9px] font-black uppercase tracking-widest text-gray-500 group-hover:text-white">Назад к видео</span>
                     </button>
-                    <div class="mt-6 border-t pt-4">
-                        <h3 class="font-semibold text-gray-700">
-                            Статус: <span id="connectionStatus" class="text-gray-500">Ожидание</span>
-                        </h3>
-                    </div>
+                    <div class="w-12 h-1 bg-white/10 rounded-full"></div>
+                    <div class="w-8"></div>
                 </div>
 
+                <div class="flex border-b border-white/5 bg-[#0a0a0a] px-2">
+                    <button @click="tab = 'chat'" :class="tab === 'chat' ? 'text-indigo-400 border-b-2 border-indigo-500' : 'text-gray-500'" class="flex-1 py-5 text-[9px] font-black uppercase tracking-widest">Чат</button>
+                    <button @click="tab = 'friends'; loadFriends()" :class="tab === 'friends' ? 'text-indigo-400 border-b-2 border-indigo-500' : 'text-gray-500'" class="flex-1 py-5 text-[9px] font-black uppercase tracking-widest">Друзья</button>
+                    <button @click="tab = 'history'; loadHistory()" :class="tab === 'history' ? 'text-indigo-400 border-b-2 border-indigo-500' : 'text-gray-500'" class="flex-1 py-5 text-[9px] font-black uppercase tracking-widest">История</button>
+                    <button @click="tab = 'blacklist'; loadBlocked()" :class="tab === 'blacklist' ? 'text-red-500 border-b-2 border-red-500' : 'text-gray-500'" class="flex-1 py-5 text-[9px] font-black uppercase tracking-widest">ЧС</button>
+                </div>
+                
+                <div class="flex-1 flex flex-col overflow-hidden bg-[#050505]">
+                    <div x-show="tab === 'chat'" class="flex-1 flex flex-col overflow-hidden">
+                        <template x-if="state === 'connected'">
+                            <div class="flex-1 flex flex-col overflow-hidden">
+                                <div class="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar" x-ref="chatBox">
+                                    <template x-for="msg in messages">
+                                        <div :class="msg.isMe ? 'items-end' : 'items-start'" class="flex flex-col">
+                                            <div :class="msg.isMe ? 'bg-indigo-600' : 'bg-white/5 border border-white/5'" class="p-4 text-[13px] font-medium max-w-[85%] rounded-2xl shadow-lg" x-text="msg.text"></div>
+                                        </div>
+                                    </template>
+                                </div>
+                                <div class="px-6 py-2 h-8" x-show="isPartnerTyping" x-transition>
+                                    <span class="text-[8px] font-black text-indigo-400 uppercase tracking-widest animate-pulse" x-text="partnerData?.name + ' печатает...'"></span>
+                                </div>
+                                <div class="p-4 bg-[#0a0a0a] border-t border-white/5 pb-12 md:pb-6">
+                                    <div class="flex gap-2 bg-black/40 p-2 rounded-2xl border border-white/10">
+                                        <input type="text" x-model="chatInput" @input="sendTypingSignal()" @keyup.enter="sendMsg()" placeholder="Написать..." 
+                                               class="flex-1 bg-transparent border-none text-sm focus:ring-0 px-4 h-12">
+                                        <button @click="sendMsg()" class="bg-indigo-600 text-white w-12 h-12 rounded-xl font-bold flex items-center justify-center">➔</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+                        <template x-if="state !== 'connected'">
+                            <div class="flex-1 flex flex-col items-center justify-center opacity-30 text-center p-10">
+                                <div class="text-5xl mb-6">💬</div>
+                                <div class="text-[10px] font-black uppercase tracking-[0.3em]">Начните поиск для чата</div>
+                            </div>
+                        </template>
+                    </div>
+
+                    <div x-show="tab === 'friends'" class="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar">
+                        <template x-for="f in friendsList" :key="f.id">
+                            <div class="p-3 bg-white/[0.02] border border-white/5 rounded-2xl flex items-center justify-between">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-9 h-9 bg-indigo-600/20 text-indigo-400 rounded-xl flex items-center justify-center font-black text-xs" x-text="f.name[0]"></div>
+                                    <div>
+                                        <div class="text-xs font-bold" x-text="f.name"></div>
+                                        <div class="text-[7px] font-black uppercase" :class="onlineList.some(u => u.id === f.id) ? 'text-green-500' : 'text-gray-600'" x-text="onlineList.some(u => u.id === f.id) ? 'В сети' : f.last_seen_human"></div>
+                                    </div>
+                                </div>
+                                <button @click="callFriend(f); mobileSidebarOpen = false" :disabled="!onlineList.some(u => u.id === f.id)" class="w-9 h-9 bg-indigo-500 text-white rounded-xl flex items-center justify-center text-sm disabled:opacity-20 shadow-lg">📞</button>
+                            </div>
+                        </template>
+                    </div>
+
+                    <div x-show="tab === 'history'" class="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar">
+                        <template x-for="h in historyList" :key="h.id + h.last_at">
+                            <div class="p-3 bg-white/[0.02] border border-white/5 rounded-2xl flex items-center justify-between">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-9 h-9 bg-white/5 text-gray-500 rounded-xl flex items-center justify-center font-black text-xs" x-text="h.name[0]"></div>
+                                    <div><div class="text-xs font-bold" x-text="h.name"></div><div class="text-[7px] font-black uppercase text-gray-600" x-text="h.last_met_diff"></div></div>
+                                </div>
+                                <button @click="callFriend(h)" class="w-9 h-9 bg-white/10 text-white rounded-xl flex items-center justify-center text-sm">📞</button>
+                            </div>
+                        </template>
+                    </div>
+
+                    <div x-show="tab === 'blacklist'" class="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar">
+                        <template x-for="b in blockedList" :key="b.id">
+                            <div class="p-3 bg-red-500/5 border border-red-500/10 rounded-2xl flex items-center justify-between">
+                                <div class="text-xs font-bold" x-text="b.name"></div>
+                                <button @click="unblock(b.id)" class="px-4 py-2 bg-white/5 hover:bg-white hover:text-black rounded-lg text-[8px] font-black uppercase">Разблокировать</button>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- МОДАЛКА НАСТРОЕК -->
+        <div x-show="showDeviceModal" x-cloak 
+             class="fixed inset-0 z-[400] flex items-center justify-center p-6 bg-black/80 backdrop-blur-md"
+             x-transition>
+            <div class="bg-[#0f0f0f] border border-white/10 w-full max-w-sm rounded-[2.5rem] p-8 shadow-2xl" @click.away="showDeviceModal = false">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="text-lg font-black uppercase italic tracking-tighter">Медиа настройки</h3>
+                    <button @click="showDeviceModal = false" class="text-gray-500 text-3xl">&times;</button>
+                </div>
+                <div class="space-y-6">
+                    <div>
+                        <label class="text-[9px] font-black uppercase text-gray-500 tracking-widest mb-2 block">Камера</label>
+                        <div class="max-h-40 overflow-y-auto space-y-2 custom-scrollbar">
+                            <template x-for="d in devices.filter(x => x.kind === 'videoinput')">
+                                <button @click="switchDevice('video', d.deviceId)" 
+                                        :class="selectedCam === d.deviceId ? 'border-indigo-500 bg-indigo-500/10 text-white' : 'border-white/5 bg-white/5 text-gray-400'"
+                                        class="w-full text-left px-4 py-3 rounded-xl border text-[11px] font-bold transition-all truncate" 
+                                        x-text="d.label || 'Камера ' + d.deviceId.slice(0,5)"></button>
+                            </template>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="text-[9px] font-black uppercase text-gray-500 tracking-widest mb-2 block">Микрофон</label>
+                        <div class="max-h-40 overflow-y-auto space-y-2 custom-scrollbar">
+                            <template x-for="d in devices.filter(x => x.kind === 'audioinput')">
+                                <button @click="switchDevice('audio', d.deviceId)" 
+                                        :class="selectedMic === d.deviceId ? 'border-indigo-500 bg-indigo-500/10 text-white' : 'border-white/5 bg-white/5 text-gray-400'"
+                                        class="w-full text-left px-4 py-3 rounded-xl border text-[11px] font-bold transition-all truncate" 
+                                        x-text="d.label || 'Микрофон ' + d.deviceId.slice(0,5)"></button>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+                <button @click="showDeviceModal = false" class="w-full mt-8 bg-indigo-600 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl">Готово</button>
             </div>
         </div>
     </div>
 
-    <script type="module">
-        const localVideo = document.getElementById('localVideo');
-        const remoteVideo = document.getElementById('remoteVideo');
-        const connectionStatus = document.getElementById('connectionStatus');
-        const remoteStatus = document.getElementById('remoteStatus');
-        const startSearchBtn = document.getElementById('startSearch');
+    <script>
+    window.rtcConfig = { 
+        iceServers: @json(config('webrtc.ice_servers')), 
+        bundlePolicy: "balanced",
+        iceCandidatePoolSize: 10
+    };
 
-        const currentUserId = {{ auth()->id() }};
-        let localStream = null;
-        let peerConnection = null;
-        let globalPartnerId = null;
+    window.videoChatApp = function(myId, myInterests) {
+        return {
+            tab: 'chat', mobileSidebarOpen: false, controlsOpen: true, touchStart: 0,
+            state: 'idle', partnerId: null, partnerData: null, isFriend: false,
+            partnerState: 'active', offlineTimer: null, isCallingFriend: false,
+            pc: null, localStream: null, onlineList: [], friendsList: [], historyList: [], blockedList: [],
+            iceQueue: [], micEnabled: true, camEnabled: true, isBlurred: false, showSelfVideo: true,
+            messages: [], chatInput: '', ping: 0, statsInterval: null, heartbeatInterval: null,
+            showDeviceModal: false, devices: [], selectedCam: '', selectedMic: '',
+            xpPopups: [], matchInterests: [], showIceBreaker: false, myInterests: myInterests,
+            isPartnerTyping: false, typingTimeout: null, lastTypingSent: 0,
+            msgSound: new Audio('/sounds/message.mp3'),
 
-        // Конфигурация STUN серверов Google для пробития NAT
-        const rtcConfig = {
-            iceServers: [
-                { urls: 'stun:stun.l.google.com:19302' },
-                { urls: 'stun:stun1.l.google.com:19302' }
-            ]
-        };
-
-        // 1. Включение камеры при загрузке страницы
-        navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-            .then(stream => { 
-                localStream = stream;
-                localVideo.srcObject = stream; 
-                console.log("Локальная камера и микрофон успешно подключены.");
-            })
-            .catch(err => {
-                console.error("❌ Ошибка доступа к камере:", err);
-                connectionStatus.innerText = "Ошибка доступа к камере";
-            });
-
-        // 2. Клик по кнопке "Начать поиск"
-        startSearchBtn.addEventListener('click', async (e) => {
-            e.preventDefault();
-            console.log("Нажата кнопка поиска. Сбрасываем старые сессии...");
-            connectionStatus.className = "text-blue-500 font-medium";
-            connectionStatus.innerText = "В очереди поиска...";
-            
-            closePeerConnection();
-
-            try {
-                const response = await window.axios.post('/chat/search');
-                console.log("Бэкенд принял запрос на поиск. Текущий статус:", response.data.status);
-            } catch (error) {
-                console.error("❌ Ошибка API поиска:", error);
-                connectionStatus.innerText = "Ошибка запуска поиска";
-            }
-        });
-
-        // 3. Подписка на сокеты Echo и обработка входящих событий
-       window.addEventListener('load', () => {
-            if (typeof window.Echo !== 'undefined') {
+            async init() {
+                window.Echo.join('online-status').here(u => this.onlineList = u).joining(u => this.onlineList.push(u)).leaving(u => this.onlineList = this.onlineList.filter(x => x.id !== u.id));
+                window.Echo.private(`user.${myId}`)
+                    .listen('.MatchFoundEvent', (e) => this.handleMatch(e))
+                    .listen('.WebRTCSignalEvent', (e) => this.handleSignal(e))
+                    .listen('.XpGainedEvent', (e) => this.showXpPopup(e.xpGained));
                 
-                //window.Pusher.logToConsole = true;
-                console.log("Служба Echo инициализирована. Ожидаем события...");
-
-                window.Echo.private(`user.${currentUserId}`)
-                    // ДОБАВЛЯЕМ ТОЧКУ ПЕРЕД ИМЕНЕМ СОБЫТИЯ:
-                    .listen('.MatchFoundEvent', (e) => {
-                        console.log("🔥 Событие из сокета: MatchFoundEvent успешно поймано с точкой!", e);
-                        handleMatchFound(e.partnerId);
-                    })
-                    // На всякий случай оставляем и без точки
-                    .listen('MatchFoundEvent', (e) => {
-                        console.log("🔥 Событие из сокета: MatchFoundEvent поймано без точки!", e);
-                        handleMatchFound(e.partnerId);
-                    })
-                    // Сигналы WebRTC (уже с точкой, тут всё ок)
-                    .listen('.WebRTCSignalEvent', async (e) => {
-                        console.log(`📡 Получен входящий WebRTC сигнал [${e.data.type}] от партнера:`, e.data);
-                        await handleSignalingMessage(e.data);
-                    });
-            } else {
-                console.error("❌ Критическая ошибка: Laravel Echo не подключен.");
-            }
-        });
-
-        // 4. Мэтч сработал — подготавливаем роли
-        function handleMatchFound(partnerId) {
-            const myId = Number(currentUserId);
-            const peerId = Number(partnerId);
-            globalPartnerId = peerId;
-
-            console.log(`[Мэтчинг] Мой ID = ${myId}, ID Собеседника = ${peerId}`);
-            
-            connectionStatus.className = "text-green-500 font-bold";
-            connectionStatus.innerText = "Пара найдена! Настройка связи...";
-            remoteStatus.innerText = "Установка WebRTC соединения...";
-
-            createPeerConnection();
-
-            // Автоматическое распределение ролей: Инициатор тот, у кого ID больше
-            if (myId > peerId) {
-                console.log(`Роль: Инициатор (Caller), так как ${myId} > ${peerId}. Генерируем Offer...`);
-                sendOffer();
-            } else {
-                console.log(`Роль: Получатель (Receiver), так как ${myId} < ${peerId}. Ожидаем Offer по WebSocket...`);
-            }
-        }
-
-        // 5. Инициализация объекта RTCPeerConnection
-        function createPeerConnection() {
-            console.log("Создание объекта RTCPeerConnection с серверами STUN...");
-            peerConnection = new RTCPeerConnection(rtcConfig);
-
-            // Добавляем наши медиа-треки в соединение
-            if (localStream) {
-                localStream.getTracks().forEach(track => {
-                    peerConnection.addTrack(track, localStream);
-                    console.log(`-> Локальный трек [${track.kind}] добавлен в PeerConnection.`);
+                document.addEventListener('visibilitychange', () => { 
+                    if (this.partnerId) this.signal({ type: 'user-state-changed', state: document.hidden ? 'away' : 'active' }); 
                 });
-            }
-
-            // Когда к нам пробивается медиа-поток собеседника — привязываем к тегу видео
-            peerConnection.ontrack = (event) => {
-                console.log("🎉 Успех! Получен удаленный видео/аудио поток от собеседника.");
-                remoteVideo.srcObject = event.streams[0];
-                remoteStatus.innerText = ""; 
-            };
-
-            // Когда наш браузер находит свой сетевой адрес (ICE) — шлем его через бэкенд партнеру
-            peerConnection.onicecandidate = (event) => {
-                if (event.candidate) {
-                    console.log("⚡ Сгенерирован локальный ICE-candidate:", event.candidate.candidate);
-                    sendSignalMessage({
-                        type: 'ice-candidate',
-                        candidate: event.candidate
-                    });
+                
+                window.addEventListener('offline', () => { if (this.partnerId) this.handlePartnerState('offline'); });
+                window.addEventListener('online', () => { if (this.partnerId) { this.signal({ type: 'user-state-changed', state: 'active' }); this.handleIceRestart(); } });
+                
+                const urlParams = new URLSearchParams(window.location.search);
+                const acceptId = urlParams.get('accept_call');
+                if (acceptId) {
+                    this.state = 'connected';
+                    this.partnerId = Number(acceptId);
+                    window.history.replaceState({}, document.title, "/chat");
+                    try {
+                        const pInfo = await window.axios.get(`/chat/user-info/${acceptId}`);
+                        this.partnerData = pInfo.data;
+                    } catch(e) {}
+                    await this.initMedia();
+                    this.initPC();
+                    setTimeout(() => this.signal({ type: 'receiver-ready' }), 1000);
+                } else {
+                    await this.initMedia();
                 }
-            };
-        }
 
-        // 6. Функция отправки WebRTC пакетов на бэкенд роут `/chat/signal`
-        async function sendSignalMessage(payload) {
-            console.log(`📤 Отправка Axios-сигнала [${payload.type}] для партнера ID: ${globalPartnerId}`);
-            try {
-                await window.axios.post('/chat/signal', {
-                    partnerId: globalPartnerId,
-                    data: payload
-                });
-            } catch (error) {
-                console.error("❌ Ошибка отправки сигнала через Axios:", error);
-            }
-        }
+                this.loadFriends(); this.loadHistory(); this.loadBlocked();
+                this.heartbeatInterval = setInterval(() => { if (this.state !== 'idle') window.axios.post('/ping').catch(()=>{}); }, 15000);
+            },
 
-       // 7. Генерация и отправка локального Offer (SDP)
-        async function sendOffer() {
-            try {
-                const offer = await peerConnection.createOffer();
-                await peerConnection.setLocalDescription(offer);
-                console.log("Локальный LocalDescription (Offer) успешно установлен.");
-                
-                // Передаем SDP в виде плоского объекта БЕЗ вложенностей
-                sendSignalMessage({
-                    type: 'webrtc-offer',
-                    sdpType: offer.type,
-                    sdpString: offer.sdp
-                });
-            } catch (err) {
-                console.error("❌ Ошибка при создании Offer:", err);
-            }
-        }
+            prepareSdp(sdp) {
+                if (typeof sdp !== 'string') return sdp;
+                return sdp.split('\n').map(l => l.trim()).filter(l => l.length > 0).join('\r\n') + '\r\n';
+            },
 
-        // 8. Обработка входящих сокетных сигналов от партнера
-        async function handleSignalingMessage(message) {
-            if (!peerConnection) {
-                console.log("Объект PeerConnection отсутствовал при сигнале, создаем принудительно...");
-                createPeerConnection();
-            }
+            async getDevices() {
+                try {
+                    const devices = await navigator.mediaDevices.enumerateDevices();
+                    this.devices = devices.filter(d => d.kind === 'videoinput' || d.kind === 'audioinput');
+                    this.showDeviceModal = true;
+                } catch (e) { console.error(e); }
+            },
 
-            try {
-                if (message.type === 'webrtc-offer') {
-                    console.log("Применяем входящий RemoteDescription (Offer)...");
-                    
-                    // ХАК-САНИТАЙЗЕР: Убираем возможные двойные переносы, выравниваем \r\n и жестко добавляем перенос в финал строки
-                    let sanitizedSDP = message.sdpString
-                        .replace(/\r\n\r\n/g, '\r\n') 
-                        .trim() + '\r\n';
-
-                    const description = new RTCSessionDescription({
-                        type: message.sdpType,
-                        sdp: sanitizedSDP
-                    });
-                    
-                    await peerConnection.setRemoteDescription(description);
-                    console.log("RemoteDescription (Offer) успешно применен.");
-                    
-                    console.log("Генерируем Answer на полученный Offer...");
-                    const answer = await peerConnection.createAnswer();
-                    await peerConnection.setLocalDescription(answer);
-                    
-                    console.log("Отправляем сгенерированный Answer партнеру...");
-                    sendSignalMessage({
-                        type: 'webrtc-answer',
-                        sdpType: answer.type,
-                        sdpString: answer.sdp
-                    });
-                    
-                } else if (message.type === 'webrtc-answer') {
-                    console.log("Применяем входящий RemoteDescription (Answer)...");
-                    
-                    // Санитизируем и Answer на стороне Инициатора
-                    let sanitizedSDP = message.sdpString
-                        .replace(/\r\n\r\n/g, '\r\n')
-                        .trim() + '\r\n';
-
-                    const description = new RTCSessionDescription({
-                        type: message.sdpType,
-                        sdp: sanitizedSDP
-                    });
-                    
-                    await peerConnection.setRemoteDescription(description);
-                    console.log("✅ Успех! Базовый SDP-обмен завершен. Каналы пробиваются...");
-                    
-                } else if (message.type === 'ice-candidate') {
-                    if (peerConnection.remoteDescription && peerConnection.remoteDescription.type) {
-                        console.log("Добавляем входящий ICE-candidate...");
-                        await peerConnection.addIceCandidate(new RTCIceCandidate(message.candidate));
-                    } else {
-                        console.log("⏳ RemoteDescription еще не применен. Откладываем ICE-candidate...");
-                        
-                        setTimeout(async () => {
-                            if (peerConnection.remoteDescription && peerConnection.remoteDescription.type) {
-                                try {
-                                    await peerConnection.addIceCandidate(new RTCIceCandidate(message.candidate));
-                                    console.log("🔥 Отложенный ICE-candidate успешно добавлен.");
-                                } catch (e) {
-                                    console.error("Ошибки добавления отложенного ICE", e);
-                                }
-                            }
-                        }, 1200);
+            async switchDevice(kind, deviceId) {
+                try {
+                    const constraints = {
+                        video: kind === 'video' ? { deviceId: { exact: deviceId } } : (this.camEnabled ? true : false),
+                        audio: kind === 'audio' ? { deviceId: { exact: deviceId } } : (this.micEnabled ? true : false)
+                    };
+                    const newStream = await navigator.mediaDevices.getUserMedia(constraints);
+                    const oldTrack = kind === 'video' ? this.localStream.getVideoTracks()[0] : this.localStream.getAudioTracks()[0];
+                    const newTrack = kind === 'video' ? newStream.getVideoTracks()[0] : newStream.getAudioTracks()[0];
+                    this.localStream.removeTrack(oldTrack);
+                    this.localStream.addTrack(newTrack);
+                    if (this.pc) {
+                        const sender = this.pc.getSenders().find(s => s.track.kind === (kind === 'video' ? 'video' : 'audio'));
+                        if (sender) sender.replaceTrack(newTrack);
                     }
-                }
-            } catch (err) {
-                console.error("❌ Ошибка обработки сигнального WebRTC сообщения:", err);
-            }
-        }
+                    if (kind === 'video') this.selectedCam = deviceId; else this.selectedMic = deviceId;
+                    this.$refs.localVideo.srcObject = this.localStream;
+                } catch (e) { console.error(e); }
+            },
 
-        // Сброс стрима при закрытии
-        function closePeerConnection() {
-            if (peerConnection) {
-                console.log("Закрываем текущий PeerConnection...");
-                peerConnection.close();
-                peerConnection = null;
+            handleSwipe(e) {
+                if (this.mobileSidebarOpen) return;
+                const diff = this.touchStart - e.changedTouches[0].clientY;
+                if (diff > 120) { if (this.state === 'connected' || this.state === 'idle') this.startSearch(); }
+            },
+
+            showXpPopup(amount) {
+                const id = Date.now();
+                this.xpPopups.push({ id, amount });
+                setTimeout(() => { this.xpPopups = this.xpPopups.filter(p => p.id !== id); }, 4000);
+            },
+
+            sendTypingSignal() {
+                if (Date.now() - this.lastTypingSent > 2000) {
+                    this.lastTypingSent = Date.now();
+                    this.signal({ type: 'typing' });
+                }
+            },
+
+            async handleSignal(e) {
+                const msg = e.data; const senderId = Number(msg.from);
+                if (msg.type === 'user-state-changed' && senderId === this.partnerId) { this.handlePartnerState(msg.state); return; }
+                
+                // Исправление: Инициатор переходит в состояние 'connected' когда друг готов
+                if (msg.type === 'receiver-ready' && senderId === this.partnerId) { 
+                    this.state = 'connected';
+                    this.isCallingFriend = false;
+                    this.sendOffer(); 
+                    return; 
+                }
+
+                if (msg.type === 'typing' && senderId === this.partnerId) {
+                    this.isPartnerTyping = true; clearTimeout(this.typingTimeout);
+                    this.typingTimeout = setTimeout(() => { this.isPartnerTyping = false; }, 3000);
+                    return;
+                }
+                if (['peer-skipped', 'hang-up', 'peer-disconnected'].includes(msg.type)) { this.reset(); if(msg.type === 'peer-skipped') this.startSearch(); return; }
+                if (!this.pc && (msg.type === 'offer' || msg.type === 'incoming-call')) { 
+                    this.partnerId = senderId; this.state = 'connected'; this.initPC(); 
+                }
+                try {
+                    if (msg.type === 'offer' || msg.type === 'answer') {
+                        const cleanSdp = this.prepareSdp(msg.sdp || msg);
+                        await this.pc.setRemoteDescription(new RTCSessionDescription({ type: msg.type, sdp: cleanSdp }));
+                        if (msg.type === 'offer') {
+                            const ans = await this.pc.createAnswer();
+                            await this.pc.setLocalDescription(ans);
+                            this.signal({ type: 'answer', sdp: ans.sdp });
+                        }
+                        while(this.iceQueue.length) { await this.pc.addIceCandidate(this.iceQueue.shift()).catch(()=>{}); }
+                    } else if (msg.type === 'ice') {
+                        const cand = new RTCIceCandidate(msg.candidate);
+                        if (this.pc?.remoteDescription && this.pc.remoteDescription.type) await this.pc.addIceCandidate(cand).catch(()=>{});
+                        else this.iceQueue.push(cand);
+                    } else if (msg.type === 'text') {
+                        this.messages.push({isMe:false, text: msg.text});
+                        this.scrollChat();
+                        this.msgSound.play().catch(()=>{});
+                    }
+                } catch(err) { console.error(err); }
+            },
+
+            handlePartnerState(s) { this.partnerState = s; if (s === 'offline') this.startDisconnectTimer(); else this.stopDisconnectTimer(); },
+            startDisconnectTimer() { this.stopDisconnectTimer(); this.offlineTimer = setTimeout(() => { if (this.partnerState === 'offline') this.stopSearch(); }, 30000); },
+            stopDisconnectTimer() { if (this.offlineTimer) clearTimeout(this.offlineTimer); },
+
+            initPC() {
+                if (this.pc) return;
+                this.pc = new RTCPeerConnection(window.rtcConfig);
+                this.pc.onicecandidate = (e) => e.candidate && this.signal({type:'ice', candidate: e.candidate});
+                this.pc.ontrack = (e) => { if (this.$refs.remoteVideo) this.$refs.remoteVideo.srcObject = e.streams[0]; };
+                this.pc.oniceconnectionstatechange = () => { if (this.pc?.iceConnectionState === 'failed') this.handleIceRestart(); };
+                if (this.localStream) this.localStream.getTracks().forEach(t => this.pc.addTrack(t, this.localStream));
+                this.startStats();
+            },
+
+            async sendOffer() { this.initPC(); const o = await this.pc.createOffer(); await this.pc.setLocalDescription(o); this.signal({ type: 'offer', sdp: o.sdp }); },
+            async handleIceRestart() { if (!this.pc || myId < this.partnerId) return; const o = await this.pc.createOffer({ iceRestart: true }); await this.pc.setLocalDescription(o); this.signal({ type: 'offer', sdp: o.sdp }); },
+            async startSearch() { if(this.partnerId) this.signal({type:'peer-skipped'}); this.reset(); this.state = 'searching'; await window.axios.post('/chat/search'); },
+            async callFriend(f) { 
+                this.reset(); 
+                this.partnerId = Number(f.id); 
+                this.state = 'searching'; 
+                this.isCallingFriend = true; 
+                try {
+                    const pInfo = await window.axios.get(`/chat/user-info/${f.id}`);
+                    this.partnerData = pInfo.data;
+                } catch(e) {}
+                await window.axios.post('/chat/contact/call', { contactId: f.id }); 
+            },
+            stopSearch() { this.reset(); window.axios.post('/chat/leave'); },
+
+            reset() { 
+                clearInterval(this.statsInterval); this.stopDisconnectTimer();
+                if (this.pc) { try { this.pc.close(); } catch(e){} this.pc = null; } 
+                this.partnerId = null; this.partnerData = null; this.state = 'idle'; this.messages = []; this.ping = 0; this.iceQueue = [];
+                this.isCallingFriend = false; this.showIceBreaker = false; this.partnerState = 'active';
+                if (this.$refs.remoteVideo) this.$refs.remoteVideo.srcObject = null; 
+            },
+
+            signal(data) { if (!this.partnerId) return; window.axios.post('/chat/signal', { partnerId: this.partnerId, data: { ...data, from: myId } }).catch(()=>{}); },
+            sendMsg() { if (!this.chatInput.trim()) return; this.messages.push({isMe:true, text: this.chatInput}); this.signal({type:'text', text: this.chatInput}); this.chatInput = ''; this.scrollChat(); },
+            async initMedia() { try { this.localStream = await navigator.mediaDevices.getUserMedia({video:true, audio:true}); this.$refs.localVideo.srcObject = this.localStream; } catch(e) { window.dispatchEvent(new CustomEvent('toast', {detail:{msg:'Доступ к камере запрещен', type:'error'}})); } },
+            toggleMic() { this.micEnabled = !this.micEnabled; if(this.localStream) this.localStream.getAudioTracks()[0].enabled = this.micEnabled; },
+            toggleCam() { this.camEnabled = !this.camEnabled; if(this.localStream) this.localStream.getVideoTracks()[0].enabled = this.camEnabled; },
+            scrollChat() { this.$nextTick(() => { if(this.$refs.chatBox) this.$refs.chatBox.scrollTop = this.$refs.chatBox.scrollHeight; }); },
+            async loadFriends() { const r = await window.axios.get('/chat/contacts'); this.friendsList = r.data.contacts; },
+            async loadHistory() { const r = await window.axios.get('/chat/history-all'); this.historyList = r.data.history; },
+            async loadBlocked() { const r = await window.axios.get('/chat/blocked'); this.blockedList = r.data.blocked; },
+            async toggleContact() { const res = await window.axios.post('/chat/contact/add', { contactId: this.partnerId }); this.isFriend = res.data.isFriend; this.loadFriends(); },
+            async unblock(id) { await window.axios.post('/chat/unblock', { blockedId: id }); this.loadBlocked(); },
+            async report(id) { if(!confirm('Заблокировать пользователя?')) return; await window.axios.post('/report', {reported_id:id, reason:'abuse'}); this.startSearch(); },
+            startStats() { this.statsInterval = setInterval(async () => { if (this.pc?.connectionState === 'connected') { const stats = await this.pc.getStats(); stats.forEach(r => { if (r.type === 'candidate-pair' && r.state === 'succeeded') this.ping = Math.round(r.currentRoundTripTime * 1000); }); } }, 3000); },
+            async handleMatch(e) { 
+                this.reset(); this.partnerId = Number(e.partnerData.id); this.partnerData = e.partnerData; this.isFriend = !!e.isFriend; this.state = 'connected'; 
+                if (e.partnerData.common_interests?.length) { this.matchInterests = e.partnerData.common_interests; this.showIceBreaker = true; setTimeout(() => this.showIceBreaker = false, 4000); }
+                this.initPC(); if (myId > this.partnerId) setTimeout(() => this.sendOffer(), 1200); 
             }
-            remoteVideo.srcObject = null;
-            remoteStatus.innerText = "Собеседник отключен";
         }
+    };
     </script>
 </x-app-layout>

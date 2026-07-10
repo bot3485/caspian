@@ -59,7 +59,7 @@
                         <span>📺</span>
                     </button>
                     <div class="w-px h-6 bg-white/10 mx-1"></div>
-                    <a href="{{ route('rooms.index') }}" class="bg-red-600 text-white px-8 py-3.5 rounded-full font-black text-[10px] uppercase tracking-widest transition-all">Выйти</a>
+                    <a href="{{ route('rooms.index') }}" class="bg-red-600 text-white px-8 py-3.5 rounded-full font-black text-[10px] uppercase tracking-widest transition-all shadow-lg active:scale-95">Выйти</a>
                 </div>
             </div>
         </div>
@@ -76,6 +76,7 @@
                 micEnabled: true, 
                 camEnabled: true, 
                 isScreenSharing: false,
+                channel: null,
 
                 get gridStyle() {
                     const count = this.peers.length + 1;
@@ -85,23 +86,21 @@
 
                 async init() {
                     window.rtcConfig = { 
-                        iceServers: @json(config('webrtc.ice_servers')), 
-                        bundlePolicy: "balanced",
-                        iceCandidatePoolSize: 10
+                        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }], 
+                        bundlePolicy: "balanced"
                     };
                     await this.initMedia();
                     
-                    const channel = window.Echo.join(`room.${roomUuid}`);
+                    this.channel = window.Echo.join(`room.${roomUuid}`);
 
                     const sync = (count) => {
                         this.currentCount = count;
                         window.axios.post(`/rooms/${roomUuid}/sync-occupancy`, { count: count }).catch(() => {});
                     };
 
-                    channel.here(users => {
+                    this.channel.here(users => {
                         sync(users.length);
                         users.forEach(u => { if (u.id !== myId) this.initiateConnection(u.id, u.name, myId > u.id); });
-                        if(this.pulseTimer) clearInterval(this.pulseTimer);
                         this.pulseTimer = setInterval(() => { sync(this.peers.length + 1); }, 15000);
                     }).joining(u => {
                         this.initiateConnection(u.id, u.name, myId > u.id);
@@ -111,21 +110,32 @@
                         sync(this.peers.length + 1);
                     });
 
+                    window.addEventListener('beforeunload', () => this.channel?.leave());
+
                     window.Echo.private(`user.${myId}`).listen('.WebRTCSignalEvent', (e) => {
                         if (e.data.roomUuid === roomUuid) this.handleSignal(e.data);
                     });
                 },
 
+                // МЕТОД ОЧИСТКИ (Вызывается Alpine при уходе со страницы)
+                destroy() {
+                    if(this.pulseTimer) clearInterval(this.pulseTimer);
+                    if(this.channel) this.channel.leave();
+                    if(this.localStream) this.localStream.getTracks().forEach(t => t.stop());
+                    if(this.screenStream) this.screenStream.getTracks().forEach(t => t.stop());
+                    this.peers.forEach(p => p.pc.close());
+                },
+
                 normalizeSdp(sdp) {
-                    if (typeof sdp !== 'string') return sdp;
-                    return sdp.split('\n').map(line => line.trim()).filter(l => l.length > 0).join('\r\n') + '\r\n';
+                    if (typeof sdp !== 'string') sdp = sdp.sdp || "";
+                    return sdp.split('\n').map(l => l.trim()).filter(l => l.length > 0).join('\r\n') + '\r\n';
                 },
 
                 async initMedia() {
                     try {
                         this.localStream = await navigator.mediaDevices.getUserMedia({video:true, audio:true});
                         this.$refs.localVideo.srcObject = this.localStream;
-                    } catch(e) { console.error(e); }
+                    } catch(e) { console.error("Media Error:", e); }
                 },
 
                 initiateConnection(partnerId, partnerName, isInitiator) {
@@ -147,7 +157,7 @@
                             const v = document.getElementById('video-' + partnerId); 
                             if (v) {
                                 v.srcObject = e.streams[0];
-                                v.onloadedmetadata = () => v.play().catch(err => console.warn(err));
+                                v.play().catch(err => console.warn(err));
                             }
                         }); 
                     };
@@ -170,10 +180,9 @@
 
                     try {
                         if (data.type === 'offer' || data.type === 'answer') {
-                            const rawSdp = typeof data.sdp === 'string' ? data.sdp : data.sdp.sdp;
                             await peer.pc.setRemoteDescription(new RTCSessionDescription({
                                 type: data.type,
-                                sdp: this.normalizeSdp(rawSdp)
+                                sdp: this.normalizeSdp(data.sdp)
                             }));
 
                             if (data.type === 'offer') {
@@ -182,18 +191,17 @@
                                 this.sendSignal(data.from, { type: 'answer', sdp: answer.sdp });
                             }
                             
-                            // Выливаем ICE кандидаты
                             while(peer.iceQueue.length > 0) {
                                 await peer.pc.addIceCandidate(new RTCIceCandidate(peer.iceQueue.shift())).catch(()=>{});
                             }
                         } else if (data.type === 'ice') {
-                            if (peer.pc.remoteDescription && peer.pc.remoteDescription.type) {
+                            if (peer.pc.remoteDescription) {
                                 await peer.pc.addIceCandidate(new RTCIceCandidate(data.candidate)).catch(()=>{});
                             } else {
                                 peer.iceQueue.push(data.candidate);
                             }
                         }
-                    } catch(e) { console.error("Ошибка в Spaces WebRTC:", e); }
+                    } catch(e) { console.error("Spaces WebRTC Error:", e); }
                 },
 
                 sendSignal(to, payload) { 
@@ -203,19 +211,26 @@
                     }).catch(()=>{}); 
                 },
 
-                removePeer(id) { 
-                    const p = this.peers.find(x => x.id === id); 
-                    if(p) { p.pc.close(); this.peers = this.peers.filter(x => x.id !== id); }
+                removePeer(id) {
+                    const p = this.peers.find(x => x.id === id);
+                    if (p) {
+                        p.pc.close();
+                        this.peers = this.peers.filter(x => x.id !== id);
+                        const videoEl = document.getElementById('video-' + id);
+                        if (videoEl) videoEl.srcObject = null;
+                    }
                 },
 
                 toggleMic() { 
                     this.micEnabled = !this.micEnabled; 
                     if(this.localStream) this.localStream.getAudioTracks()[0].enabled = this.micEnabled; 
                 },
+
                 toggleCam() { 
                     this.camEnabled = !this.camEnabled; 
                     if(this.localStream) this.localStream.getVideoTracks()[0].enabled = this.camEnabled; 
                 },
+
                 async toggleScreenShare() {
                     if (this.isScreenSharing) {
                         this.isScreenSharing = false;
@@ -230,15 +245,17 @@
                             this.replaceVideoTrack(screenTrack);
                             this.$refs.localVideo.srcObject = this.screenStream;
                             screenTrack.onended = () => this.toggleScreenShare();
-                        } catch (e) {}
+                        } catch (e) { console.warn("Screen share cancelled"); }
                     }
                 },
+
                 replaceVideoTrack(newTrack) {
                     this.peers.forEach(peer => {
                         const sender = peer.pc.getSenders().find(s => s.track && s.track.kind === 'video');
                         if (sender) sender.replaceTrack(newTrack);
                     });
                 },
+
                 copyLink() { 
                     navigator.clipboard.writeText(window.location.href); 
                     window.dispatchEvent(new CustomEvent('toast', {detail:{msg:'Ссылка скопирована', type:'success'}})); 

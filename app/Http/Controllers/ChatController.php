@@ -40,37 +40,46 @@ class ChatController extends Controller
         ]);
     }
 
+
     public function sendSignal(Request $request): JsonResponse
-        {
-            $validated = $request->validate([
-                'partnerId' => 'required|integer', 
-                'data' => 'required|array'
-            ]);
+    {
+        $validated = $request->validate([
+            'partnerId' => 'required|integer', 
+            'data' => 'required|array'
+        ]);
 
-            $senderId = (int)Auth::id();
-            $receiverId = (int)$validated['partnerId'];
-            $data = $validated['data'];
+        $senderId = (int)Auth::id();
+        $receiverId = (int)$validated['partnerId'];
+        $data = $validated['data'];
 
-            // Продлеваем жизнь сессии
-            Matchmaking::where('user_id', $senderId)->update(['updated_at' => now()]);
+        // Продлеваем сессию в Redis (это дешево)
+        Redis::setex("user_active:{$senderId}", 30, "1");
 
-            $matchKey = "allow_signal:{$senderId}:{$receiverId}";
-            $isAllowedMatch = Redis::exists($matchKey);
+        $matchKey = "allow_signal:{$senderId}:{$receiverId}";
+        
+        // Проверка прав через Redis (быстро)
+        $isAllowed = Redis::exists($matchKey);
+        
+        if (!$isAllowed && isset($data['roomUuid'])) {
+            // Если это комната, проверяем кэш, а не БД
+            $roomKey = "room_exists:{$data['roomUuid']}";
+            $isAllowed = Redis::get($roomKey) ?? \App\Models\Room::where('uuid', $data['roomUuid'])->exists();
             
-            // Для комнат
-            $isAllowedRoom = isset($data['roomUuid']) && \App\Models\Room::where('uuid', $data['roomUuid'])->exists();
-
-            if (!$isAllowedMatch && !$isAllowedRoom) {
-                // ЛОГ ДЛЯ ОТЛАДКИ (потом можно убрать)
-                \Log::warning("403 Forbidden Signal: Sender {$senderId} to Receiver {$receiverId}. Key {$matchKey} not found.");
-                return response()->json(['error' => 'Unauthorized signaling'], 403);
+            // Кэшируем результат на 10 минут, чтобы не дергать БД
+            if ($isAllowed && !Redis::exists($roomKey)) {
+                Redis::setex($roomKey, 600, "1");
             }
-
-            $data['from'] = $senderId;
-
-            broadcast(new \App\Events\WebRTCSignalEvent($receiverId, $data));
-            return response()->json(['status' => 'signal_sent']);
         }
+
+        if (!$isAllowed) {
+            return response()->json(['error' => 'Unauthorized signaling'], 403);
+        }
+
+        $data['from'] = $senderId;
+        broadcast(new \App\Events\WebRTCSignalEvent($receiverId, $data));
+
+        return response()->json(['status' => 'signal_sent']);
+    }
 
     public function leaveChat(Request $request): JsonResponse
     {
@@ -164,31 +173,28 @@ class ChatController extends Controller
 
     public function sendMessage(Request $request): JsonResponse
     {
-        $validated = $request->validate(['receiver_id' => 'required|integer', 'message' => 'required|string']);
-        $senderId = Auth::id();
-        $receiverId = $validated['receiver_id'];
+        $validated = $request->validate([
+            'receiver_id' => 'required|integer', 
+            'message' => 'required|string'
+        ]);
 
-        $isBlocked = DB::table('blocks')
-            ->where(fn($q) => $q->where('blocker_id', $senderId)->where('blocked_id', $receiverId))
-            ->orWhere(fn($q) => $q->where('blocker_id', $receiverId)->where('blocked_id', $senderId))
-            ->exists();
-
-        if ($isBlocked) return response()->json(['error' => 'User is blocked'], 403);
-
-        $message = Message::create([
-            'sender_id' => $senderId, 
-            'receiver_id' => $receiverId, 
+        $message = \App\Models\Message::create([
+            'sender_id' => Auth::id(),
+            'receiver_id' => $validated['receiver_id'],
             'message' => $validated['message']
         ]);
         
-        broadcast(new MessageSentEvent($message->toArray()))->toOthers();
+        // Вещаем событие получателю
+        broadcast(new \App\Events\MessageSentEvent($message->toArray()));
+
         return response()->json(['status' => 'sent', 'message' => $message]);
     }
 
     public function sendTypingSignal(Request $request): JsonResponse 
     {
+        $request->validate(['receiver_id' => 'required|integer']);
         broadcast(new \App\Events\UserTypingEvent($request->receiver_id, Auth::id()))->toOthers();
-        return response()->json(['status' => 'sent']);
+        return response()->json(['status' => 'ok']);
     }
 
     public function getInteractionHistory(): JsonResponse 

@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Events;
 
 use Illuminate\Broadcasting\{InteractsWithSockets, PrivateChannel};
@@ -11,23 +10,13 @@ class MessageSentEvent implements ShouldBroadcastNow
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
-    // Свойство доступно для чтения (для вещания), но изменить его нельзя
-    public private(set) array $messageData;
+    public function __construct(public array $messageData) {}
 
-    public function __construct(array $messageData)
-    {
-        $this->messageData = $messageData;
+    public function broadcastOn(): array {
+        return [new PrivateChannel("user.{$this->messageData['receiver_id']}")];
     }
 
-    public function broadcastOn(): array
-    {
-        return [
-            new PrivateChannel("user.{$this->messageData['receiver_id']}"),
-        ];
-    }
-
-    public function broadcastAs(): string
-    {
+    public function broadcastAs(): string {
         return 'MessageSentEvent';
     }
 }

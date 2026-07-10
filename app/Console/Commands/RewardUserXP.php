@@ -17,31 +17,39 @@ class RewardUserXP extends Command
 
 public function handle()
 {
-    $matches = Matchmaking::where('status', MatchmakingStatus::Matched)->get();
+    $matches = Matchmaking::where('status', MatchmakingStatus::Matched)->with('user')->get();
 
     foreach ($matches as $match) {
         $user = $match->user;
         if (!$user || !$user->isOnline()) continue;
 
-        // Обновляем метку времени матча, чтобы cleanup его не удалил
-        $match->touch(); 
+        // Коэффициент XP от кармы: 
+        // Карма 0-50: x0.5 XP
+        // Карма 50-150: x1.0 XP
+        // Карма 200+: x1.5 XP (VIP бонус)
+        $multiplier = 1.0;
+        if ($user->karma < 50) $multiplier = 0.5;
+        elseif ($user->karma >= 200) $multiplier = 1.5;
 
-        $user->increment('xp', 15);
-            $user->increment('total_minutes', 1); // Время в рулетке
+        $xpGained = (int)(15 * $multiplier);
+        $user->increment('xp', $xpGained);
+        $user->increment('total_minutes', 1);
 
-            // 2. Начисление кармы (Бонус за адекватность)
-            // Каждые 10 минут общения без жалоб дают +1 карму (до лимита 500)
-            if ($user->total_minutes % 10 === 0 && $user->karma < 500) {
-                $user->increment('karma', 1);
-            }
-
-            // Проверка уровня
-            $newLevel = floor($user->xp / 1000) + 1;
-            if ($newLevel > $user->level) {
-                $user->update(['level' => $newLevel]);
-            }
-
-            broadcast(new XpGainedEvent($user->id, 15, $user->xp, $user->level));
+        // Бонус кармы за долгое общение (каждые 5 минут +1 карма)
+        if ($user->total_minutes % 5 === 0 && $user->karma < 1000) {
+            $user->increment('karma', 1);
         }
+
+        // Логика нового уровня
+        $oldLevel = $user->level;
+        $newLevel = floor($user->xp / 1000) + 1;
+        
+        if ($newLevel > $oldLevel) {
+            $user->update(['level' => $newLevel]);
+            // Можно отправить специальный ивент LevelUpEvent для салюта на экране
+        }
+
+        broadcast(new XpGainedEvent($user->id, $xpGained, $user->xp, $user->level));
     }
+}
 }

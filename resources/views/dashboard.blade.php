@@ -61,11 +61,14 @@
                         
                         <div class="mt-8 space-y-4 w-full">
                             <div class="flex justify-between text-[9px] font-black uppercase tracking-widest text-gray-500 px-1">
-                                <span>Progress</span>
-                                <span>{{ Auth::user()->xp_progress }}%</span>
+                                <span x-text="'Level ' + {{ Auth::user()->level }}"></span>
+                                <span x-text="{{ Auth::user()->xp_progress }} + '%'"></span>
                             </div>
                             <div class="w-full h-2 bg-white/5 rounded-full overflow-hidden p-0.5 border border-white/5">
-                                <div class="bg-indigo-500 h-full rounded-full transition-all duration-1000" style="width: {{ Auth::user()->xp_progress }}%"></div>
+                                <div class="bg-indigo-500 h-full rounded-full transition-all duration-1000 shadow-[0_0_15px_rgba(99,102,241,0.5)]"
+                                    :class="{{ Auth::user()->xp_progress }} > 90 ? 'animate-pulse bg-white' : ''"
+                                    style="width: {{ Auth::user()->xp_progress }}%">
+                                </div>
                             </div>
                         </div>
 

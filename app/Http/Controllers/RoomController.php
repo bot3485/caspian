@@ -12,12 +12,15 @@ class RoomController extends Controller
     public function index(): View
     {
         $userId = Auth::id();
-        $rooms = Room::where('is_public', true)
-            ->orWhere('creator_id', $userId)
-            ->with('creator')
+        
+        // Делаем фильтрацию на уровне БД, а не коллекции
+        $rooms = Room::with('creator')
+            ->where(function($q) use ($userId) {
+                $q->where('is_public', true)
+                ->orWhere('creator_id', $userId);
+            })
             ->latest()
-            ->get()
-            ->unique('id');
+            ->get();
 
         $userHasRoom = Room::where('creator_id', $userId)->exists();
 
@@ -98,16 +101,20 @@ class RoomController extends Controller
     public function syncOccupancy(Request $request, string $uuid): JsonResponse
     {
         $request->validate(['count' => 'required|integer|min:0|max:10']);
-        
+        $userId = Auth::id();
         $room = Room::where('uuid', $uuid)->firstOrFail();
-        
-        // Обновляем количество и ставим текущее время (как метку жизни комнаты)
+
+        // Простая, но эффективная защита: 
+        // Только создатель или тот, кто прошел auth в эту комнату (есть сессия), может обновлять счетчик
+        if ($room->creator_id !== $userId && !Session::has("room_auth_{$uuid}")) {
+            return response()->json(['error' => 'Forbidden'], 403);
+        }
+
         $room->update([
             'current_occupancy' => $request->count,
             'updated_at' => now() 
         ]);
         
-        // Вещаем в лобби
         broadcast(new \App\Events\RoomOccupancyUpdated($uuid, $request->count))->toOthers();
 
         return response()->json(['status' => 'ok']);

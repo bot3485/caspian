@@ -32,11 +32,15 @@ class User extends Authenticatable
      */
     public function getRankNameAttribute(): string
     {
+        if ($this->karma < 20) return 'Shadowed'; // Для нарушителей
+        
         return match (true) {
-            $this->level >= 50 => 'Legendary',
-            $this->level >= 25 => 'Elite',
-            $this->level >= 10 => 'Veteran',
-            default => 'Explorer',
+            $this->level >= 100 => 'Grandmaster',
+            $this->level >= 50  => 'Legendary',
+            $this->level >= 25  => 'Elite',
+            $this->level >= 10  => 'Veteran',
+            $this->level >= 5   => 'Regular',
+            default => 'Newbie',
         };
     }
 
@@ -76,4 +80,18 @@ class User extends Authenticatable
 
     public function getNextLevelXpAttribute(): int { return 1000; }
     public function getCurrentLevelXpAttribute(): int { return $this->xp % 1000; }
+
+    public function getStatusDataAttribute(): array
+    {
+        $isOnline = $this->isOnline();
+        return [
+            'is_online' => $isOnline,
+            'label' => $isOnline ? 'В сети' : $this->getLastSeenForHumans(),
+            'color' => $isOnline ? '#22c55e' : '#6b7280',
+            // В 2026 году мы можем определять устройство по User-Agent в сессии
+            'device' => str_contains(request()->header('User-Agent'), 'Mobile') ? 'mobile' : 'desktop'
+        ];
+    }
+
+
 }

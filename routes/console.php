@@ -22,7 +22,7 @@ Schedule::call(function () {
 
     // 2. Очистка зависших матчей в рулетке (Heartbeat Cleanup)
     // Если пользователь был в матче, но его updated_at старый — значит он закрыл вкладку/умер интернет
-    $staleMatches = Matchmaking::where('updated_at', '<', now()->subSeconds(45))
+    $staleMatches = Matchmaking::where('updated_at', '<', now()->subSeconds(90))
         ->get();
 
     foreach ($staleMatches as $match) {

@@ -15,17 +15,18 @@ class RewardUserXP extends Command
     protected $description = 'Начисляет XP только активным пользователям в чате';
 
 
-    public function handle()
-    {
-        // Ищем только тех, кто в статусе Matched (активно общается)
-        $matches = Matchmaking::where('status', MatchmakingStatus::Matched)->get();
+public function handle()
+{
+    $matches = Matchmaking::where('status', MatchmakingStatus::Matched)->get();
 
-        foreach ($matches as $match) {
-            $user = $match->user;
-            if (!$user || !$user->isOnline()) continue;
+    foreach ($matches as $match) {
+        $user = $match->user;
+        if (!$user || !$user->isOnline()) continue;
 
-            // 1. Опыт за общение
-            $user->increment('xp', 15);
+        // Обновляем метку времени матча, чтобы cleanup его не удалил
+        $match->touch(); 
+
+        $user->increment('xp', 15);
             $user->increment('total_minutes', 1); // Время в рулетке
 
             // 2. Начисление кармы (Бонус за адекватность)

@@ -39,8 +39,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
     })->name('leaderboard');
 
     // Пульс (Heartbeat) для обновления статуса last_seen
-    Route::post('/ping', function () { 
-        return response()->json(['status' => 'pong']); 
+    Route::post('/ping', function () {
+        if (Auth::check()) {
+            // Продлеваем жизнь записи в очереди/матче при каждом пинге
+            \App\Models\Matchmaking::where('user_id', Auth::id())->update([
+                'updated_at' => now()
+            ]);
+        }
+        return response()->json(['status' => 'pong']);
     })->name('ping');
 
     // ЖАЛОБЫ И БЛОКИРОВКИ

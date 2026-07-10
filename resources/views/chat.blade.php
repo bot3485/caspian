@@ -118,6 +118,7 @@
                         <button @click="toggleMic()" :class="micEnabled ? 'bg-white/5 text-white' : 'bg-red-600 text-white'" class="w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center transition-all">🎤</button>
                         <button @click="toggleCam()" :class="camEnabled ? 'bg-white/5 text-white' : 'bg-red-600 text-white'" class="w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center transition-all">📷</button>
                         <button @click="isBlurred = !isBlurred" :class="isBlurred ? 'bg-indigo-600' : 'bg-white/5'" class="w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center transition-all">🙈</button>
+                        <button @click="getDevices()" class="w-10 h-10 md:w-12 md:h-12 bg-white/5 text-white rounded-xl flex items-center justify-center transition-all hover:bg-white/20">⚙️</button>
                         
                         <template x-if="state === 'connected'">
                             <div class="flex items-center gap-2">
@@ -156,7 +157,6 @@
             <div :class="mobileSidebarOpen ? 'translate-y-0' : 'translate-y-full lg:translate-y-0'" 
                  class="fixed inset-0 z-[150] lg:relative lg:inset-auto w-full lg:w-[400px] flex flex-col bg-[#080808] border-l border-white/5 transition-transform duration-500 ease-[cubic-bezier(0.23,1,0.32,1)] pb-24 lg:pb-0">
                 
-                <!-- ШАПКА SIDEBAR (ТОЛЬКО МОБИЛЬНАЯ) -->
                 <div class="lg:hidden flex items-center justify-between p-6 bg-[#0a0a0a] border-b border-white/5">
                     <div class="flex flex-col">
                         <span class="font-black uppercase text-[10px] tracking-widest text-indigo-400">Caspian Chat</span>
@@ -246,6 +246,50 @@
                 </div>
             </div>
         </div>
+
+        <!-- МОДАЛКА ВЫБОРА УСТРОЙСТВ -->
+        <div x-show="showDeviceModal" x-cloak 
+             class="fixed inset-0 z-[300] flex items-center justify-center p-6 bg-black/80 backdrop-blur-md"
+             x-transition>
+            <div class="bg-[#0f0f0f] border border-white/10 w-full max-w-sm rounded-[2.5rem] p-8 shadow-2xl" @click.away="showDeviceModal = false">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="text-lg font-black uppercase italic tracking-tighter">Настройки медиа</h3>
+                    <button @click="showDeviceModal = false" class="text-gray-500 text-xl">&times;</button>
+                </div>
+
+                <div class="space-y-6">
+                    <!-- Камера -->
+                    <div>
+                        <label class="text-[9px] font-black uppercase text-gray-500 tracking-widest mb-2 block ml-1">Камера</label>
+                        <div class="max-h-40 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
+                            <template x-for="d in devices.filter(x => x.kind === 'videoinput')">
+                                <button @click="switchDevice('video', d.deviceId)" 
+                                        :class="selectedCam === d.deviceId ? 'border-indigo-500 bg-indigo-500/10 text-white' : 'border-white/5 bg-white/5 text-gray-400'"
+                                        class="w-full text-left px-4 py-3 rounded-xl border text-[11px] font-bold transition-all truncate" 
+                                        x-text="d.label || 'Камера ' + d.deviceId.slice(0,5)"></button>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- Микрофон -->
+                    <div>
+                        <label class="text-[9px] font-black uppercase text-gray-500 tracking-widest mb-2 block ml-1">Микрофон</label>
+                        <div class="max-h-40 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
+                            <template x-for="d in devices.filter(x => x.kind === 'audioinput')">
+                                <button @click="switchDevice('audio', d.deviceId)" 
+                                        :class="selectedMic === d.deviceId ? 'border-indigo-500 bg-indigo-500/10 text-white' : 'border-white/5 bg-white/5 text-gray-400'"
+                                        class="w-full text-left px-4 py-3 rounded-xl border text-[11px] font-bold transition-all truncate" 
+                                        x-text="d.label || 'Микрофон ' + d.deviceId.slice(0,5)"></button>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+
+                <button @click="showDeviceModal = false" class="w-full mt-8 bg-indigo-600 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl active:scale-95 transition-all">
+                    Готово
+                </button>
+            </div>
+        </div>
     </div>
 
 <script>
@@ -259,6 +303,9 @@ window.videoChatApp = function(myId, myInterests) {
         pc: null, localStream: null, onlineList: [], friendsList: [], historyList: [], blockedList: [],
         micEnabled: true, camEnabled: true, isBlurred: false, showSelfVideo: true,
         messages: [], chatInput: '', ping: 0, statsInterval: null, heartbeatInterval: null,
+        
+        // УСТРОЙСТВА
+        showDeviceModal: false, devices: [], selectedCam: '', selectedMic: '',
         
         // ФИЧИ
         xpPopups: [], matchInterests: [], showIceBreaker: false, myInterests: myInterests,
@@ -275,7 +322,56 @@ window.videoChatApp = function(myId, myInterests) {
             
             await this.initMedia();
             this.loadFriends(); this.loadHistory(); this.loadBlocked();
-            this.heartbeatInterval = setInterval(() => { if (this.state !== 'idle') window.axios.post('/ping').catch(()=>{}); }, 15000);
+            
+            // ПИНГ: Обновляет активность в БД, чтобы планировщик не удалял сессию
+            this.heartbeatInterval = setInterval(() => { 
+                if (this.state !== 'idle') window.axios.post('/ping').catch(()=>{}); 
+            }, 15000);
+        },
+
+        async getDevices() {
+            try {
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                this.devices = devices.filter(d => d.kind === 'videoinput' || d.kind === 'audioinput');
+                if (this.localStream) {
+                    this.selectedCam = this.localStream.getVideoTracks()[0]?.getSettings().deviceId;
+                    this.selectedMic = this.localStream.getAudioTracks()[0]?.getSettings().deviceId;
+                }
+                this.showDeviceModal = true;
+            } catch (e) { console.error("Ошибка при получении устройств:", e); }
+        },
+
+        async switchDevice(kind, deviceId) {
+            try {
+                const constraints = {
+                    video: kind === 'video' ? { deviceId: { exact: deviceId } } : (this.camEnabled ? { deviceId: this.selectedCam } : false),
+                    audio: kind === 'audio' ? { deviceId: { exact: deviceId } } : (this.micEnabled ? { deviceId: this.selectedMic } : false)
+                };
+                const newStream = await navigator.mediaDevices.getUserMedia(constraints);
+                if (kind === 'video') {
+                    const oldTrack = this.localStream.getVideoTracks()[0];
+                    const newTrack = newStream.getVideoTracks()[0];
+                    this.localStream.removeTrack(oldTrack);
+                    this.localStream.addTrack(newTrack);
+                    if (this.pc) {
+                        const sender = this.pc.getSenders().find(s => s.track.kind === 'video');
+                        if (sender) sender.replaceTrack(newTrack);
+                    }
+                    this.selectedCam = deviceId;
+                } else {
+                    const oldTrack = this.localStream.getAudioTracks()[0];
+                    const newTrack = newStream.getAudioTracks()[0];
+                    this.localStream.removeTrack(oldTrack);
+                    this.localStream.addTrack(newTrack);
+                    if (this.pc) {
+                        const sender = this.pc.getSenders().find(s => s.track.kind === 'audio');
+                        if (sender) sender.replaceTrack(newTrack);
+                    }
+                    this.selectedMic = deviceId;
+                }
+                this.$refs.localVideo.srcObject = this.localStream;
+                window.dispatchEvent(new CustomEvent('toast', {detail:{msg:'Устройство изменено', type:'success'}}));
+            } catch (e) { window.dispatchEvent(new CustomEvent('toast', {detail:{msg:'Ошибка переключения', type:'error'}})); }
         },
 
         handleSwipe(e) {
@@ -302,14 +398,12 @@ window.videoChatApp = function(myId, myInterests) {
         async handleSignal(e) {
             const msg = e.data; const senderId = Number(msg.from);
             if (msg.type === 'user-state-changed' && senderId === this.partnerId) { this.handlePartnerState(msg.state); return; }
-            
             if (msg.type === 'typing' && senderId === this.partnerId) {
                 this.isPartnerTyping = true;
                 clearTimeout(this.typingTimeout);
                 this.typingTimeout = setTimeout(() => { this.isPartnerTyping = false; }, 3000);
                 return;
             }
-
             if (['peer-skipped', 'hang-up', 'peer-disconnected'].includes(msg.type)) { 
                 this.reset(); if(msg.type === 'peer-skipped') this.startSearch(); return; 
             }
@@ -330,7 +424,7 @@ window.videoChatApp = function(myId, myInterests) {
                     this.messages.push({isMe:false, text: msg.text}); 
                     this.isPartnerTyping = false; 
                     this.scrollChat(); 
-                    this.msgSound.play().catch(()=>{}); // ВОСПРОИЗВЕДЕНИЕ ЗВУКА
+                    this.msgSound.play().catch(()=>{});
                 }
             } catch(err) { console.error("Signal Error:", err); }
         },
@@ -401,4 +495,10 @@ window.videoChatApp = function(myId, myInterests) {
     }
 };
 </script>
+
+<style>
+    .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(99,102,241,0.5); border-radius: 10px; }
+</style>
 </x-app-layout>

@@ -15,29 +15,19 @@
     
     <style>
         [x-cloak] { display: none !important; }
-        .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
-        
         :root { --app-height: 100vh; }
+        html, body { 
+            height: var(--app-height);
+            overflow: hidden; /* Запрещаем скролл всему телу, скроллить будем внутри компонентов */
+            background: #050505;
+        }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(99, 102, 241, 0.3); border-radius: 10px; }
         
-        html {
-            background: #050505;
-            height: -webkit-fill-available;
-        }
-
-        body { 
-            min-height: 100vh;
-            min-height: -webkit-fill-available;
-            /* Разрешаем скролл по умолчанию */
-            overflow-y: auto; 
-            overflow-x: hidden;
-            background: #050505;
-            color: white;
-            -webkit-font-smoothing: antialiased;
-        }
-
-        /* Убираем полосу прокрутки, но оставляем функционал */
-        .no-scrollbar::-webkit-scrollbar { display: none; }
-        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        /* Анимация появления Bottom Sheet */
+        .bottom-sheet-enter { transform: translateY(100%); }
+        .bottom-sheet-enter-active { transform: translateY(0); transition: transform 0.4s cubic-bezier(0.23, 1, 0.32, 1); }
     </style>
     <script>
         const appHeight = () => document.documentElement.style.setProperty('--app-height', `${window.innerHeight}px`);

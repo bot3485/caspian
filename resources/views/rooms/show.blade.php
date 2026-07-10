@@ -17,7 +17,7 @@
         </div>
 
         <!-- GRID ВИДЕО -->
-        <div class="flex-1 p-8 grid gap-6 items-center justify-center auto-rows-fr overflow-y-auto scrollbar-hide" :style="gridStyle">
+        <div class="flex-1 p-8 grid gap-6 items-center justify-center auto-rows-fr overflow-y-auto custom-scrollbar" :style="gridStyle">
             <!-- МОЕ ВИДЕО -->
             <div class="relative aspect-video bg-[#080808] rounded-[2.5rem] overflow-hidden border border-white/5 shadow-2xl">
                 <video x-ref="localVideo" autoplay muted playsinline class="w-full h-full object-cover" :class="!isScreenSharing && 'scale-x-[-1]'"></video>
@@ -41,33 +41,25 @@
             </template>
         </div>
 
-        <!-- УПРАВЛЕНИЕ: Floating Island -->
+        <!-- УПРАВЛЕНИЕ -->
         <div class="absolute bottom-8 left-1/2 -translate-x-1/2 z-[100]" x-data="{ controlsOpen: true }">
-            <div class="flex items-center gap-2 p-2 bg-[#121212]/95 backdrop-blur-3xl border border-white/10 rounded-full shadow-[0_10px_40px_rgba(0,0,0,0.8)] transition-all duration-300">
-                
-                <button @click="controlsOpen = !controlsOpen" 
-                        class="w-12 h-12 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-lg text-gray-300 transition-transform"
-                        :class="controlsOpen ? 'rotate-180 bg-white/10' : ''">
-                    <span x-text="controlsOpen ? '▼' : '⚡'"></span>
+            <div class="flex items-center gap-2 p-2 bg-[#121212]/95 backdrop-blur-3xl border border-white/10 rounded-full shadow-2xl">
+                <button @click="controlsOpen = !controlsOpen" class="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center transition-all">
+                    <span class="text-xs" x-text="controlsOpen ? '▼' : '⚡'"></span>
                 </button>
 
                 <div x-show="controlsOpen" x-transition class="flex items-center gap-2 pr-2">
-                    <button @click="toggleMic()" :class="micEnabled ? 'bg-white/5 hover:bg-white/10' : 'bg-red-600'" class="w-12 h-12 rounded-full flex items-center justify-center text-lg transition-colors">
+                    <button @click="toggleMic()" :class="micEnabled ? 'bg-white/5' : 'bg-red-600'" class="w-12 h-12 rounded-full flex items-center justify-center text-lg transition-colors">
                         <span x-text="micEnabled ? '🎤' : '🔇'"></span>
                     </button>
-                    <button @click="toggleCam()" :class="camEnabled ? 'bg-white/5 hover:bg-white/10' : 'bg-red-600'" class="w-12 h-12 rounded-full flex items-center justify-center text-lg transition-colors">
+                    <button @click="toggleCam()" :class="camEnabled ? 'bg-white/5' : 'bg-red-600'" class="w-12 h-12 rounded-full flex items-center justify-center text-lg transition-colors">
                         <span x-text="camEnabled ? '📷' : '🚫'"></span>
                     </button>
-                    <button @click="toggleScreenShare()" :class="isScreenSharing ? 'bg-indigo-600 shadow-[0_0_15px_rgba(79,70,229,0.5)]' : 'bg-white/5 hover:bg-white/10'" class="w-12 h-12 rounded-full flex items-center justify-center text-lg transition-all">
+                    <button @click="toggleScreenShare()" :class="isScreenSharing ? 'bg-indigo-600 shadow-lg' : 'bg-white/5'" class="w-12 h-12 rounded-full flex items-center justify-center text-lg transition-all">
                         <span>📺</span>
                     </button>
-
                     <div class="w-px h-6 bg-white/10 mx-1"></div>
-
-                    <a href="{{ route('rooms.index') }}" 
-                       class="bg-red-600 hover:bg-red-700 text-white px-8 py-3.5 rounded-full font-black text-[10px] uppercase tracking-widest transition-all shadow-lg">
-                       Выйти
-                    </a>
+                    <a href="{{ route('rooms.index') }}" class="bg-red-600 text-white px-8 py-3.5 rounded-full font-black text-[10px] uppercase tracking-widest transition-all">Выйти</a>
                 </div>
             </div>
         </div>
@@ -91,10 +83,12 @@
                     return `grid-template-columns: repeat(${cols}, minmax(280px, 1fr))`;
                 },
 
-// Внутри groupRoomComponent в init():
-
                 async init() {
-                    window.rtcConfig = { iceServers: @json(config('webrtc.ice_servers')), bundlePolicy: "max-bundle" };
+                    window.rtcConfig = { 
+                        iceServers: @json(config('webrtc.ice_servers')), 
+                        bundlePolicy: "balanced",
+                        iceCandidatePoolSize: 10
+                    };
                     await this.initMedia();
                     
                     const channel = window.Echo.join(`room.${roomUuid}`);
@@ -105,18 +99,11 @@
                     };
 
                     channel.here(users => {
-                        // Мгновенная синхронизация при входе
                         sync(users.length);
                         users.forEach(u => { if (u.id !== myId) this.initiateConnection(u.id, u.name, myId > u.id); });
-                        
-                        // Запускаем "ПУЛЬС": каждые 15 секунд подтверждаем количество людей
                         if(this.pulseTimer) clearInterval(this.pulseTimer);
-                        this.pulseTimer = setInterval(() => {
-                            // Мы берем количество peers + 1 (мы сами)
-                            sync(this.peers.length + 1);
-                        }, 15000);
+                        this.pulseTimer = setInterval(() => { sync(this.peers.length + 1); }, 15000);
                     }).joining(u => {
-                        window.dispatchEvent(new CustomEvent('toast', {detail:{msg: u.name + ' вошел', type:'info'}}));
                         this.initiateConnection(u.id, u.name, myId > u.id);
                         sync(this.peers.length + 1);
                     }).leaving(u => {
@@ -129,41 +116,16 @@
                     });
                 },
 
+                normalizeSdp(sdp) {
+                    if (typeof sdp !== 'string') return sdp;
+                    return sdp.split('\n').map(line => line.trim()).filter(l => l.length > 0).join('\r\n') + '\r\n';
+                },
+
                 async initMedia() {
                     try {
                         this.localStream = await navigator.mediaDevices.getUserMedia({video:true, audio:true});
                         this.$refs.localVideo.srcObject = this.localStream;
-                    } catch(e) { console.error("Media error:", e); }
-                },
-
-                async toggleScreenShare() {
-                    if (this.isScreenSharing) {
-                        this.stopScreenShare();
-                    } else {
-                        try {
-                            this.screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-                            this.isScreenSharing = true;
-                            const screenTrack = this.screenStream.getVideoTracks()[0];
-                            this.replaceVideoTrack(screenTrack);
-                            this.$refs.localVideo.srcObject = this.screenStream;
-                            screenTrack.onended = () => this.stopScreenShare();
-                        } catch (e) { console.error("Screen fail:", e); }
-                    }
-                },
-
-                stopScreenShare() {
-                    if (!this.isScreenSharing) return;
-                    this.screenStream.getTracks().forEach(t => t.stop());
-                    this.isScreenSharing = false;
-                    this.replaceVideoTrack(this.localStream.getVideoTracks()[0]);
-                    this.$refs.localVideo.srcObject = this.localStream;
-                },
-
-                replaceVideoTrack(newTrack) {
-                    this.peers.forEach(peer => {
-                        const sender = peer.pc.getSenders().find(s => s.track && s.track.kind === 'video');
-                        if (sender) sender.replaceTrack(newTrack);
-                    });
+                    } catch(e) { console.error(e); }
                 },
 
                 initiateConnection(partnerId, partnerName, isInitiator) {
@@ -174,65 +136,55 @@
                     this.peers.push(peerObj);
 
                     const stream = this.isScreenSharing ? this.screenStream : this.localStream;
-                    if (stream) {
-                        stream.getTracks().forEach(t => pc.addTrack(t, stream));
-                    }
+                    if (stream) stream.getTracks().forEach(t => pc.addTrack(t, stream));
 
                     pc.onicecandidate = e => { 
                         if (e.candidate) this.sendSignal(partnerId, { type: 'ice', candidate: e.candidate }); 
                     };
                     
                     pc.ontrack = e => { 
-                        console.log("Got track from", partnerId);
                         this.$nextTick(() => { 
                             const v = document.getElementById('video-' + partnerId); 
-                            if (v) v.srcObject = e.streams[0]; 
+                            if (v) {
+                                v.srcObject = e.streams[0];
+                                v.onloadedmetadata = () => v.play().catch(err => console.warn(err));
+                            }
                         }); 
                     };
 
                     if (isInitiator) {
                         pc.createOffer().then(o => { 
                             pc.setLocalDescription(o); 
-                            this.sendSignal(partnerId, { type: 'offer', sdp: o }); 
+                            this.sendSignal(partnerId, { type: 'offer', sdp: o.sdp }); 
                         });
                     }
                 },
 
-                sanitizeSdp(sdp) {
-                    if (typeof sdp !== 'string') return sdp;
-                    return sdp.split('\n')
-                            .map(line => line.trim())
-                            .filter(line => line.length > 0)
-                            .join('\r\n') + '\r\n';
-                },
-
                 async handleSignal(data) {
                     let peer = this.peers.find(p => p.id === data.from);
-                    
                     if (!peer && data.type === 'offer') {
                         this.initiateConnection(data.from, 'User', false);
                         peer = this.peers.find(p => p.id === data.from);
                     }
-                    
                     if (!peer) return;
 
                     try {
                         if (data.type === 'offer' || data.type === 'answer') {
-                            const sanitizedSdp = this.sanitizeSdp(data.sdp.sdp);
-                            
+                            const rawSdp = typeof data.sdp === 'string' ? data.sdp : data.sdp.sdp;
                             await peer.pc.setRemoteDescription(new RTCSessionDescription({
                                 type: data.type,
-                                sdp: sanitizedSdp
+                                sdp: this.normalizeSdp(rawSdp)
                             }));
 
                             if (data.type === 'offer') {
                                 const answer = await peer.pc.createAnswer();
                                 await peer.pc.setLocalDescription(answer);
-                                this.sendSignal(data.from, { 
-                                    type: 'answer', 
-                                    sdp: answer
-                                });
-                                this.drainIce(peer);
+                                this.sendSignal(data.from, { type: 'answer', sdp: answer.sdp });
+                            }
+                            
+                            // Выливаем ICE кандидаты
+                            while(peer.iceQueue.length > 0) {
+                                await peer.pc.addIceCandidate(new RTCIceCandidate(peer.iceQueue.shift())).catch(()=>{});
                             }
                         } else if (data.type === 'ice') {
                             if (peer.pc.remoteDescription && peer.pc.remoteDescription.type) {
@@ -241,15 +193,7 @@
                                 peer.iceQueue.push(data.candidate);
                             }
                         }
-                    } catch(e) { 
-                        console.error("WebRTC Signal Error:", e); 
-                    }
-                },
-
-                drainIce(peer) { 
-                    while(peer.iceQueue.length > 0) {
-                        peer.pc.addIceCandidate(new RTCIceCandidate(peer.iceQueue.shift())).catch(()=>{});
-                    }
+                    } catch(e) { console.error("Ошибка в Spaces WebRTC:", e); }
                 },
 
                 sendSignal(to, payload) { 
@@ -261,10 +205,7 @@
 
                 removePeer(id) { 
                     const p = this.peers.find(x => x.id === id); 
-                    if(p) { 
-                        p.pc.close(); 
-                        this.peers = this.peers.filter(x => x.id !== id); 
-                    }
+                    if(p) { p.pc.close(); this.peers = this.peers.filter(x => x.id !== id); }
                 },
 
                 toggleMic() { 
@@ -275,6 +216,29 @@
                     this.camEnabled = !this.camEnabled; 
                     if(this.localStream) this.localStream.getVideoTracks()[0].enabled = this.camEnabled; 
                 },
+                async toggleScreenShare() {
+                    if (this.isScreenSharing) {
+                        this.isScreenSharing = false;
+                        this.screenStream.getTracks().forEach(t => t.stop());
+                        this.replaceVideoTrack(this.localStream.getVideoTracks()[0]);
+                        this.$refs.localVideo.srcObject = this.localStream;
+                    } else {
+                        try {
+                            this.screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+                            this.isScreenSharing = true;
+                            const screenTrack = this.screenStream.getVideoTracks()[0];
+                            this.replaceVideoTrack(screenTrack);
+                            this.$refs.localVideo.srcObject = this.screenStream;
+                            screenTrack.onended = () => this.toggleScreenShare();
+                        } catch (e) {}
+                    }
+                },
+                replaceVideoTrack(newTrack) {
+                    this.peers.forEach(peer => {
+                        const sender = peer.pc.getSenders().find(s => s.track && s.track.kind === 'video');
+                        if (sender) sender.replaceTrack(newTrack);
+                    });
+                },
                 copyLink() { 
                     navigator.clipboard.writeText(window.location.href); 
                     window.dispatchEvent(new CustomEvent('toast', {detail:{msg:'Ссылка скопирована', type:'success'}})); 
@@ -282,9 +246,4 @@
             }
         }
     </script>
-
-    <style>
-        .scrollbar-hide::-webkit-scrollbar { display: none; }
-        video { background: #000; border-radius: 2.5rem; transition: all 0.3s ease; }
-    </style>
 </x-app-layout>

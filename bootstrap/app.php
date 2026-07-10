@@ -20,8 +20,15 @@ return Application::configure(basePath: dirname(__DIR__))
         \App\Http\Middleware\UpdateLastSeen::class,
     ]);
     })
-    ->withExceptions(function (Exceptions $exceptions) {
-        $exceptions->shouldRenderJsonWhen(
-            fn (Request $request) => $request->is('api/*') || $request->expectsJson()
-        );
+->withExceptions(function (Exceptions $exceptions) {
+    // Игнорируем это тупое уведомление PHP 8.5 про временную папку
+    $exceptions->reportable(function (\ErrorException $e) {
+        if (str_contains($e->getMessage(), 'tempnam()')) {
+            return false; 
+        }
+    });
+
+    $exceptions->shouldRenderJsonWhen(
+        fn (Request $request) => $request->is('api/*') || $request->expectsJson()
+    );
     })->create();

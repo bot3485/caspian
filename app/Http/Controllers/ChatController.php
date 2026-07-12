@@ -80,7 +80,7 @@ class ChatController extends Controller
             ['status' => MatchmakingStatus::Matched, 'partner_id' => $receiverId, 'updated_at' => now()]
         );
         
-        Redis::setex("allow_signal:{$senderId}:{$receiverId}", 300, "1");
+        Redis::setex("allow_signal:{$senderId}:{$receiverId}", 3600, "1");
         Redis::setex("allow_signal:{$receiverId}:{$senderId}", 300, "1");
         
         broadcast(new WebRTCSignalEvent($receiverId, [
@@ -189,9 +189,8 @@ public function getInteractionHistory(): JsonResponse
 {
     $userId = Auth::id();
 
-    // Получаем последние уникальные взаимодействия
     $history = DB::table('interactions')
-        ->where('user_id', $userId)
+        ->where('interactions.user_id', $userId)
         ->join('users', 'interactions.partner_id', '=', 'users.id')
         ->select(
             'users.id', 
@@ -205,10 +204,15 @@ public function getInteractionHistory(): JsonResponse
         ->map(function($record) use ($userId) {
             $u = User::find($record->id);
             
-            // Проверяем, не заблокирован ли он нами
             $isBlocked = DB::table('blocks')
                 ->where('blocker_id', $userId)
                 ->where('blocked_id', $record->id)
+                ->exists();
+
+            // ПРОВЕРКА: является ли этот пользователь уже другом
+            $isFriend = DB::table('contacts')
+                ->where('user_id', $userId)
+                ->where('contact_id', $record->id)
                 ->exists();
 
             return [
@@ -218,7 +222,7 @@ public function getInteractionHistory(): JsonResponse
                 'last_seen_human' => $u ? $u->getLastSeenForHumans() : 'Давно',
                 'last_met_diff' => \Carbon\Carbon::parse($record->last_at)->diffForHumans(),
                 'is_blocked' => $isBlocked,
-                // Для того чтобы Alpine понимал, что это данные пользователя
+                'is_friend' => $isFriend, // Добавляем этот флаг
                 'level' => $u->level ?? 1,
                 'rank_name' => $u->rank_name ?? 'Newbie'
             ];

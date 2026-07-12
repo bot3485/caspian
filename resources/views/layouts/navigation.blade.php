@@ -1,8 +1,7 @@
-<nav x-data="{ open: false }" class="sticky top-0 z-[300] bg-black/40 backdrop-blur-2xl border-b border-white/5">
+<nav class="sticky top-0 z-[300] bg-black/40 backdrop-blur-2xl border-b border-white/5">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex justify-between h-20 items-center">
             
-            <!-- Левая часть остается прежней -->
             <div class="flex items-center gap-8">
                 <a href="{{ route('dashboard') }}" class="group flex items-center gap-3">
                     <div class="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-[0_0_15px_rgba(79,70,229,0.4)]">
@@ -17,17 +16,25 @@
                 </div>
             </div>
 
-            <!-- Правая часть -->
-            <div class="flex items-center gap-4">
-                <!-- Глобальный онлайн (виден и на мобилках) -->
+           <div class="flex items-center gap-2 sm:gap-4">
+                <!-- Глобальный онлайн -->
                 <div class="flex items-center gap-2 px-3 py-1.5 bg-green-500/5 border border-green-500/10 rounded-xl"
                     x-data="{ globalOnline: 0 }" 
                     x-init="window.Echo.join('online-status').here(u => globalOnline = u.length).joining(u => globalOnline++).leaving(u => globalOnline--)">
                     <div class="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse shadow-[0_0_8px_#22c55e]"></div>
-                    <span class="text-[9px] font-black text-white leading-none uppercase" x-text="globalOnline"></span> <span class="text-[9px] font-black text-white leading-none uppercase" >online</span>
+                    <span class="text-[9px] font-black text-white leading-none uppercase" x-text="globalOnline"></span>
+                    <span class="text-[9px] font-black text-white leading-none uppercase hidden xs:inline">online</span>
                 </div>
 
-                <!-- Десктопное меню профиля -->
+                <!-- Кнопка Глобального Мессенджера (Теперь видна везде: и на мобилках, и на десктопе) -->
+                <button @click="globalSidebarOpen = !globalSidebarOpen" 
+                        class="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center hover:bg-indigo-600/20 hover:border-indigo-500/50 transition-all group relative">
+                    <span class="text-lg sm:text-xl group-hover:scale-110 transition-transform">💬</span>
+                    <!-- Индикатор печати -->
+                    <div x-show="isPartnerTyping" class="absolute -top-1 -right-1 w-3 h-3 bg-indigo-500 rounded-full animate-ping"></div>
+                </button>
+
+                <!-- Десктопное меню профиля (Скрыто на телефонах, так как там есть нижнее меню) -->
                 <div class="hidden sm:block">
                     <x-dropdown align="right" width="64">
                         <x-slot name="trigger">

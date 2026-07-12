@@ -34,14 +34,13 @@ class ProfileController extends Controller
             $user->email_verified_at = null;
         }
 
-        // Обработка интересов
+        // Четкая обработка интересов: из строки "Теннис, Код" в массив ["Теннис", "Код"]
         $raw = $request->input('interests_string', '');
         if (!empty(trim($raw))) {
-            // Очищаем от пробелов и пустых элементов
             $tags = array_filter(array_map('trim', explode(',', $raw)));
             $user->interests = array_values($tags);
         } else {
-            $user->interests = []; // Всегда массив
+            $user->interests = [];
         }
 
         $user->save();

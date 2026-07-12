@@ -34,13 +34,13 @@
             <div class="flex items-center gap-3">
                 <div class="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center animate-pulse font-black" x-text="incomingCall?.fromName ? incomingCall.fromName[0] : '?'"></div>
                 <div>
-                    <p class="text-[8px] font-black text-indigo-400 uppercase tracking-widest">Calling...</p>
+                    <p class="text-[8px] font-black text-indigo-400 uppercase tracking-widest">Incoming Call</p>
                     <p class="text-sm font-black uppercase" x-text="incomingCall?.fromName"></p>
                 </div>
             </div>
             <div class="flex gap-2">
-                <button @click="rejectCall()" class="w-10 h-10 bg-red-600 rounded-full flex items-center justify-center">✕</button>
-                <button @click="acceptCall()" class="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center">📞</button>
+                <button @click="rejectCall()" class="w-10 h-10 bg-red-600 rounded-full flex items-center justify-center shadow-lg shadow-red-600/20">✕</button>
+                <button @click="acceptCall()" class="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center shadow-lg shadow-green-500/20">📞</button>
             </div>
         </div>
     </div>
@@ -95,14 +95,16 @@ window.caspianApp = function(myId, myInterests, iceServers) {
         lastTypingSent: 0, signalQueue: [], iceQueue: [], isProcessingSignal: false,
         audioUnlocked: false, remoteStreamSet: false, isPartnerTyping: false, typingPartnerName: '',
         isHandlingMatch: false, offlineTimer: null, heartbeatTimer: null,
+        makingOffer: false, isCalling: false, isPersonalCall: false,
         rtcConfig: { iceServers: iceServers, bundlePolicy: "balanced", iceCandidatePoolSize: 10 },
 
         async init() {
             const self = this;
             this.ringtone.loop = true;
+            
             window.Echo.private(`user.${myId}`)
                 .listen('.MatchFoundEvent', (e) => {
-                    if (self.isHandlingMatch || (self.partnerId === Number(e.partnerData.id) && self.state === 'connected')) return;
+                    if (self.isPersonalCall || self.isHandlingMatch) return;
                     self.handleMatch(e);
                 })
                 .listen('.WebRTCSignalEvent', (e) => self.handleSignal(e))
@@ -119,13 +121,40 @@ window.caspianApp = function(myId, myInterests, iceServers) {
             if (window.location.pathname === '/chat') {
                 await this.initMedia();
                 const urlParams = new URLSearchParams(window.location.search);
+                
                 if (urlParams.has('accept_call')) {
                     const fId = parseInt(urlParams.get('accept_call'));
-                    this.partnerId = fId; this.state = 'connected';
+                    window.history.replaceState({}, document.title, window.location.pathname);
+                    this.isPersonalCall = true;
+                    this.partnerId = fId; 
+                    this.state = 'connected';
                     window.axios.get(`/chat/user-info/${fId}`).then(res => { 
                         self.partnerData = res.data; 
+                        self.isFriend = true; // При звонке другу он точно друг
                         self.openFriendChat(res.data);
-                        setTimeout(() => { self.signal({ type: 'call-accepted' }); }, 1000);
+                        setTimeout(() => { self.signal({ type: 'call-accepted' }); }, 1500);
+                    });
+                }
+                
+                if (urlParams.has('call_to') && !this.isCalling) {
+                    const fId = parseInt(urlParams.get('call_to'));
+                    window.history.replaceState({}, document.title, window.location.pathname);
+                    this.isPersonalCall = true;
+                    this.isCalling = true;
+                    this.partnerId = fId;
+                    window.axios.get(`/chat/user-info/${fId}`).then(res => {
+                        self.partnerData = res.data;
+                        self.isFriend = true;
+                        self.openFriendChat(res.data);
+                        window.axios.post('/chat/contact/call', { contactId: fId }).then(r => {
+                            if (r.data.status === 'busy') {
+                                window.dispatchEvent(new CustomEvent('toast', {detail: {msg: 'User Busy'}}));
+                                self.reset();
+                            } else {
+                                self.state = 'connected';
+                            }
+                            self.isCalling = false;
+                        }).catch(() => { self.isCalling = false; });
                     });
                 }
             }
@@ -133,7 +162,6 @@ window.caspianApp = function(myId, myInterests, iceServers) {
             this.startStats();
         },
 
-        // --- HEARTBEAT: Чтобы Cron не удалял нас из базы ---
         startHeartbeat() {
             this.stopHeartbeat();
             this.heartbeatTimer = setInterval(() => {
@@ -142,9 +170,7 @@ window.caspianApp = function(myId, myInterests, iceServers) {
                 });
             }, 15000);
         },
-        stopHeartbeat() {
-            if (this.heartbeatTimer) { clearInterval(this.heartbeatTimer); this.heartbeatTimer = null; }
-        },
+        stopHeartbeat() { if (this.heartbeatTimer) { clearInterval(this.heartbeatTimer); this.heartbeatTimer = null; } },
 
         async initMedia() {
             try {
@@ -164,39 +190,31 @@ window.caspianApp = function(myId, myInterests, iceServers) {
         },
 
         acceptCall() { this.ringtone.pause(); window.location.href = '/chat?accept_call=' + this.incomingCall.fromId; },
-        rejectCall() {
-            if(this.incomingCall) this.signalTo(this.incomingCall.fromId, { type: 'hang-up' });
-            this.ringtone.pause(); this.incomingCall = null;
-        },
+        rejectCall() { if(this.incomingCall) this.signalTo(this.incomingCall.fromId, { type: 'hang-up' }); this.ringtone.pause(); this.incomingCall = null; },
 
         initPC() {
             if (this.pc) return;
             const self = this;
-            this.remoteStreamSet = false;
             this.pc = new RTCPeerConnection(this.rtcConfig);
             this.pc.onicecandidate = (e) => { if (e.candidate) self.signal({ type: 'ice', candidate: e.candidate }); };
             this.pc.ontrack = (e) => { 
                 const videoEl = self.$refs.remoteVideo;
-                if (videoEl && videoEl.srcObject !== e.streams[0]) {
+                if (videoEl) {
                     videoEl.srcObject = e.streams[0];
                     videoEl.muted = true;
-                    videoEl.play().then(() => {
-                        // Трюк для звука: un-mute после начала видео
-                        setTimeout(() => { if(videoEl) videoEl.muted = false; }, 1000);
-                    }).catch(() => {});
+                    videoEl.play().then(() => { setTimeout(() => { if(videoEl) videoEl.muted = false; }, 1000); }).catch(err => console.warn(err));
                 }
             };
             this.pc.oniceconnectionstatechange = () => {
                 if (!this.pc) return;
                 const s = this.pc.iceConnectionState;
-                if (s === 'connected' || s === 'completed') self.handlePartnerState('active');
-                else if (s === 'disconnected' || s === 'failed') {
-                    // ТЕРПЕЛИВЫЙ ДИСКОННЕКТ: ждем 10 сек перед тем как менять статус на offline
-                    setTimeout(() => {
-                        if (self.pc && (self.pc.iceConnectionState === 'disconnected' || self.pc.iceConnectionState === 'failed')) {
-                            self.handlePartnerState('offline');
-                        }
-                    }, 10000);
+                if (['connected', 'completed'].includes(s)) self.handlePartnerState('active');
+                if (['disconnected', 'failed'].includes(s)) {
+                    if (!this.isPersonalCall) {
+                        setTimeout(() => { if (self.pc && ['disconnected', 'failed'].includes(self.pc.iceConnectionState)) self.handlePartnerState('offline'); }, 10000);
+                    } else {
+                        self.handlePartnerState('connecting');
+                    }
                 }
             };
             if (this.localStream) this.localStream.getTracks().forEach(t => this.pc.addTrack(t, this.localStream));
@@ -204,12 +222,15 @@ window.caspianApp = function(myId, myInterests, iceServers) {
 
         async handleSignal(e) {
             const self = this;
-            const msg = e.data;
-            if (msg.type === 'incoming-call') { this.incomingCall = msg; if(this.audioUnlocked) this.ringtone.play().catch(()=>{}); return; }
-            if (['peer-disconnected', 'peer-skipped', 'hang-up'].includes(msg.type)) { this.reset(); this.incomingCall = null; this.ringtone.pause(); if(msg.type === 'peer-skipped') this.startSearch(); return; }
-            if (msg.type === 'user-state-changed') { this.partnerState = msg.state; return; }
-            if (msg.type === 'call-accepted') { this.state = 'connected'; this.initPC(); this.sendOffer(); return; }
-            if (!this.pc && ['offer', 'ice'].includes(msg.type)) this.initPC();
+            const m = e.data;
+            if (m.type === 'incoming-call') { this.incomingCall = m; if(this.audioUnlocked) this.ringtone.play().catch(()=>{}); return; }
+            if (['peer-disconnected', 'peer-skipped', 'hang-up'].includes(m.type)) { 
+                this.reset(); this.incomingCall = null; this.ringtone.pause(); 
+                if(m.type === 'peer-skipped' && !this.isPersonalCall) this.startSearch(); 
+                return; 
+            }
+            if (m.type === 'call-accepted') { this.state = 'connected'; this.initPC(); setTimeout(() => { self.sendOffer(); }, 1000); return; }
+            if (!this.pc && ['offer', 'ice'].includes(m.type)) this.initPC();
             if (!this.pc) return;
 
             this.signalQueue.push(e);
@@ -219,56 +240,46 @@ window.caspianApp = function(myId, myInterests, iceServers) {
             while (this.signalQueue.length > 0) {
                 const event = this.signalQueue.shift();
                 const m = event.data;
+                const cleanSdp = m.sdp ? this.normalizeSdp(m.sdp) : null;
                 try {
-                    const cleanSdp = m.sdp ? this.normalizeSdp(m.sdp) : null;
                     if (m.type === 'offer') {
-                        if (this.pc.signalingState !== "stable") await this.pc.setLocalDescription({type: "rollback"});
+                        if (this.pc.signalingState !== "stable") {
+                            if (myId < this.partnerId) continue;
+                            await this.pc.setLocalDescription({type: "rollback"});
+                        }
                         await this.pc.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp: cleanSdp }));
                         const answer = await this.pc.createAnswer();
                         await this.pc.setLocalDescription(answer);
-                        this.signal({ type: 'answer', sdp: answer.sdp });
+                        this.signal({ type: 'answer', sdp: this.pc.localDescription.sdp });
                     } else if (m.type === 'answer') {
                         if (this.pc.signalingState === "have-local-offer") await this.pc.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp: cleanSdp }));
                     } else if (m.type === 'ice' && m.candidate) {
                         if (this.pc.remoteDescription) await this.pc.addIceCandidate(new RTCIceCandidate(m.candidate)).catch(()=>{});
                         else this.iceQueue.push(m.candidate);
                     }
-                } catch(err) { console.warn("RTC Signal Error"); }
+                } catch(err) { if (err.name === 'InvalidAccessError') { this.reset(); if(!this.isPersonalCall) this.startSearch(); } }
             }
             this.isProcessingSignal = false;
         },
 
         async sendOffer() {
-            if(!this.pc || this.pc.signalingState !== "stable") return;
+            if (!this.pc || this.pc.signalingState !== "stable" || this.makingOffer) return;
             try {
+                this.makingOffer = true;
                 const offer = await this.pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
                 await this.pc.setLocalDescription(offer);
-                this.signal({ type: 'offer', sdp: offer.sdp });
-            } catch(e) {}
+                this.signal({ type: 'offer', sdp: this.pc.localDescription.sdp });
+            } catch (e) { console.warn("Offer skipped"); } finally { this.makingOffer = false; }
         },
 
         async handleMatch(e) {
+            if (this.isPersonalCall) return;
             const self = this;
-            this.isHandlingMatch = true;
-            this.reset();
+            this.isHandlingMatch = true; this.reset();
             this.partnerId = Number(e.partnerData.id); this.partnerData = e.partnerData; this.isFriend = !!e.isFriend; this.state = 'connected';
-            
-            this.startHeartbeat(); // Включаем пинг при матче
-
-            if (this.partnerData.interests && Array.isArray(this.partnerData.interests)) {
-                const common = myInterests.filter(v => self.partnerData.interests.includes(v));
-                if (common.length > 0) window.dispatchEvent(new CustomEvent('toast', {detail: {msg: `Match Interest: ${common[0]}!`}}));
-            }
-
-            this.initPC();
-            if (myId < this.partnerId) {
-                setTimeout(async () => {
-                    await self.sendOffer();
-                    self.isHandlingMatch = false;
-                }, 1200);
-            } else {
-                setTimeout(() => { self.isHandlingMatch = false; }, 1200);
-            }
+            this.startHeartbeat(); this.initPC();
+            if (myId < this.partnerId) { setTimeout(async () => { await self.sendOffer(); self.isHandlingMatch = false; }, 1000); } 
+            else { this.isHandlingMatch = false; }
         },
 
         signal(data) { this.signalTo(this.partnerId, data); },
@@ -276,129 +287,44 @@ window.caspianApp = function(myId, myInterests, iceServers) {
         
         reset() {
             this.stopHeartbeat();
-            if (this.pc) { 
-                this.pc.onicecandidate = null; this.pc.ontrack = null; 
-                this.pc.oniceconnectionstatechange = null; this.pc.close(); 
-                this.pc = null; 
-            }
+            if (this.pc) { this.pc.onicecandidate = null; this.pc.ontrack = null; this.pc.close(); this.pc = null; }
             this.partnerId = null; this.partnerData = null; this.state = 'idle'; this.messages = []; this.iceQueue = []; this.signalQueue = [];
-            this.remoteStreamSet = false; this.isHandlingMatch = false;
+            this.isPersonalCall = false; // Сбрасываем флаг персонального звонка
             if (this.$refs.remoteVideo) this.$refs.remoteVideo.srcObject = null;
             clearTimeout(this.offlineTimer);
         },
 
         handlePartnerState(s) { 
             this.partnerState = s; 
-            if (s === 'offline') {
+            if (s === 'offline' && this.state === 'connected' && !this.isPersonalCall) {
                 clearTimeout(this.offlineTimer);
-                this.offlineTimer = setTimeout(() => { 
-                    if (this.partnerState === 'offline' && this.state === 'connected') this.startSearch(); 
-                }, 15000);
-            } else { clearTimeout(this.offlineTimer); }
+                this.offlineTimer = setTimeout(() => { if (this.partnerState === 'offline') this.startSearch(); }, 15000);
+            }
         },
-        normalizeSdp(sdp) { if (!sdp) return ""; return sdp.trim().split('\n').map(l => l.trim()).filter(l => l.length > 0).join('\r\n') + '\r\n'; },
+
+        normalizeSdp(sdp) { if (!sdp) return ""; return sdp.trim().split('\n').map(l => l.trim()).join('\r\n') + '\r\n'; },
         async startSearch() { if (this.partnerId) this.signal({ type: 'peer-skipped' }); this.reset(); this.state = 'searching'; this.startHeartbeat(); await window.axios.post('/chat/search'); },
         stopSearch() { if (this.partnerId) this.signal({ type: 'hang-up' }); this.reset(); window.axios.post('/chat/leave'); },
         async openFriendChat(f) { this.tab = 'friends'; this.activeFriend = f; const res = await window.axios.get(`/chat/history/${f.id}`); this.friendMessages = res.data.messages; this.$nextTick(() => { if(this.$refs.friendChatBox) this.$refs.friendChatBox.scrollTop = this.$refs.friendChatBox.scrollHeight; }); },
         async sendMsg() { if (!this.chatInput.trim() || !this.partnerId) return; const t = this.chatInput; this.chatInput = ''; this.messages.push({isMe: true, text: t, timestamp: Date.now()}); window.axios.post('/chat/message/send', { receiver_id: this.partnerId, message: t }); this.scrollChat(); },
         async sendFriendMsg() { if (!this.friendChatInput.trim() || !this.activeFriend) return; const t = this.friendChatInput; this.friendChatInput = ''; const res = await window.axios.post('/chat/message/send', { receiver_id: this.activeFriend.id, message: t }); this.friendMessages.push(res.data.message); this.scrollFriendChat(); },
-        
-        handleIncomingMsg(e) { 
-            const m = e.messageData; 
-            if (this.state === 'connected' && m.sender_id === this.partnerId) { 
-                this.messages.push({isMe: false, text: m.message, timestamp: Date.now()}); 
-                this.scrollChat(); 
-            } 
-            if (this.activeFriend && m.sender_id === this.activeFriend.id) { 
-                this.friendMessages.push(m); 
-                this.scrollFriendChat(); 
-            } 
-            new Audio('/sounds/message.mp3').play().catch(()=>{}); 
-        },
-
-        // --- НОВЫЕ МЕТОДЫ (ИСПРАВЛЕНИЕ ОШИБОК) ---
-        sendTypingSignal() {
-            const now = Date.now();
-            if (now - this.lastTypingSent < 2000) return; // Throttling 2 сек
-            const rid = this.activeFriend ? this.activeFriend.id : this.partnerId;
-            if (rid) {
-                this.lastTypingSent = now;
-                window.axios.post('/chat/message/typing', { receiver_id: rid }).catch(() => {});
-            }
-        },
-
-        toggleContact() {
-            if (!this.partnerId) return;
-            window.axios.post('/chat/contact/add', { contactId: this.partnerId }).then(r => {
-                this.isFriend = r.data.isFriend;
-                this.loadFriends();
-                window.dispatchEvent(new CustomEvent('toast', {detail: {msg: r.data.action === 'added' ? 'Added to Friends' : 'Removed'}}));
-            });
-        },
-
-        reportPartner() {
-            if (!this.partnerId || !confirm('Report this user?')) return;
-            window.axios.post('/report', { reported_id: this.partnerId, reason: 'general' }).then(() => {
-                window.dispatchEvent(new CustomEvent('toast', {detail: {msg: 'Report Sent'}}));
-                this.startSearch();
-            });
-        },
-
-        callFriend(f) {
-            window.axios.post('/chat/contact/call', { contactId: f.id }).then(r => {
-                if (r.data.status === 'busy') {
-                    window.dispatchEvent(new CustomEvent('toast', {detail: {msg: 'User Busy'}}));
-                } else {
-                    window.dispatchEvent(new CustomEvent('toast', {detail: {msg: 'Calling...'}}));
-                }
-            });
-        },
-
-        unblock(id) {
-            window.axios.post('/chat/unblock', { blockedId: id }).then(() => {
-                this.loadBlocked();
-                this.loadHistory();
-                window.dispatchEvent(new CustomEvent('toast', {detail: {msg: 'Unblocked'}}));
-            });
-        },
-
-        // --- ЗАГРУЗКА ДАННЫХ ---
+        handleIncomingMsg(e) { const m = e.messageData; if (this.state === 'connected' && m.sender_id === this.partnerId) { this.messages.push({isMe: false, text: m.message, timestamp: Date.now()}); this.scrollChat(); } if (this.activeFriend && m.sender_id === this.activeFriend.id) { this.friendMessages.push(m); this.scrollFriendChat(); } new Audio('/sounds/message.mp3').play().catch(()=>{}); },
+        sendTypingSignal() { const now = Date.now(); if (now - this.lastTypingSent < 2000) return; const rid = this.activeFriend ? this.activeFriend.id : this.partnerId; if (rid) { this.lastTypingSent = now; window.axios.post('/chat/message/typing', { receiver_id: rid }); } },
+        toggleContact() { if (!this.partnerId) return; window.axios.post('/chat/contact/add', { contactId: this.partnerId }).then(r => { this.isFriend = r.data.isFriend; this.loadFriends(); window.dispatchEvent(new CustomEvent('toast', {detail: {msg: r.data.action === 'added' ? 'Added' : 'Removed'}})); }); },
+        reportPartner() { if (!this.partnerId || !confirm('Report?')) return; window.axios.post('/report', { reported_id: this.partnerId, reason: 'general' }).then(() => { window.dispatchEvent(new CustomEvent('toast', {detail: {msg: 'Reported'}})); this.startSearch(); }); },
+        callFriend(f) { if (!f.is_online) { window.dispatchEvent(new CustomEvent('toast', {detail: {msg: 'Offline'}})); return; } window.location.href = '/chat?call_to=' + f.id; },
+        unblock(id) { window.axios.post('/chat/unblock', { blockedId: id }).then(() => { this.loadBlocked(); this.loadHistory(); }); },
         loadFriends() { window.axios.get('/chat/contacts').then(r => this.friendsList = r.data.contacts); },
         loadHistory() { window.axios.get('/chat/history-all').then(r => this.historyList = r.data.history); },
         loadBlocked() { window.axios.get('/chat/blocked').then(r => this.blockedList = r.data.blocked); },
-        
         scrollChat() { this.$nextTick(() => { if(this.$refs.chatBox) this.$refs.chatBox.scrollTop = this.$refs.chatBox.scrollHeight; }); },
         scrollFriendChat() { this.$nextTick(() => { if(this.$refs.friendChatBox) this.$refs.friendChatBox.scrollTop = this.$refs.friendChatBox.scrollHeight; }); },
-        
         toggleMic() { this.micEnabled = !this.micEnabled; if(this.localStream) this.localStream.getAudioTracks()[0].enabled = this.micEnabled; },
         toggleCam() { this.camEnabled = !this.camEnabled; if(this.localStream) this.localStream.getVideoTracks()[0].enabled = this.camEnabled; },
         toggleBeauty() { this.beautyFilter = !this.beautyFilter; localStorage.setItem('beauty_filter', this.beautyFilter); },
-        
         getDevices() { navigator.mediaDevices.enumerateDevices().then(d => { this.devices = d.filter(x => x.kind.includes('input')); this.showDeviceModal = true; }); },
-        
-        async switchDevice(kind, id) { 
-            const c = kind === 'video' ? { video: { deviceId: { exact: id } } } : { audio: { deviceId: { exact: id } } }; 
-            try { 
-                const s = await navigator.mediaDevices.getUserMedia(c); 
-                if (this.pc) { 
-                    const snd = this.pc.getSenders().find(x => x.track && x.track.kind === s.getTracks()[0].kind); 
-                    if (snd) snd.replaceTrack(s.getTracks()[0]); 
-                } 
-                if (kind === 'video') { 
-                    this.selectedCam = id; 
-                    if(this.$refs.localVideo) this.$refs.localVideo.srcObject = s; 
-                } 
-            } catch(e) {} 
-        },
-        
-        startStats() { 
-            setInterval(async () => { 
-                if (this.pc?.iceConnectionState === 'connected') { 
-                    const s = await this.pc.getStats(); 
-                    s.forEach(r => { if (r.type === 'candidate-pair' && r.state === 'succeeded') this.ping = Math.round(r.currentRoundTripTime * 1000); }); 
-                } 
-            }, 3000); 
-        }
+        async switchDevice(kind, id) { const c = kind === 'video' ? { video: { deviceId: { exact: id } } } : { audio: { deviceId: { exact: id } } }; try { const s = await navigator.mediaDevices.getUserMedia(c); if (this.pc) { const snd = this.pc.getSenders().find(x => x.track && x.track.kind === s.getTracks()[0].kind); if (snd) snd.replaceTrack(s.getTracks()[0]); } if (kind === 'video') { this.selectedCam = id; if(this.$refs.localVideo) this.$refs.localVideo.srcObject = s; } } catch(e) {} },
+        startStats() { setInterval(async () => { if (this.pc?.iceConnectionState === 'connected') { const s = await this.pc.getStats(); s.forEach(r => { if (r.type === 'candidate-pair' && r.state === 'succeeded') this.ping = Math.round(r.currentRoundTripTime * 1000); }); } }, 3000); }
     }
 };
 </script>

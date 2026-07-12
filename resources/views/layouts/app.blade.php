@@ -302,18 +302,103 @@ window.caspianApp = function(myId, myInterests, iceServers) {
         async openFriendChat(f) { this.tab = 'friends'; this.activeFriend = f; const res = await window.axios.get(`/chat/history/${f.id}`); this.friendMessages = res.data.messages; this.$nextTick(() => { if(this.$refs.friendChatBox) this.$refs.friendChatBox.scrollTop = this.$refs.friendChatBox.scrollHeight; }); },
         async sendMsg() { if (!this.chatInput.trim() || !this.partnerId) return; const t = this.chatInput; this.chatInput = ''; this.messages.push({isMe: true, text: t, timestamp: Date.now()}); window.axios.post('/chat/message/send', { receiver_id: this.partnerId, message: t }); this.scrollChat(); },
         async sendFriendMsg() { if (!this.friendChatInput.trim() || !this.activeFriend) return; const t = this.friendChatInput; this.friendChatInput = ''; const res = await window.axios.post('/chat/message/send', { receiver_id: this.activeFriend.id, message: t }); this.friendMessages.push(res.data.message); this.scrollFriendChat(); },
-        handleIncomingMsg(e) { const m = e.messageData; if (this.state === 'connected' && m.sender_id === this.partnerId) { this.messages.push({isMe: false, text: m.message, timestamp: Date.now()}); this.scrollChat(); } if (this.activeFriend && m.sender_id === this.activeFriend.id) { this.friendMessages.push(m); this.scrollFriendChat(); } new Audio('/sounds/message.mp3').play().catch(()=>{}); },
+        
+        handleIncomingMsg(e) { 
+            const m = e.messageData; 
+            if (this.state === 'connected' && m.sender_id === this.partnerId) { 
+                this.messages.push({isMe: false, text: m.message, timestamp: Date.now()}); 
+                this.scrollChat(); 
+            } 
+            if (this.activeFriend && m.sender_id === this.activeFriend.id) { 
+                this.friendMessages.push(m); 
+                this.scrollFriendChat(); 
+            } 
+            new Audio('/sounds/message.mp3').play().catch(()=>{}); 
+        },
+
+        // --- НОВЫЕ МЕТОДЫ (ИСПРАВЛЕНИЕ ОШИБОК) ---
+        sendTypingSignal() {
+            const now = Date.now();
+            if (now - this.lastTypingSent < 2000) return; // Throttling 2 сек
+            const rid = this.activeFriend ? this.activeFriend.id : this.partnerId;
+            if (rid) {
+                this.lastTypingSent = now;
+                window.axios.post('/chat/message/typing', { receiver_id: rid }).catch(() => {});
+            }
+        },
+
+        toggleContact() {
+            if (!this.partnerId) return;
+            window.axios.post('/chat/contact/add', { contactId: this.partnerId }).then(r => {
+                this.isFriend = r.data.isFriend;
+                this.loadFriends();
+                window.dispatchEvent(new CustomEvent('toast', {detail: {msg: r.data.action === 'added' ? 'Added to Friends' : 'Removed'}}));
+            });
+        },
+
+        reportPartner() {
+            if (!this.partnerId || !confirm('Report this user?')) return;
+            window.axios.post('/report', { reported_id: this.partnerId, reason: 'general' }).then(() => {
+                window.dispatchEvent(new CustomEvent('toast', {detail: {msg: 'Report Sent'}}));
+                this.startSearch();
+            });
+        },
+
+        callFriend(f) {
+            window.axios.post('/chat/contact/call', { contactId: f.id }).then(r => {
+                if (r.data.status === 'busy') {
+                    window.dispatchEvent(new CustomEvent('toast', {detail: {msg: 'User Busy'}}));
+                } else {
+                    window.dispatchEvent(new CustomEvent('toast', {detail: {msg: 'Calling...'}}));
+                }
+            });
+        },
+
+        unblock(id) {
+            window.axios.post('/chat/unblock', { blockedId: id }).then(() => {
+                this.loadBlocked();
+                this.loadHistory();
+                window.dispatchEvent(new CustomEvent('toast', {detail: {msg: 'Unblocked'}}));
+            });
+        },
+
+        // --- ЗАГРУЗКА ДАННЫХ ---
         loadFriends() { window.axios.get('/chat/contacts').then(r => this.friendsList = r.data.contacts); },
         loadHistory() { window.axios.get('/chat/history-all').then(r => this.historyList = r.data.history); },
         loadBlocked() { window.axios.get('/chat/blocked').then(r => this.blockedList = r.data.blocked); },
+        
         scrollChat() { this.$nextTick(() => { if(this.$refs.chatBox) this.$refs.chatBox.scrollTop = this.$refs.chatBox.scrollHeight; }); },
         scrollFriendChat() { this.$nextTick(() => { if(this.$refs.friendChatBox) this.$refs.friendChatBox.scrollTop = this.$refs.friendChatBox.scrollHeight; }); },
+        
         toggleMic() { this.micEnabled = !this.micEnabled; if(this.localStream) this.localStream.getAudioTracks()[0].enabled = this.micEnabled; },
         toggleCam() { this.camEnabled = !this.camEnabled; if(this.localStream) this.localStream.getVideoTracks()[0].enabled = this.camEnabled; },
         toggleBeauty() { this.beautyFilter = !this.beautyFilter; localStorage.setItem('beauty_filter', this.beautyFilter); },
+        
         getDevices() { navigator.mediaDevices.enumerateDevices().then(d => { this.devices = d.filter(x => x.kind.includes('input')); this.showDeviceModal = true; }); },
-        async switchDevice(kind, id) { const c = kind === 'video' ? { video: { deviceId: { exact: id } } } : { audio: { deviceId: { exact: id } } }; try { const s = await navigator.mediaDevices.getUserMedia(c); if (this.pc) { const snd = this.pc.getSenders().find(x => x.track && x.track.kind === s.getTracks()[0].kind); if (snd) snd.replaceTrack(s.getTracks()[0]); } if (kind === 'video') { this.selectedCam = id; if(this.$refs.localVideo) this.$refs.localVideo.srcObject = s; } } catch(e) {} },
-        startStats() { setInterval(async () => { if (this.pc?.iceConnectionState === 'connected') { const s = await this.pc.getStats(); s.forEach(r => { if (r.type === 'candidate-pair' && r.state === 'succeeded') this.ping = Math.round(r.currentRoundTripTime * 1000); }); } }, 3000); }
+        
+        async switchDevice(kind, id) { 
+            const c = kind === 'video' ? { video: { deviceId: { exact: id } } } : { audio: { deviceId: { exact: id } } }; 
+            try { 
+                const s = await navigator.mediaDevices.getUserMedia(c); 
+                if (this.pc) { 
+                    const snd = this.pc.getSenders().find(x => x.track && x.track.kind === s.getTracks()[0].kind); 
+                    if (snd) snd.replaceTrack(s.getTracks()[0]); 
+                } 
+                if (kind === 'video') { 
+                    this.selectedCam = id; 
+                    if(this.$refs.localVideo) this.$refs.localVideo.srcObject = s; 
+                } 
+            } catch(e) {} 
+        },
+        
+        startStats() { 
+            setInterval(async () => { 
+                if (this.pc?.iceConnectionState === 'connected') { 
+                    const s = await this.pc.getStats(); 
+                    s.forEach(r => { if (r.type === 'candidate-pair' && r.state === 'succeeded') this.ping = Math.round(r.currentRoundTripTime * 1000); }); 
+                } 
+            }, 3000); 
+        }
     }
 };
 </script>

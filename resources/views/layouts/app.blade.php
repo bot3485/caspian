@@ -15,7 +15,11 @@
             overflow: hidden; 
             position: fixed; 
             width: 100%;
+            margin: 0;
+            padding: 0;
         }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(99, 102, 241, 0.3); border-radius: 10px; }
     </style>
 </head>
 <body class="font-sans antialiased text-white" 
@@ -90,7 +94,7 @@ window.caspianApp = function(myId, myInterests, iceServers) {
         showDeviceModal: false, devices: [], selectedCam: '', selectedMic: '',
         lastTypingSent: 0, signalQueue: [], iceQueue: [], isProcessingSignal: false,
         audioUnlocked: false, remoteStreamSet: false, isPartnerTyping: false, typingPartnerName: '',
-        isHandlingMatch: false, offlineTimer: null,
+        isHandlingMatch: false, offlineTimer: null, heartbeatTimer: null,
         rtcConfig: { iceServers: iceServers, bundlePolicy: "balanced", iceCandidatePoolSize: 10 },
 
         async init() {
@@ -129,9 +133,25 @@ window.caspianApp = function(myId, myInterests, iceServers) {
             this.startStats();
         },
 
+        // --- HEARTBEAT: Чтобы Cron не удалял нас из базы ---
+        startHeartbeat() {
+            this.stopHeartbeat();
+            this.heartbeatTimer = setInterval(() => {
+                window.axios.post('/ping').catch(e => {
+                    if (e.response?.status === 401) window.location.reload();
+                });
+            }, 15000);
+        },
+        stopHeartbeat() {
+            if (this.heartbeatTimer) { clearInterval(this.heartbeatTimer); this.heartbeatTimer = null; }
+        },
+
         async initMedia() {
             try {
-                this.localStream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 }, audio: true });
+                this.localStream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { width: { ideal: 640 }, height: { ideal: 480 } }, 
+                    audio: true 
+                });
                 if (this.$refs.localVideo) this.$refs.localVideo.srcObject = this.localStream;
             } catch(e) { window.dispatchEvent(new CustomEvent('toast', {detail: {msg: 'Camera Error'}})); }
         },
@@ -161,21 +181,22 @@ window.caspianApp = function(myId, myInterests, iceServers) {
                     videoEl.srcObject = e.streams[0];
                     videoEl.muted = true;
                     videoEl.play().then(() => {
+                        // Трюк для звука: un-mute после начала видео
                         setTimeout(() => { if(videoEl) videoEl.muted = false; }, 1000);
                     }).catch(() => {});
                 }
             };
             this.pc.oniceconnectionstatechange = () => {
-                const s = self.pc?.iceConnectionState;
-                console.log("ICE State:", s);
+                if (!this.pc) return;
+                const s = this.pc.iceConnectionState;
                 if (s === 'connected' || s === 'completed') self.handlePartnerState('active');
                 else if (s === 'disconnected' || s === 'failed') {
-                    // ТЕРПЕЛИВЫЙ ДИСКОННЕКТ: ждем 5 сек перед тем как менять статус на offline
+                    // ТЕРПЕЛИВЫЙ ДИСКОННЕКТ: ждем 10 сек перед тем как менять статус на offline
                     setTimeout(() => {
                         if (self.pc && (self.pc.iceConnectionState === 'disconnected' || self.pc.iceConnectionState === 'failed')) {
                             self.handlePartnerState('offline');
                         }
-                    }, 5000);
+                    }, 10000);
                 }
             };
             if (this.localStream) this.localStream.getTracks().forEach(t => this.pc.addTrack(t, this.localStream));
@@ -232,6 +253,8 @@ window.caspianApp = function(myId, myInterests, iceServers) {
             this.reset();
             this.partnerId = Number(e.partnerData.id); this.partnerData = e.partnerData; this.isFriend = !!e.isFriend; this.state = 'connected';
             
+            this.startHeartbeat(); // Включаем пинг при матче
+
             if (this.partnerData.interests && Array.isArray(this.partnerData.interests)) {
                 const common = myInterests.filter(v => self.partnerData.interests.includes(v));
                 if (common.length > 0) window.dispatchEvent(new CustomEvent('toast', {detail: {msg: `Match Interest: ${common[0]}!`}}));
@@ -252,6 +275,7 @@ window.caspianApp = function(myId, myInterests, iceServers) {
         signalTo(toId, data) { if (toId) window.axios.post('/chat/signal', { partnerId: toId, data: { ...data, from: myId } }).catch(e => { if(e.response?.status === 403) this.reset(); }); },
         
         reset() {
+            this.stopHeartbeat();
             if (this.pc) { 
                 this.pc.onicecandidate = null; this.pc.ontrack = null; 
                 this.pc.oniceconnectionstatechange = null; this.pc.close(); 
@@ -273,7 +297,7 @@ window.caspianApp = function(myId, myInterests, iceServers) {
             } else { clearTimeout(this.offlineTimer); }
         },
         normalizeSdp(sdp) { if (!sdp) return ""; return sdp.trim().split('\n').map(l => l.trim()).filter(l => l.length > 0).join('\r\n') + '\r\n'; },
-        async startSearch() { if (this.partnerId) this.signal({ type: 'peer-skipped' }); this.reset(); this.state = 'searching'; await window.axios.post('/chat/search'); },
+        async startSearch() { if (this.partnerId) this.signal({ type: 'peer-skipped' }); this.reset(); this.state = 'searching'; this.startHeartbeat(); await window.axios.post('/chat/search'); },
         stopSearch() { if (this.partnerId) this.signal({ type: 'hang-up' }); this.reset(); window.axios.post('/chat/leave'); },
         async openFriendChat(f) { this.tab = 'friends'; this.activeFriend = f; const res = await window.axios.get(`/chat/history/${f.id}`); this.friendMessages = res.data.messages; this.$nextTick(() => { if(this.$refs.friendChatBox) this.$refs.friendChatBox.scrollTop = this.$refs.friendChatBox.scrollHeight; }); },
         async sendMsg() { if (!this.chatInput.trim() || !this.partnerId) return; const t = this.chatInput; this.chatInput = ''; this.messages.push({isMe: true, text: t, timestamp: Date.now()}); window.axios.post('/chat/message/send', { receiver_id: this.partnerId, message: t }); this.scrollChat(); },

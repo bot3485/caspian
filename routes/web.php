@@ -39,13 +39,20 @@ Route::middleware(['auth', 'verified'])->group(function () {
     })->name('leaderboard');
 
     // --- Система активности (Ping) ---
-    Route::post('/ping', function () {
-        if (Auth::check()) {
-            // Обновляем метку времени, чтобы юзера не выкинуло из очереди/матча
-            \App\Models\Matchmaking::where('user_id', Auth::id())->update(['updated_at' => now()]);
+Route::post('/ping', function () {
+    if (Auth::check()) {
+        // Продлеваем жизнь записи в очереди
+        \App\Models\Matchmaking::where('user_id', Auth::id())->update(['updated_at' => now()]);
+        
+        // Продлеваем жизнь прав на сигналы в Redis (чтобы TURN/сигналы не отвалились через час)
+        $match = \App\Models\Matchmaking::where('user_id', Auth::id())->first();
+        if ($match && $match->partner_id) {
+            \Illuminate\Support\Facades\Redis::expire("allow_signal:".Auth::id().":{$match->partner_id}", 3600);
+            \Illuminate\Support\Facades\Redis::expire("allow_signal:{$match->partner_id}:".Auth::id(), 3600);
         }
-        return response()->json(['status' => 'pong']);
-    })->name('ping');
+    }
+    return response()->json(['status' => 'pong']);
+})->name('ping');
 
     // --- Жалобы ---
     Route::post('/report', [ReportController::class, 'store'])->name('report.store');

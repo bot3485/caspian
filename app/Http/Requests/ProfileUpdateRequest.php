@@ -8,13 +8,12 @@ use Illuminate\Validation\Rule;
 
 class ProfileUpdateRequest extends FormRequest
 {
-    public function rules(): array
-    {
-        return [
-            'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'string', 'lowercase', 'email', 'max:255', Rule::unique(User::class)->ignore($this->user()->id)],
-            // ДОБАВЬ ЭТУ СТРОКУ, если её нет:
-            'interests_string' => ['nullable', 'string', 'max:1000'],
-        ];
-    }
+public function rules(): array
+{
+    return [
+        'name' => ['required', 'string', 'max:255'],
+        'email' => ['required', 'string', 'lowercase', 'email', 'max:255', Rule::unique(User::class)->ignore($this->user()->id)],
+        'interests_string' => ['nullable', 'string', 'max:1000'], // Добавить эту строку
+    ];
+}
 }

@@ -25,28 +25,27 @@ class ProfileController extends Controller
         ]);
     }
 
-    public function update(ProfileUpdateRequest $request): RedirectResponse
-    {
-        $user = $request->user();
-        $user->fill($request->validated());
+public function update(ProfileUpdateRequest $request): RedirectResponse
+{
+    $user = $request->user();
+    $user->fill($request->validated());
 
-        if ($user->isDirty('email')) {
-            $user->email_verified_at = null;
-        }
-
-        // Четкая обработка интересов: из строки "Теннис, Код" в массив ["Теннис", "Код"]
-        $raw = $request->input('interests_string', '');
-        if (!empty(trim($raw))) {
-            $tags = array_filter(array_map('trim', explode(',', $raw)));
-            $user->interests = array_values($tags);
-        } else {
-            $user->interests = [];
-        }
-
-        $user->save();
-
-        return Redirect::route('profile.edit')->with('status', 'profile-updated');
+    if ($user->isDirty('email')) {
+        $user->email_verified_at = null;
     }
+
+    $raw = $request->input('interests_string', '');
+    if (!empty(trim($raw))) {
+        // Очищаем теги от лишних пробелов и пустых значений
+        $tags = array_filter(array_map('trim', explode(',', $raw)));
+        $user->interests = array_values($tags);
+    } else {
+        $user->interests = [];
+    }
+
+    $user->save();
+    return Redirect::route('profile.edit')->with('status', 'profile-updated');
+}
 
     public function destroy(Request $request): RedirectResponse
     {

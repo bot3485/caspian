@@ -70,32 +70,30 @@
                     </template>
                 </div>
 
-                <!-- ГЛАВНЫЙ ОСТРОВОК -->
+        <!-- ГЛАВНЫЙ ОСТРОВОК -->
                 <div class="w-full bg-[#121212]/90 backdrop-blur-3xl border border-white/10 rounded-[2.5rem] p-2 flex items-center justify-between shadow-2xl">
                     <button @click="controlsOpen = !controlsOpen" class="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center transition-transform" :class="controlsOpen && 'rotate-180'">
                         <span class="text-[8px]" x-text="controlsOpen ? '▼' : '⚡'"></span>
                     </button>
                     
                     <div class="flex-1 flex justify-center px-4">
+                        <!-- Обычный поиск в рулетке -->
                         <template x-if="!isPersonalCall">
                             <div class="w-full flex gap-2">
                                 <button x-show="state === 'idle'" @click="startSearch()" class="bg-indigo-600 w-full h-12 rounded-full font-black text-[10px] uppercase">Start Chat</button>
-                                <button x-show="state === 'searching'" @click="stopSearch()" class="bg-red-600 w-full h-12 rounded-full font-black text-[10px] uppercase animate-pulse">Stop</button>
+                                <button x-show="state === 'searching'" @click="stopSearch()" class="bg-red-600 w-full h-12 rounded-full font-black text-[10px] uppercase">Stop</button>
                                 <div x-show="state === 'connected'" class="flex items-center gap-2 w-full">
                                     <button @click="stopSearch()" class="bg-red-600/20 text-red-500 px-6 h-12 rounded-full font-black text-[10px] uppercase">Stop</button>
                                     <button @click="startSearch()" class="bg-white text-black flex-1 h-12 rounded-full font-black text-[10px] uppercase">Next ➔</button>
                                 </div>
                             </div>
                         </template>
+
+                        <!-- Персональный звонок (другу/из истории) -->
                         <template x-if="isPersonalCall">
                             <button @click="stopSearch()" class="bg-red-600 text-white w-full h-12 rounded-full font-black text-[10px] uppercase">End Call</button>
                         </template>
                     </div>
-
-                    <button @click="globalSidebarOpen = !globalSidebarOpen" class="w-12 h-12 rounded-full bg-indigo-600/10 text-indigo-400 flex items-center justify-center text-lg border border-indigo-500/20 relative">
-                        💬
-                        <div x-show="isPartnerTyping" class="absolute -top-1 -right-1 w-3 h-3 bg-indigo-500 rounded-full animate-ping"></div>
-                    </button>
                 </div>
             </div>
         </div>

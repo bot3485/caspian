@@ -104,14 +104,29 @@ class ChatController extends Controller
         ]);
     }
 
-    public function sendSignal(Request $request): JsonResponse
+public function sendSignal(Request $request): JsonResponse
     {
         $validated = $request->validate(['partnerId' => 'required|integer', 'data' => 'required|array']);
         $senderId = (int)Auth::id();
         $receiverId = (int)$validated['partnerId'];
         $data = $validated['data'];
 
+        // 1. Проверка через Redis (быстрая)
         $isAllowed = Redis::exists("allow_signal:{$senderId}:{$receiverId}");
+
+        // 2. ФОЛБЭК: Проверка через БД (если Redis ключ истек, но матч в базе еще жив)
+        if (!$isAllowed) {
+            $isAllowed = Matchmaking::where('user_id', $senderId)
+                ->where('partner_id', $receiverId)
+                ->exists();
+            
+            // Если в базе есть — восстанавливаем ключ в Redis на 1 час
+            if ($isAllowed) {
+                Redis::setex("allow_signal:{$senderId}:{$receiverId}", 3600, "1");
+            }
+        }
+
+        // 3. Проверка для групповых комнат
         if (!$isAllowed && isset($data['roomUuid'])) {
             $isAllowed = Room::where('uuid', $data['roomUuid'])->exists();
         }
@@ -122,6 +137,7 @@ class ChatController extends Controller
         broadcast(new WebRTCSignalEvent($receiverId, $data));
         return response()->json(['status' => 'signal_sent']);
     }
+
 
     public function sendMessage(Request $request): JsonResponse
     {

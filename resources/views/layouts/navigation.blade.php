@@ -26,6 +26,26 @@
                     <span class="text-[9px] font-black text-white leading-none uppercase hidden xs:inline">online</span>
                 </div>
 
+                <!-- Профиль для мобильных (показываем только на маленьких экранах) -->
+    <div class="block sm:hidden">
+        <x-dropdown align="right" width="48">
+            <x-slot name="trigger">
+                <button class="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center font-black text-xs">
+                    {{ substr(Auth::user()->name, 0, 1) }}
+                </button>
+            </x-slot>
+            <x-slot name="content">
+                <div class="bg-[#0a0a0a] border border-white/10 p-1">
+                    <x-dropdown-link :href="route('profile.edit')" class="!text-gray-300">Профиль</x-dropdown-link>
+                    <form method="POST" action="{{ route('logout') }}">
+                        @csrf
+                        <x-dropdown-link :href="route('logout')" onclick="event.preventDefault(); this.closest('form').submit();" class="!text-red-500">Выйти</x-dropdown-link>
+                    </form>
+                </div>
+            </x-slot>
+        </x-dropdown>
+    </div>
+
                 <!-- Кнопка Глобального Мессенджера (Теперь видна везде: и на мобилках, и на десктопе) -->
                 <button @click="globalSidebarOpen = !globalSidebarOpen" 
                         class="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center hover:bg-indigo-600/20 hover:border-indigo-500/50 transition-all group relative">

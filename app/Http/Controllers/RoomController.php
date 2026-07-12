@@ -98,25 +98,16 @@ class RoomController extends Controller
         return response()->json(['status' => 'success']);
     }
 
-    public function syncOccupancy(Request $request, string $uuid): JsonResponse
-    {
-        $request->validate(['count' => 'required|integer|min:0|max:10']);
-        $userId = Auth::id();
-        $room = Room::where('uuid', $uuid)->firstOrFail();
+public function syncOccupancy(Request $request, string $uuid): JsonResponse
+{
+    $request->validate(['count' => 'required|integer|min:0|max:10']);
+    $room = Room::where('uuid', $uuid)->firstOrFail();
 
-        // Простая, но эффективная защита: 
-        // Только создатель или тот, кто прошел auth в эту комнату (есть сессия), может обновлять счетчик
-        if ($room->creator_id !== $userId && !Session::has("room_auth_{$uuid}")) {
-            return response()->json(['error' => 'Forbidden'], 403);
-        }
+    $room->update(['current_occupancy' => $request->count]);
+    
+    // Рассылаем всем, кто сейчас на странице списка комнат
+    broadcast(new \App\Events\RoomOccupancyUpdated($uuid, $request->count))->toOthers();
 
-        $room->update([
-            'current_occupancy' => $request->count,
-            'updated_at' => now() 
-        ]);
-        
-        broadcast(new \App\Events\RoomOccupancyUpdated($uuid, $request->count))->toOthers();
-
-        return response()->json(['status' => 'ok']);
-    }
+    return response()->json(['status' => 'ok']);
+}
 }

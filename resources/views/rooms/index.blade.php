@@ -57,53 +57,62 @@
                     @php $isMine = $room->creator_id === Auth::id(); @endphp
                     
                     <div class="relative overflow-hidden rounded-[3.5rem] p-10 flex flex-col justify-between min-h-[380px] transition-all border group
-                                {{ $isMine ? 'bg-brand-indigo/10 border-brand-indigo/30 shadow-[0_0_50px_rgba(99,102,241,0.1)]' : 'bg-white/[0.02] border-white/5 hover:border-white/20' }}">
-                        
-                        @if($isMine)
-                            <div class="absolute top-8 right-10 bg-brand-indigo text-[8px] font-black px-4 py-1.5 rounded-full uppercase tracking-widest shadow-lg animate-pulse">Your Space</div>
-                        @endif
+            {{ $isMine ? 'bg-brand-indigo/10 border-brand-indigo/30 shadow-[0_0_50px_rgba(99,102,241,0.1)]' : 'bg-white/[0.02] border-white/5 hover:border-white/20' }}">
+    
+    <!-- Мы убрали 'absolute' блок отсюда, теперь он внутри стека ниже -->
 
-                        <div>
-                            <div class="flex justify-between items-start mb-10">
-                                <div class="w-14 h-14 {{ $isMine ? 'bg-brand-indigo text-white' : 'bg-white/5 text-brand-indigo' }} rounded-[1.5rem] flex items-center justify-center text-2xl shadow-inner border border-white/10">
-                                    {{ $room->password ? '🔐' : ($isMine ? '👑' : '🌍') }}
-                                </div>
-                                <div class="flex items-center gap-2 px-5 py-2.5 bg-black/60 backdrop-blur-xl rounded-2xl border border-white/5 shadow-xl">
-                                    <div class="w-2 h-2 rounded-full shadow-[0_0_12px_#22c55e]" 
-                                        :class="(occupancy['{{ $room->uuid }}'] || 0) > 0 ? 'bg-green-500 animate-pulse' : 'bg-gray-700'"></div>
-                                    <span class="text-[11px] font-black uppercase tracking-widest">
-                                        <span x-text="(occupancy['{{ $room->uuid }}'] || 0) + '/6'"></span> 
-                                        <span class="text-gray-500 ml-1">Live</span>
-                                    </span>
-                                </div>
-                            </div>
+    <div>
+        <div class="flex justify-between items-start mb-10">
+            <!-- Левая часть: Иконка -->
+            <div class="w-14 h-14 {{ $isMine ? 'bg-brand-indigo text-white' : 'bg-white/5 text-brand-indigo' }} rounded-[1.5rem] flex items-center justify-center text-2xl shadow-inner border border-white/10">
+                {{ $room->password ? '🔐' : ($isMine ? '👑' : '🌍') }}
+            </div>
 
-                            <h3 class="text-3xl font-black tracking-tighter italic {{ $isMine ? 'text-white' : 'text-white/90 group-hover:text-brand-indigo' }} transition-colors uppercase">
-                                {{ $room->title }}
-                            </h3>
-                            <p class="text-[9px] text-gray-500 font-black uppercase tracking-[0.2em] mt-3 italic">
-                                {{ $isMine ? 'Authorized Host: You' : 'Initiated by: ' . $room->creator->name }}
-                            </p>
-                            
-                            @if(!$room->is_public)
-                                <span class="inline-block mt-4 text-[7px] font-black uppercase tracking-widest text-amber-500 bg-amber-500/10 px-3 py-1 rounded-lg border border-amber-500/20">Private Enclave</span>
-                            @endif
-                        </div>
-
-                        <div class="flex gap-3 mt-10">
-                            <a href="{{ route('rooms.show', $room->uuid) }}" 
-                               class="flex-1 {{ $isMine ? 'bg-white text-black' : 'bg-white/5 text-white hover:bg-white hover:text-black' }} py-5 rounded-[1.5rem] font-black text-[10px] uppercase tracking-[0.2em] text-center transition-all shadow-xl active:scale-95">
-                               Enter Core ➔
-                            </a>
-                            
-                            @if($isMine)
-                                <button @click="deleteRoom('{{ $room->uuid }}')" 
-                                        class="w-16 bg-red-600/10 text-red-500 rounded-[1.5rem] flex items-center justify-center hover:bg-red-600 hover:text-white transition-all border border-red-500/20">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                </button>
-                            @endif
-                        </div>
+            <!-- Правая часть: Стек статусов (теперь они не накладываются) -->
+            <div class="flex flex-col items-end gap-2">
+                @if($isMine)
+                    <div class="bg-brand-indigo text-[7px] font-black px-3 py-1 rounded-full uppercase tracking-widest shadow-lg animate-pulse">
+                        Your Space
                     </div>
+                @endif
+
+                <div class="flex items-center gap-2 px-4 py-2 bg-black/60 backdrop-blur-xl rounded-2xl border border-white/5 shadow-xl">
+                    <div class="w-2 h-2 rounded-full shadow-[0_0_12px_#22c55e]" 
+                        :class="(occupancy['{{ $room->uuid }}'] || 0) > 0 ? 'bg-green-500 animate-pulse' : 'bg-gray-700'"></div>
+                    <span class="text-[10px] font-black uppercase tracking-widest flex items-center mt-[1px] leading-none">
+                        <span x-text="(occupancy['{{ $room->uuid }}'] || 0) + '/6'"></span> 
+                        <span class="text-gray-500 ml-1">Live</span>
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <h3 class="text-3xl font-black tracking-tighter italic {{ $isMine ? 'text-white' : 'text-white/90 group-hover:text-brand-indigo' }} transition-colors uppercase">
+            {{ $room->title }}
+        </h3>
+        <p class="text-[9px] text-gray-500 font-black uppercase tracking-[0.2em] mt-3 italic">
+            {{ $isMine ? 'Authorized Host: You' : 'Initiated by: ' . $room->creator->name }}
+        </p>
+        
+        @if(!$room->is_public)
+            <span class="inline-block mt-4 text-[7px] font-black uppercase tracking-widest text-amber-500 bg-amber-500/10 px-3 py-1 rounded-lg border border-amber-500/20">Private Enclave</span>
+        @endif
+    </div>
+
+    <div class="flex gap-3 mt-10">
+        <a href="{{ route('rooms.show', $room->uuid) }}" 
+           class="flex-1 {{ $isMine ? 'bg-white text-black' : 'bg-white/5 text-white hover:bg-white hover:text-black' }} py-5 rounded-[1.5rem] font-black text-[10px] uppercase tracking-[0.2em] text-center transition-all shadow-xl active:scale-95">
+           Enter Core ➔
+        </a>
+        
+        @if($isMine)
+            <button @click="deleteRoom('{{ $room->uuid }}')" 
+                    class="w-16 bg-red-600/10 text-red-500 rounded-[1.5rem] flex items-center justify-center hover:bg-red-600 hover:text-white transition-all border border-red-500/20">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+            </button>
+        @endif
+    </div>
+</div>
                 @endforeach
             </div>
 

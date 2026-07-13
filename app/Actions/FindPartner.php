@@ -70,6 +70,11 @@ class FindPartner
         $partner = User::find($partnerId);
         if (!$partner) return 0;
 
+        // Вычисляем общие интересы
+        $myInterests = $me->interests ?? [];
+        $partnerInterests = $partner->interests ?? [];
+        $commonInterests = array_values(array_intersect($myInterests, $partnerInterests));
+
         DB::transaction(function () use ($myId, $partnerId) {
             // Очищаем старые записи
             Matchmaking::whereIn('user_id', [$myId, $partnerId])->delete();
@@ -87,15 +92,25 @@ class FindPartner
             Redis::setex("allow_signal:{$partnerId}:{$myId}", 3600, "1");
         });
 
-        // ВАЖНО: Рассылаем события. Обратите внимание на префикс точки в JS!
+        
+
+        // Добавляем common_interests в данные события
         broadcast(new MatchFoundEvent($myId, [
-            'id' => $partner->id, 'name' => $partner->name, 'level' => $partner->level,
-            'rank_name' => $partner->rank_name, 'karma' => $partner->karma
+            'id' => $partner->id, 
+            'name' => $partner->name, 
+            'level' => $partner->level,
+            'rank_name' => $partner->rank_name, 
+            'karma' => $partner->karma,
+            'common_interests' => $commonInterests // <--- Передаем сюда
         ], DB::table('contacts')->where('user_id', $myId)->where('contact_id', $partnerId)->exists()));
         
         broadcast(new MatchFoundEvent($partnerId, [
-            'id' => $me->id, 'name' => $me->name, 'level' => $me->level,
-            'rank_name' => $me->rank_name, 'karma' => $me->karma
+            'id' => $me->id, 
+            'name' => $me->name, 
+            'level' => $me->level,
+            'rank_name' => $me->rank_name, 
+            'karma' => $me->karma,
+            'common_interests' => $commonInterests // <--- И сюда
         ], DB::table('contacts')->where('user_id', $partnerId)->where('contact_id', $myId)->exists()));
 
         return $partnerId;

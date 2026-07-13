@@ -97,6 +97,45 @@
             </div>
         </div>
 
+<div x-show="showInterestMatch" 
+     x-transition:enter="transition ease-out duration-500"
+     x-transition:enter-start="opacity-0 translate-y-12 scale-90"
+     x-transition:enter-end="opacity-100 translate-y-0 scale-100"
+     x-transition:leave="transition ease-in duration-300"
+     x-transition:leave-end="opacity-0 scale-95"
+     class="fixed top-1/3 left-1/2 -translate-x-1/2 z-[600] pointer-events-none"
+     x-cloak>
+    
+    <div class="caspian-glass px-8 py-6 rounded-[2.5rem] border-brand-indigo/40 shadow-[0_0_50px_rgba(99,102,241,0.2)] flex flex-col items-center gap-4 min-w-[320px]">
+        <!-- Иконка с импульсом -->
+        <div class="relative">
+            <div class="absolute inset-0 bg-brand-indigo rounded-full animate-ping opacity-25"></div>
+            <div class="relative w-14 h-14 bg-brand-indigo/20 rounded-full flex items-center justify-center text-2xl border border-brand-indigo/50">
+                🔥
+            </div>
+        </div>
+
+        <div class="text-center">
+            <h4 class="text-[10px] font-black uppercase tracking-[0.4em] text-brand-indigo mb-1">Common Universe Found</h4>
+            <p class="text-lg font-black italic uppercase tracking-tighter text-white">Matching Interests!</p>
+        </div>
+
+        <!-- Список тегов -->
+        <div class="flex flex-wrap justify-center gap-2 mt-2">
+            <template x-for="tag in commonInterests" :key="tag">
+                <span class="px-4 py-1.5 bg-white/10 border border-white/10 rounded-full text-[9px] font-black uppercase tracking-widest text-indigo-300" 
+                      x-text="'#' + tag"></span>
+            </template>
+        </div>
+        
+        <div class="mt-2 text-[8px] font-bold text-gray-500 uppercase tracking-widest animate-pulse">
+            Start conversation about this
+        </div>
+    </div>
+</div>
+
+
+
         <!-- 3. FLOATING CONTROL ISLAND -->
         <div class="fixed bottom-8 left-0 right-0 px-6 z-[500] flex flex-col items-center gap-4 pointer-events-none">
             

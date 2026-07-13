@@ -121,6 +121,8 @@ window.caspianApp = function(myId, myInterests, iceServers) {
         audioDevices: [],
         selectedVideoId: '',
         selectedAudioId: '',
+        showInterestMatch: false,
+        commonInterests: [],
 
         // --- INTERNAL LOGIC ---
         isProcessingSignal: false, makingOffer: false, processedEvents: new Set(), iceQueue: [],
@@ -304,17 +306,26 @@ async initMedia() {
 
         // --- CALLS LOGIC ---
 
-        async handleMatch(e) {
-            if (this.callContext === 'personal') return;
-            this.reset();
-            this.partnerId = Number(e.partnerData.id); 
-            this.partnerData = e.partnerData; 
-            this.isFriend = !!e.isFriend;
-            this.state = 'connected';
-            this.callContext = 'roulette';
-            this.initPC();
-            if (myId < this.partnerId) setTimeout(() => this.sendOffer(), 1000);
-        },
+async handleMatch(e) {
+    if (this.callContext === 'personal') return;
+    this.reset();
+    
+    this.partnerId = Number(e.partnerData.id); 
+    this.partnerData = e.partnerData; 
+    this.isFriend = !!e.isFriend;
+    
+    // Обработка интересов
+    this.commonInterests = e.partnerData.common_interests || [];
+    if (this.commonInterests.length > 0) {
+        this.showInterestMatch = true;
+        setTimeout(() => { this.showInterestMatch = false; }, 6000); // Скрыть через 6 секунд
+    }
+
+    this.state = 'connected';
+    this.callContext = 'roulette';
+    this.initPC();
+    if (myId < this.partnerId) setTimeout(() => this.sendOffer(), 1000);
+},
 
         async setupPersonalCall(id, isAccepted) {
             this.callContext = 'personal';

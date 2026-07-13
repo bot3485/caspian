@@ -3,15 +3,18 @@
         <h2 class="text-xl font-black tracking-tight text-white">Личные данные</h2>
         <p class="mt-1 text-sm font-medium text-gray-500">Обновите имя профиля и адрес электронной почты.</p>
     </header>
-    <div>
-        <x-input-label for="interests" :value="__('Ваши интересы (через запятую)')" class="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2 ml-1" />
-        <x-text-input id="interests" name="interests_string" type="text" class="w-full !bg-white/5 !border-white/10 !rounded-2xl !py-4 !px-6" :value="implode(', ', $user->interests ?? [])" placeholder="Gaming, Coding, Music" />
-    </div>
+
     <form method="post" action="{{ route('profile.update') }}" class="space-y-6">
         @csrf
         @method('patch')
 
         <div class="grid grid-cols-1 gap-6">
+            <!-- Interests Field (Moved Inside) -->
+            <div>
+                <x-input-label for="interests" :value="__('Ваши интересы (через запятую)')" class="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2 ml-1" />
+                <x-text-input id="interests" name="interests_string" type="text" class="w-full !bg-white/5 !border-white/10 !rounded-2xl !py-4 !px-6 !text-white" :value="implode(', ', $user->interests ?? [])" placeholder="Gaming, Coding, Music" />
+            </div>
+
             <div>
                 <x-input-label for="name" :value="__('Имя')" class="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2 ml-1" />
                 <x-text-input id="name" name="name" type="text" class="w-full !bg-white/5 !border-white/10 !rounded-2xl !py-4 !px-6 !text-white focus:!ring-indigo-500" :value="old('name', $user->name)" required autofocus />

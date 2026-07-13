@@ -1,4 +1,3 @@
---- START OF FILE resources/views/rooms/show.blade.php ---
 <x-app-layout>
     <div class="h-[calc(100svh-80px)] bg-[#020202] flex flex-col overflow-hidden text-white font-sans relative" 
          x-data="groupRoomComponent('{{ $room->uuid }}', {{ auth()->id() }}, '{{ auth()->user()->name }}')">

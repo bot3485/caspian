@@ -98,16 +98,18 @@ class RoomController extends Controller
         return response()->json(['status' => 'success']);
     }
 
-public function syncOccupancy(Request $request, string $uuid): JsonResponse
-{
-    $request->validate(['count' => 'required|integer|min:0|max:10']);
-    $room = Room::where('uuid', $uuid)->firstOrFail();
+    public function syncOccupancy(Request $request, string $uuid): JsonResponse
+    {
+        $request->validate(['count' => 'required|integer|min:0|max:10']);
+        $room = Room::where('uuid', $uuid)->firstOrFail();
 
-    $room->update(['current_occupancy' => $request->count]);
-    
-    // Рассылаем всем, кто сейчас на странице списка комнат
-    broadcast(new \App\Events\RoomOccupancyUpdated($uuid, $request->count))->toOthers();
+        // Обновляем количество И время (touch), чтобы планировщик не удалил онлайн
+        $room->current_occupancy = $request->count;
+        $room->touch(); // Это обновит updated_at
+        $room->save();
+        
+        broadcast(new \App\Events\RoomOccupancyUpdated($uuid, $request->count))->toOthers();
 
-    return response()->json(['status' => 'ok']);
-}
+        return response()->json(['status' => 'ok']);
+    }
 }

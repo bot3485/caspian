@@ -1,10 +1,10 @@
-
 <x-app-layout>
     <div class="relative w-full h-[calc(100svh-80px)] bg-black flex items-center justify-center overflow-hidden">
         
+        <!-- REMOTE VIDEO -->
         <video x-ref="remoteVideo" autoplay playsinline webkit-playsinline 
                class="absolute inset-0 w-full h-full object-cover transition-all duration-700 bg-black" 
-               :class="isRemoteBlurred ? 'blur-[100px] scale-110 opacity-50' : 'opacity-100'">
+               :class="[isRemoteBlurred ? 'blur-[100px] scale-110 opacity-50' : 'opacity-100', getFilterClass('remote')]">
         </video>
 
         <!-- PARTNER INFO -->
@@ -21,23 +21,41 @@
                              :class="{
                                 'bg-green-500 shadow-green-500': partnerState === 'active',
                                 'bg-amber-500 shadow-amber-500': partnerState === 'away',
-                                'bg-red-500 shadow-red-500': partnerState === 'problem'
+                                'bg-red-500 shadow-red-500 animate-pulse': partnerState === 'problem'
                              }"></div>
                         <span class="text-[8px] font-black uppercase tracking-widest" 
-                              x-text="partnerState === 'active' ? partnerData?.rank_name : (partnerState === 'away' ? 'Away' : 'Connection...')"></span>
+                              x-text="partnerState === 'active' ? (partnerData?.rank_name || 'Regular') : (partnerState === 'away' ? 'Away' : 'Network Problem...')"></span>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- PING -->
+       <!-- 3. ОБНОВЛЕННЫЙ PING INDICATOR (Вверху справа) -->
         <div x-show="state === 'connected' && ping > 0" class="absolute top-6 right-6 z-50 bg-black/40 px-3 py-1.5 rounded-full border border-white/5" x-cloak>
-            <span class="text-[8px] font-black text-gray-400 uppercase tracking-widest">Ping: <span x-text="ping + 'ms'" :class="ping < 150 ? 'text-green-500' : 'text-red-500'"></span></span>
+            <span class="text-[8px] font-black text-gray-400 uppercase tracking-widest">
+                Ping: 
+                <span x-text="ping + 'ms'" 
+                      :class="{
+                          'text-green-500': ping < 100,
+                          'text-yellow-500': ping >= 100 && ping < 250,
+                          'text-red-500': ping >= 250
+                      }">
+                </span>
+            </span>
         </div>
 
-        <!-- TYPING INDICATOR -->
-        <div x-show="isPartnerTyping && state === 'connected'" class="absolute bottom-32 left-1/2 -translate-x-1/2 z-50 bg-indigo-600/80 backdrop-blur-xl px-4 py-1.5 rounded-full border border-white/10 shadow-2xl" x-cloak x-transition>
-            <span class="text-[9px] font-black uppercase tracking-widest animate-pulse" x-text="typingPartnerName + ' is typing...'"></span>
+        <!-- 4. НОВЫЙ TYPING INDICATOR (По центру над кнопками) -->
+        <div x-show="isPartnerTyping && state === 'connected'" 
+             class="absolute bottom-32 left-1/2 -translate-x-1/2 z-50 bg-indigo-600/80 backdrop-blur-xl px-4 py-2 rounded-2xl border border-white/10 shadow-2xl" 
+             x-cloak x-transition>
+            <div class="flex items-center gap-3">
+                <span class="text-[9px] font-black uppercase tracking-widest" x-text="typingPartnerName + ' is typing'"></span>
+                <div class="flex gap-1">
+                    <span class="w-1 h-1 bg-white rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+                    <span class="w-1 h-1 bg-white rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+                    <span class="w-1 h-1 bg-white rounded-full animate-bounce"></span>
+                </div>
+            </div>
         </div>
 
         <!-- SEARCH STATUS -->
@@ -49,24 +67,27 @@
             <h3 class="text-white font-black uppercase text-[9px] tracking-[0.4em]" x-text="state === 'searching' ? 'Searching Partner...' : 'Ready to Chat?'"></h3>
         </div>
 
-        <!-- PIP -->
-        <div x-show="showSelfVideo" class="absolute bottom-28 right-6 md:right-auto md:left-8 w-32 md:w-64 aspect-[3/4] md:aspect-video bg-[#111] rounded-3xl overflow-hidden shadow-2xl border border-white/10 z-50 transition-all">
-            <video x-ref="localVideo" autoplay muted playsinline class="w-full h-full object-cover scale-x-[-1]" :style="beautyFilter ? 'filter: saturate(1.2) contrast(1.1);' : ''"></video>
+        <!-- PIP (SELF VIDEO) -->
+        <div x-show="showSelfVideo" class="absolute bottom-28 right-6 md:right-auto md:left-8 w-32 md:w-64 aspect-[3/4] md:aspect-video bg-[#111] rounded-[2rem] overflow-hidden shadow-2xl border border-white/10 z-50 transition-all">
+            <video x-ref="localVideo" autoplay muted playsinline class="w-full h-full object-cover scale-x-[-1]" :class="getFilterClass('local')"></video>
             <div x-show="!camEnabled" class="absolute inset-0 bg-gray-900 flex items-center justify-center">🚫</div>
         </div>
 
         <!-- CONTROLS -->
         <div class="absolute bottom-6 left-0 right-0 px-4 z-[100] flex flex-col items-center gap-3 pointer-events-none">
             <div class="pointer-events-auto flex flex-col items-center gap-3 w-full max-w-lg">
-                <div x-show="controlsOpen" x-transition class="flex items-center gap-1.5 p-1.5 bg-black/60 backdrop-blur-3xl border border-white/10 rounded-2xl">
-                    <button @click="toggleMic()" :class="micEnabled ? 'bg-white/5' : 'bg-red-600'" class="w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center transition-all">🎤</button>
-                    <button @click="toggleCam()" :class="camEnabled ? 'bg-white/5' : 'bg-red-600'" class="w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center transition-all">📷</button>
-                    <button @click="isRemoteBlurred = !isRemoteBlurred" :class="isRemoteBlurred ? 'bg-indigo-600' : 'bg-white/5'" class="w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center transition-all">🙈</button>
-                    <button @click="toggleBeauty()" :class="beautyFilter ? 'bg-pink-600' : 'bg-white/5'" class="w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center transition-all">✨</button>
-                    <template x-if="state === 'connected' && partnerId">
-                        <div class="flex items-center gap-1.5">
+                
+                <div x-show="controlsOpen" x-transition class="flex items-center gap-1.5 p-1.5 bg-black/60 backdrop-blur-3xl border border-white/10 rounded-2xl overflow-x-auto max-w-full no-scrollbar">
+                    <button @click="toggleMic()" :class="micEnabled ? 'bg-white/5' : 'bg-red-600'" class="w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center shrink-0">🎤</button>
+                    <button @click="toggleCam()" :class="camEnabled ? 'bg-white/5' : 'bg-red-600'" class="w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center shrink-0">📷</button>
+                    <button @click="toggleBeauty()" :class="beautyFilter ? 'bg-pink-600' : 'bg-white/5'" class="w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center shrink-0">✨</button>
+                    <button @click="toggleCinema()" :class="cinemaFilter ? 'bg-amber-600' : 'bg-white/5'" class="w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center shrink-0">🎬</button>
+                    <button @click="isRemoteBlurred = !isRemoteBlurred" :class="isRemoteBlurred ? 'bg-indigo-600' : 'bg-white/5'" class="w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center shrink-0">🙈</button>
+                    
+                    <template x-if="callContext === 'roulette' && state === 'connected'">
+                        <div class="flex items-center gap-1.5 shrink-0">
                             <div class="w-px h-6 bg-white/10 mx-1"></div>
-                            <button x-show="!isFriend" @click="toggleContact()" class="h-10 md:h-12 px-4 bg-white/5 rounded-xl font-black text-[9px] uppercase tracking-widest">+ Friend</button>
+                            <button @click="toggleContact()" :class="isFriend ? 'text-green-500 bg-green-500/10 border-green-500/20' : 'text-white bg-white/5 border-white/10'" class="h-10 md:h-12 px-4 rounded-xl font-black text-[9px] uppercase tracking-widest border" x-text="isFriend ? '- Unfriend' : '+ Friend'"></button>
                             <button @click="reportPartner()" class="w-10 h-10 md:w-12 md:h-12 bg-red-600/10 text-red-500 rounded-xl flex items-center justify-center">🚩</button>
                         </div>
                     </template>
@@ -88,13 +109,9 @@
                             </div>
                         </template>
                         <template x-if="callContext === 'personal'">
-                            <button @click="stopCall()" class="bg-red-600 text-white w-full h-12 rounded-full font-black text-[10px] uppercase">End Call</button>
+                            <button @click="stopCall()" class="bg-red-600 text-white w-full h-12 rounded-full font-black text-[10px] uppercase tracking-widest">End Personal Call</button>
                         </template>
                     </div>
-                    <button @click="globalSidebarOpen = !globalSidebarOpen" class="w-12 h-12 rounded-full bg-indigo-600/10 text-indigo-400 flex items-center justify-center text-lg border border-indigo-500/20 relative">
-                        💬
-                        <div x-show="isPartnerTyping" class="absolute -top-1 -right-1 w-3 h-3 bg-indigo-500 rounded-full animate-ping"></div>
-                    </button>
                 </div>
             </div>
         </div>

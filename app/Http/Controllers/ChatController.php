@@ -5,18 +5,14 @@ namespace App\Http\Controllers;
 use App\Models\Matchmaking;
 use App\Models\Message;
 use App\Models\User;
-use App\Models\Room;
 use App\Actions\FindPartner;
 use App\Actions\LeaveChat;
 use App\Enums\MatchmakingStatus;
 use App\Events\WebRTCSignalEvent;
 use App\Events\MessageSentEvent;
-use App\Events\UserTypingEvent;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Redis;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\{Auth, Redis, DB};
 
 class ChatController extends Controller
 {
@@ -27,9 +23,9 @@ class ChatController extends Controller
 
     public function index(Request $request)
     {
-        $userId = Auth::id();
-        if (!$request->has('accept_call')) {
-            $this->leaveChatAction->execute($userId);
+        // Если зашли просто так (не по звонку), выходим из старых очередей
+        if (!$request->has('accept_call') && !$request->has('call_to')) {
+            $this->leaveChatAction->execute(Auth::id());
         }
         return view('chat');
     }
@@ -47,50 +43,52 @@ class ChatController extends Controller
         return response()->json(['status' => $partnerId ? 'matched' : 'searching', 'partnerId' => $partnerId]);
     }
 
-    public function callContact(Request $request): JsonResponse
-    {
-        $request->validate(['contactId' => 'required|integer']);
-        $receiverId = (int)$request->contactId;
-        $senderId = Auth::id();
+public function callContact(Request $request): JsonResponse
+{
+    $request->validate(['contactId' => 'required|integer']);
+    $receiverId = (int)$request->contactId;
+    $senderId = Auth::id();
 
-        if ($senderId === $receiverId) return response()->json(['error' => 'Self-call'], 400);
+    if ($senderId === $receiverId) return response()->json(['error' => 'Self-call'], 400);
 
-        $isBusy = Matchmaking::where('user_id', $receiverId)
-            ->where('status', MatchmakingStatus::Matched)
-            ->exists();
+    // 1. ПРОВЕРКА: Занят ли собеседник (в рулетке или в другом приватном звонке)
+    $isBusy = Matchmaking::where('user_id', $receiverId)
+        ->where('status', MatchmakingStatus::Matched)
+        ->exists();
 
-        if ($isBusy) {
-            $msg = Message::create([
-                'sender_id' => $senderId,
-                'receiver_id' => $receiverId,
-                'message' => '📞 Пропущенный вызов (Абонент занят)'
-            ]);
-            broadcast(new MessageSentEvent($msg->toArray()));
-            return response()->json(['status' => 'busy', 'message' => 'Собеседник сейчас занят']);
-        }
-
-        $this->leaveChatAction->execute($senderId);
+    if ($isBusy) {
+        // Создаем сообщение о пропущенном вызове в базу
+        $msg = Message::create([
+            'sender_id' => $senderId,
+            'receiver_id' => $receiverId,
+            'message' => '📞 Missed call (Receiver was busy)'
+        ]);
+        // Отправляем событие сообщения, чтобы оно появилось в мессенджере у получателя
+        broadcast(new MessageSentEvent($msg->toArray()));
         
-        // Регистрируем "встречу" в истории сразу при попытке звонка
-        DB::table('interactions')->updateOrInsert(['user_id' => $senderId, 'partner_id' => $receiverId], ['last_at' => now()]);
-        DB::table('interactions')->updateOrInsert(['user_id' => $receiverId, 'partner_id' => $senderId], ['last_at' => now()]);
-
-        Matchmaking::updateOrCreate(
-            ['user_id' => $senderId],
-            ['status' => MatchmakingStatus::Matched, 'partner_id' => $receiverId, 'updated_at' => now()]
-        );
-        
-        Redis::setex("allow_signal:{$senderId}:{$receiverId}", 3600, "1");
-        Redis::setex("allow_signal:{$receiverId}:{$senderId}", 300, "1");
-        
-        broadcast(new WebRTCSignalEvent($receiverId, [
-            'type' => 'incoming-call',
-            'fromName' => Auth::user()->name,
-            'fromId' => $senderId
-        ]));
-
-        return response()->json(['status' => 'calling']);
+        return response()->json(['status' => 'busy', 'message' => 'User is busy']);
     }
+
+    // 2. Если свободен — готовим звонок
+    $this->leaveChatAction->execute($senderId);
+    
+    Matchmaking::updateOrCreate(
+        ['user_id' => $senderId],
+        ['status' => MatchmakingStatus::Matched, 'partner_id' => $receiverId, 'updated_at' => now()]
+    );
+    
+    // Даем права на сигналы в Redis
+    \Illuminate\Support\Facades\Redis::setex("allow_signal:{$senderId}:{$receiverId}", 3600, "1");
+    \Illuminate\Support\Facades\Redis::setex("allow_signal:{$receiverId}:{$senderId}", 3600, "1");
+    
+    broadcast(new WebRTCSignalEvent($receiverId, [
+        'type' => 'incoming-call',
+        'fromName' => Auth::user()->name,
+        'fromId' => $senderId
+    ]));
+
+    return response()->json(['status' => 'calling']);
+}
 
     public function getUserInfo(User $user): JsonResponse
     {
@@ -183,23 +181,46 @@ public function sendSignal(Request $request): JsonResponse
         return response()->json(['action' => 'added', 'isFriend' => true]);
     }
 
-    public function getContacts(): JsonResponse 
-    { 
-        $userId = Auth::id();
-        $contacts = User::whereIn('id', function($query) use ($userId) {
-                $query->select('contact_id')->from('contacts')->where('user_id', $userId);
-            })->select('id', 'name', 'last_seen')->get()
-            ->map(fn($u) => ['id' => $u->id, 'name' => $u->name, 'is_online' => $u->isOnline(), 'last_seen_human' => $u->getLastSeenForHumans()]);
-        return response()->json(['contacts' => $contacts]);
-    }
+public function getContacts(): JsonResponse 
+{ 
+    $userId = Auth::id();
+    
+    $contacts = User::whereIn('id', function($query) use ($userId) {
+            $query->select('contact_id')->from('contacts')->where('user_id', $userId);
+        })
+        // Выбираем только реальные колонки из БД
+        ->select('id', 'name', 'last_seen', 'level') 
+        // Универсальный способ сортировки: сначала те, кто заходил недавно
+        ->orderBy('last_seen', 'desc')
+        ->get()
+        ->map(fn($u) => [
+            'id' => $u->id, 
+            'name' => $u->name, 
+            'is_online' => $u->isOnline(), 
+            'last_seen_human' => $u->getLastSeenForHumans(),
+            'level' => $u->level,
+            // rank_name берется из модели User (Accessor), а не из SQL запроса
+            'rank_name' => $u->rank_name 
+        ]);
 
-    public function sendTypingSignal(Request $request): JsonResponse 
-    {
-        $request->validate(['receiver_id' => 'required|integer']);
-        // Шлем событие: КТО печатает (senderId) и КОМУ (receiverId)
-        broadcast(new UserTypingEvent($request->receiver_id, Auth::id()));
-        return response()->json(['status' => 'ok']);
-    }
+    return response()->json(['contacts' => $contacts]);
+}
+
+public function sendTypingSignal(Request $request): JsonResponse 
+{
+    // Валидируем, чтобы receiver_id точно был
+    $validated = $request->validate([
+        'receiver_id' => 'required|integer'
+    ]);
+
+    $receiverId = (int) $validated['receiver_id'];
+    $senderId = (int) Auth::id();
+
+    // Отправляем событие
+    broadcast(new \App\Events\UserTypingEvent($receiverId, $senderId))->toOthers();
+
+    return response()->json(['status' => 'ok']);
+}
 
 public function getInteractionHistory(): JsonResponse 
 {

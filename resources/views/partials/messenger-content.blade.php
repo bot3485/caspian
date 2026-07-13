@@ -1,8 +1,11 @@
 <!-- Навигация по вкладкам -->
 <div class="flex border-b border-white/5 bg-[#0a0a0a] px-2 shrink-0">
-    <button @click="tab = 'chat'; activeFriend = null" 
+    <button x-show="callContext !== 'personal'" 
+            @click="tab = 'chat'; activeFriend = null" 
             :class="tab === 'chat' && !activeFriend ? 'text-indigo-400 border-b-2 border-indigo-500' : 'text-gray-500'" 
-            class="flex-1 py-5 text-[9px] font-black uppercase tracking-widest transition-all">Рулетка</button>
+            class="flex-1 py-5 text-[9px] font-black uppercase tracking-widest transition-all">
+        Roulette
+    </button>
     
     <button @click="tab = 'friends'; activeFriend = null; loadFriends()" 
             :class="(tab === 'friends' || activeFriend) ? 'text-indigo-400 border-b-2 border-indigo-500' : 'text-gray-500'" 
@@ -19,8 +22,8 @@
 
 <div class="flex-1 flex flex-col overflow-hidden bg-[#050505]">
     <!-- ЧАТ РУЛЕТКИ -->
-    <div x-show="tab === 'chat' && !activeFriend" class="flex-1 flex flex-col overflow-hidden">
-        <template x-if="state === 'connected'">
+    <div x-show="tab === 'chat' && !activeFriend && callContext !== 'personal'" class="flex-1 flex flex-col overflow-hidden">
+        <template x-if="state === 'connected'"> 
             <div class="flex-1 flex flex-col overflow-hidden">
                 <div class="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar" x-ref="chatBox">
                     <template x-for="msg in messages" :key="msg.timestamp">
@@ -39,6 +42,14 @@
             </div>
         </template>
         <template x-if="state !== 'connected'"><div class="flex-1 flex flex-col items-center justify-center opacity-30 text-center"><div class="text-5xl mb-6">🎲</div><div class="text-[10px] font-black uppercase tracking-widest">Чат после соединения</div></div></template>
+    </div>
+
+    <!-- Дополнительно: Сообщение о блокировке (по желанию) -->
+    <div x-show="tab === 'chat' && callContext === 'personal'" class="flex-1 flex flex-col items-center justify-center opacity-50 text-center p-6">
+        <div class="text-4xl mb-4">🔒</div>
+        <div class="text-[10px] font-black uppercase tracking-widest text-indigo-400">
+            Roulette chat is disabled during personal call
+        </div>
     </div>
 
     <!-- ДРУЗЬЯ -->

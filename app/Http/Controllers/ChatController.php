@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Matchmaking;
 use App\Models\Message;
 use App\Models\User;
+use App\Models\Room; // <--- ДОБАВЬТЕ ЭТУ СТРОКУ
 use App\Actions\FindPartner;
 use App\Actions\LeaveChat;
 use App\Enums\MatchmakingStatus;
@@ -104,35 +105,46 @@ public function callContact(Request $request): JsonResponse
 
 public function sendSignal(Request $request): JsonResponse
     {
-        $validated = $request->validate(['partnerId' => 'required|integer', 'data' => 'required|array']);
+        $validated = $request->validate([
+            'partnerId' => 'required|integer', 
+            'data' => 'required|array'
+        ]);
+        
         $senderId = (int)Auth::id();
         $receiverId = (int)$validated['partnerId'];
         $data = $validated['data'];
 
-        // 1. Проверка через Redis (быстрая)
+        // 1. Проверка: это приватный чат (рулетка)?
         $isAllowed = Redis::exists("allow_signal:{$senderId}:{$receiverId}");
 
-        // 2. ФОЛБЭК: Проверка через БД (если Redis ключ истек, но матч в базе еще жив)
         if (!$isAllowed) {
+            // Фолбэк для рулетки
             $isAllowed = Matchmaking::where('user_id', $senderId)
                 ->where('partner_id', $receiverId)
                 ->exists();
             
-            // Если в базе есть — восстанавливаем ключ в Redis на 1 час
             if ($isAllowed) {
                 Redis::setex("allow_signal:{$senderId}:{$receiverId}", 3600, "1");
             }
         }
 
-        // 3. Проверка для групповых комнат
+        // 2. Проверка: это групповая комната (Spaces)?
+        // В объекте 'data' из JS мы передаем roomUuid
         if (!$isAllowed && isset($data['roomUuid'])) {
+            // Здесь мы проверяем, существует ли комната. 
+            // Для максимальной безопасности можно добавить проверку участия пользователя в Presence-канале.
             $isAllowed = Room::where('uuid', $data['roomUuid'])->exists();
         }
 
-        if (!$isAllowed) return response()->json(['error' => 'Unauthorized'], 403);
+        if (!$isAllowed) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
 
         $data['from'] = $senderId;
+        
+        // Отправляем сигнал получателю
         broadcast(new WebRTCSignalEvent($receiverId, $data));
+
         return response()->json(['status' => 'signal_sent']);
     }
 

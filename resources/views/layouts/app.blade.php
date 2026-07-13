@@ -94,11 +94,11 @@
 window.caspianApp = function(myId, myInterests, iceServers) {
     return {
         // --- UI & TABS ---
-        globalSidebarOpen: false, tab: 'chat', controlsOpen: true, state: 'idle', callContext: null,
+        globalSidebarOpen: false, tab: 'chat', controlsOpen: false, state: 'idle', callContext: null,
         incomingCall: null, ringtone: new Audio('/sounds/call.mp3'), msgSound: new Audio('/sounds/message.mp3'),
         audioUnlocked: false,
         layoutFocus: 'split', // может быть 'split', 'remote', 'local'
-        actionsOpen: true,
+        actionsOpen: false,
 
         // --- PARTNER DATA ---
         partnerId: null, partnerData: null, isFriend: false, partnerState: 'active',
@@ -129,31 +129,83 @@ window.caspianApp = function(myId, myInterests, iceServers) {
         rtcConfig: { iceServers: iceServers, bundlePolicy: "balanced", iceCandidatePoolSize: 10 },
 
 
-        async openDeviceSettings() {
+async openDeviceSettings() {
     const devices = await navigator.mediaDevices.enumerateDevices();
     this.videoDevices = devices.filter(d => d.kind === 'videoinput');
     this.audioDevices = devices.filter(d => d.kind === 'audioinput');
+
+    // Обязательно синхронизируем выбранные значения с текущим потоком
+    if (this.localStream) {
+        this.selectedVideoId = this.localStream.getVideoTracks()[0].getSettings().deviceId;
+        this.selectedAudioId = this.localStream.getAudioTracks()[0].getSettings().deviceId;
+    }
+    
     this.deviceModalOpen = true;
 },
 
 async changeVideoDevice() {
-    if (this.localStream) {
-        this.localStream.getVideoTracks().forEach(t => t.stop());
-        const newStream = await navigator.mediaDevices.getUserMedia({ 
-            video: { deviceId: { exact: this.selectedVideoId } },
-            audio: { deviceId: this.selectedAudioId ? { exact: this.selectedAudioId } : undefined }
-        });
-        this.localStream = newStream;
-        if (this.$refs.localVideo) this.$refs.localVideo.srcObject = newStream;
-        
-        // Если мы в звонке, обновляем стрим у партнера
-        if (this.pc) {
-            const sender = this.pc.getSenders().find(s => s.track.kind === 'video');
-            if (sender) sender.replaceTrack(newStream.getVideoTracks()[0]);
+    try {
+        // 1. Останавливаем старые треки
+        if (this.localStream) {
+            this.localStream.getTracks().forEach(t => t.stop());
         }
+
+        // 2. СБРОС ТЕГА (Важно для мобилок: полностью очищаем старый поток из плеера)
+        const localEl = document.getElementById('localVideo');
+        if (localEl) localEl.srcObject = null;
+
+        // 3. Запрашиваем новый поток
+        // Используем только deviceId без exact, чтобы браузер мог адаптироваться
+        const constraints = {
+            video: { 
+                deviceId: { ideal: this.selectedVideoId },
+                width: { ideal: 1280 }, // Задние камеры любят более высокое разрешение
+                height: { ideal: 720 }
+            },
+            audio: { 
+                deviceId: { ideal: this.selectedAudioId } 
+            }
+        };
+
+        const newStream = await navigator.mediaDevices.getUserMedia(constraints);
+        this.localStream = newStream;
+
+        // 4. Привязываем новый поток
+        if (localEl) {
+            localEl.srcObject = this.localStream;
+            // Принудительный запуск через 100мс (дает мобильному браузеру "продышаться")
+            setTimeout(() => {
+                localEl.play().catch(e => console.warn("Mobile autoplay failed, click needed"));
+            }, 100);
+        }
+
+        // 5. Заменяем трек у партнера, если мы в звонке
+        if (this.pc) {
+            const videoTrack = this.localStream.getVideoTracks()[0];
+            const videoSender = this.pc.getSenders().find(s => s.track?.kind === 'video');
+            if (videoSender) await videoSender.replaceTrack(videoTrack);
+            
+            const audioTrack = this.localStream.getAudioTracks()[0];
+            const audioSender = this.pc.getSenders().find(s => s.track?.kind === 'audio');
+            if (audioSender) await audioSender.replaceTrack(audioTrack);
+        }
+
+        window.dispatchEvent(new CustomEvent('toast', {detail: {msg: 'Hardware Switched'}}));
+    } catch (e) {
+        console.error("Camera switch failed:", e);
+        // Если задняя камера не завелась, пробуем вернуться хоть к какой-то
+        this.localStream = null;
+        await this.initMedia();
+    }
+    
+    this.deviceModalOpen = false;
+},
+refreshVideoTags() {
+    const localEl = document.getElementById('localVideo');
+    if (localEl && this.localStream && localEl.srcObject !== this.localStream) {
+        localEl.srcObject = this.localStream;
     }
 },
-
 
 async changeAudioDevice() {
     // Аналогичная логика для аудио (просто перезапрашиваем поток)
@@ -161,6 +213,7 @@ async changeAudioDevice() {
 },
 
         async init() {
+            
             const self = this; 
             this.ringtone.loop = true;
 
@@ -179,11 +232,13 @@ async changeAudioDevice() {
                     const urlParams = new URLSearchParams(window.location.search);
                     if (urlParams.has('accept_call')) self.setupPersonalCall(parseInt(urlParams.get('accept_call')), true);
                     else if (urlParams.has('call_to')) self.setupPersonalCall(parseInt(urlParams.get('call_to')), false);
+                    setInterval(() => { this.refreshVideoTags(); }, 2000);
                 });
             }
             this.loadFriends(); this.loadHistory(); this.loadBlocked();
             this.startStats();
             this.startHeartbeat();
+            
         },
 
         // --- MEDIA CONTROL ---
@@ -309,22 +364,20 @@ async initMedia() {
 async handleMatch(e) {
     if (this.callContext === 'personal') return;
     this.reset();
+    this.partnerId = Number(e.partnerData?.id);
+    this.partnerData = e.partnerData || {};
     
-    this.partnerId = Number(e.partnerData.id); 
-    this.partnerData = e.partnerData; 
-    this.isFriend = !!e.isFriend;
-    
-    // Обработка интересов
-    this.commonInterests = e.partnerData.common_interests || [];
+    // Расчет совпадений
+    const pInterests = this.partnerData.interests || [];
+    this.commonInterests = pInterests.filter(i => this.myInterests.includes(i));
     if (this.commonInterests.length > 0) {
         this.showInterestMatch = true;
-        setTimeout(() => { this.showInterestMatch = false; }, 6000); // Скрыть через 6 секунд
+        setTimeout(() => { this.showInterestMatch = false; }, 6000);
     }
 
     this.state = 'connected';
-    this.callContext = 'roulette';
     this.initPC();
-    if (myId < this.partnerId) setTimeout(() => this.sendOffer(), 1000);
+    if (myId < this.partnerId) setTimeout(() => this.sendOffer(), 1200);
 },
 
         async setupPersonalCall(id, isAccepted) {

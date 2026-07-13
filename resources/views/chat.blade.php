@@ -31,7 +31,7 @@
 
                 <!-- PARTNER INFO TAG -->
                 <div x-show="state === 'connected' && partnerData" 
-                     class="absolute top-6 left-6 caspian-glass p-2 pr-6 rounded-2xl flex items-center gap-3 border-white/10 shadow-2xl transition-all"
+                     class="absolute top-6 left-6 bg-[#0a0a0a] p-2 pr-6 rounded-2xl flex items-center gap-3 border-white/10 shadow-2xl transition-all"
                      x-transition:enter="translate-x-[-20px] opacity-0" x-transition:enter-end="translate-x-0 opacity-100">
                     <div class="w-10 h-10 bg-brand-indigo rounded-xl flex items-center justify-center font-black text-sm shadow-lg border border-white/20" x-text="partnerData?.name?.[0]"></div>
                     <div>
@@ -106,7 +106,7 @@
      class="fixed top-1/3 left-1/2 -translate-x-1/2 z-[600] pointer-events-none"
      x-cloak>
     
-    <div class="caspian-glass px-8 py-6 rounded-[2.5rem] border-brand-indigo/40 shadow-[0_0_50px_rgba(99,102,241,0.2)] flex flex-col items-center gap-4 min-w-[320px]">
+    <div class="bg-brand-indigo border-4 border-white px-8 py-6 rounded-[3rem] shadow-[0_0_80px_rgba(0,0,0,1)] flex flex-col items-center gap-4 min-w-[320px]">
         <!-- Иконка с импульсом -->
         <div class="relative">
             <div class="absolute inset-0 bg-brand-indigo rounded-full animate-ping opacity-25"></div>
@@ -137,7 +137,8 @@
 
 
         <!-- 3. FLOATING CONTROL ISLAND -->
-        <div class="fixed bottom-8 left-0 right-0 px-6 z-[500] flex flex-col items-center gap-4 pointer-events-none">
+        <div class="fixed bottom-8 left-0 right-0 px-6 z-[500] flex flex-col items-center gap-4 pointer-events-none"
+        :class="globalSidebarOpen ? 'max-md:opacity-0 max-md:translate-y-10 max-md:pointer-events-none' : 'opacity-100'">
             
             <!-- TOOL GRID (Control Center style) -->
             <div x-show="controlsOpen" 
@@ -194,7 +195,7 @@
 <!-- MAIN ACTION BAR (v3.2 Immersive Orb Edition) -->
 <div class="pointer-events-auto flex items-center transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)]"
      :class="actionsOpen 
-        ? 'w-full max-w-[400px] bg-[#121212]/90 backdrop-blur-3xl border border-white/10 rounded-[3rem] p-1.5 shadow-2xl' 
+        ? 'w-full max-w-[400px] bg-[#121212] border border-white/10 rounded-[3rem] p-1.5 shadow-2xl' 
         : 'w-14 h-14 bg-brand-indigo/20 backdrop-blur-xl border border-brand-indigo/40 rounded-full shadow-[0_0_20px_rgba(99,102,241,0.3)] hover:scale-110 hover:bg-brand-indigo/40'">
     
     <!-- Левая кнопка инструментов (⚡) - исчезает при сворачивании -->
@@ -251,4 +252,58 @@
     </button>
 </div>
 </div>
+<!-- DEVICE MODAL (v3.2 Hardware Engine) -->
+    <div x-show="deviceModalOpen" 
+         class="fixed inset-0 z-[2000] flex items-center justify-center p-6 bg-black/95 backdrop-blur-3xl" 
+         x-cloak 
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0 scale-95"
+         x-transition:enter-end="opacity-100 scale-100"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-end="opacity-0 scale-95">
+        
+        <div class="bg-[#080808] border border-white/10 w-full max-w-sm rounded-[3rem] p-10 shadow-[0_0_100px_rgba(0,0,0,1)]" 
+             @click.away="deviceModalOpen = false">
+            
+            <div class="flex items-center gap-4 mb-10">
+                <div class="w-12 h-12 bg-brand-indigo/10 rounded-2xl flex items-center justify-center text-xl">⚙️</div>
+                <h3 class="text-xl font-black uppercase italic tracking-tighter text-white">Hardware</h3>
+            </div>
+
+            <div class="space-y-8">
+                <!-- Video Select -->
+                <div class="space-y-3">
+                    <label class="text-[9px] font-black uppercase text-gray-500 tracking-[0.3em] ml-2">Video Interface</label>
+                    <select x-model="selectedVideoId" 
+                            class="w-full bg-white/5 border border-white/10 rounded-2xl py-5 px-6 text-xs font-bold text-white focus:ring-2 focus:ring-brand-indigo outline-none transition-all appearance-none cursor-pointer">
+                        <template x-for="dev in videoDevices" :key="dev.deviceId">
+                            <option :value="dev.deviceId" x-text="dev.label || 'Camera ' + (videoDevices.indexOf(dev)+1)"></option>
+                        </template>
+                    </select>
+                </div>
+
+                <!-- Audio Select -->
+                <div class="space-y-3">
+                    <label class="text-[9px] font-black uppercase text-gray-500 tracking-[0.3em] ml-2">Audio Interface</label>
+                    <select x-model="selectedAudioId" 
+                            class="w-full bg-white/5 border border-white/10 rounded-2xl py-5 px-6 text-xs font-bold text-white focus:ring-2 focus:ring-brand-indigo outline-none transition-all appearance-none cursor-pointer">
+                        <template x-for="dev in audioDevices" :key="dev.deviceId">
+                            <option :value="dev.deviceId" x-text="dev.label || 'Microphone ' + (audioDevices.indexOf(dev)+1)"></option>
+                        </template>
+                    </select>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4 mt-12">
+                <button @click="deviceModalOpen = false" 
+                        class="py-5 rounded-2xl font-black text-[10px] uppercase tracking-widest text-gray-500 hover:text-white transition-all">
+                    Cancel
+                </button>
+                <button @click="changeVideoDevice()" 
+                        class="bg-brand-indigo py-5 rounded-2xl font-black text-[10px] uppercase tracking-widest text-white shadow-xl shadow-brand-indigo/30 hover:scale-105 active:scale-95 transition-all">
+                    Apply Changes
+                </button>
+            </div>
+        </div>
+    </div>
 </x-app-layout>

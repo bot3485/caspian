@@ -10,10 +10,26 @@
 
         <div class="grid grid-cols-1 gap-6">
             <!-- Interests Field (Moved Inside) -->
-            <div>
-                <x-input-label for="interests" :value="__('Ваши интересы (через запятую)')" class="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2 ml-1" />
-                <x-text-input id="interests" name="interests_string" type="text" class="w-full !bg-white/5 !border-white/10 !rounded-2xl !py-4 !px-6 !text-white" :value="implode(', ', $user->interests ?? [])" placeholder="Gaming, Coding, Music" />
-            </div>
+<div>
+    <label class="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-4 block ml-1">
+        Select Your Interests
+    </label>
+    
+    <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
+        @foreach(\App\Enums\UserInterest::cases() as $interest)
+            <label class="relative cursor-pointer group">
+                <input type="checkbox" name="interests[]" value="{{ $interest->value }}" 
+                       {{ in_array($interest->value, $user->interests ?? []) ? 'checked' : '' }}
+                       class="peer sr-only">
+                <div class="p-3 text-center rounded-2xl bg-white/5 border border-white/10 text-[10px] font-black uppercase tracking-widest transition-all
+                            peer-checked:bg-brand-indigo peer-checked:text-white peer-checked:border-brand-indigo
+                            group-hover:border-white/20">
+                    {{ $interest->name }}
+                </div>
+            </label>
+        @endforeach
+    </div>
+</div>
 
             <div>
                 <x-input-label for="name" :value="__('Имя')" class="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2 ml-1" />

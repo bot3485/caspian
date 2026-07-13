@@ -46,40 +46,48 @@ class ChatController extends Controller
 
 public function callContact(Request $request): JsonResponse
 {
+    // 1. Сначала валидируем входные данные
+    $request->validate(['contactId' => 'required|integer|exists:users,id']);
+    
+    // 2. ОПРЕДЕЛЯЕМ переменные ДО того, как их использовать
+    $receiverId = (int)$request->contactId;
+    $senderId = Auth::id();
+
+    if ($senderId === $receiverId) {
+        return response()->json(['error' => 'Self-call'], 400);
+    }
+
+    // 3. Теперь проверяем блокировку (теперь переменные существуют)
     $isBlocked = DB::table('blocks')
-    ->where(fn($q) => $q->where('blocker_id', $receiverId)->where('blocked_id', $senderId))
-    ->orWhere(fn($q) => $q->where('blocker_id', $senderId)->where('blocked_id', $receiverId))
-    ->exists();
+        ->where(function($q) use ($senderId, $receiverId) {
+            $q->where('blocker_id', $receiverId)->where('blocked_id', $senderId);
+        })
+        ->orWhere(function($q) use ($senderId, $receiverId) {
+            $q->where('blocker_id', $senderId)->where('blocked_id', $receiverId);
+        })
+        ->exists();
 
     if ($isBlocked) {
         return response()->json(['error' => 'Connection refused by security policy'], 403);
     }
 
-    $request->validate(['contactId' => 'required|integer']);
-    $receiverId = (int)$request->contactId;
-    $senderId = Auth::id();
-
-    if ($senderId === $receiverId) return response()->json(['error' => 'Self-call'], 400);
-
-    // 1. ПРОВЕРКА: Занят ли собеседник (в рулетке или в другом приватном звонке)
+    // 4. ПРОВЕРКА: Занят ли собеседник
     $isBusy = Matchmaking::where('user_id', $receiverId)
         ->where('status', MatchmakingStatus::Matched)
         ->exists();
 
     if ($isBusy) {
-        // Создаем сообщение о пропущенном вызове в базу
         $msg = Message::create([
             'sender_id' => $senderId,
             'receiver_id' => $receiverId,
             'message' => '📞 Missed call (Receiver was busy)'
         ]);
-        // Отправляем событие сообщения, чтобы оно появилось в мессенджере у получателя
         broadcast(new MessageSentEvent($msg->toArray()));
         
         return response()->json(['status' => 'busy', 'message' => 'User is busy']);
     }
 
-    // 2. Если свободен — готовим звонок
+    // 5. Если свободен — готовим звонок
     $this->leaveChatAction->execute($senderId);
     
     Matchmaking::updateOrCreate(
@@ -87,7 +95,6 @@ public function callContact(Request $request): JsonResponse
         ['status' => MatchmakingStatus::Matched, 'partner_id' => $receiverId, 'updated_at' => now()]
     );
     
-    // Даем права на сигналы в Redis
     \Illuminate\Support\Facades\Redis::setex("allow_signal:{$senderId}:{$receiverId}", 3600, "1");
     \Illuminate\Support\Facades\Redis::setex("allow_signal:{$receiverId}:{$senderId}", 3600, "1");
     

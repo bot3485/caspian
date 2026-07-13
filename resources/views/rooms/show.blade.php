@@ -72,7 +72,7 @@
 
         <!-- CONTROLS -->
         <div class="absolute bottom-10 left-0 right-0 px-4 z-[120] flex justify-center">
-            <div class="flex items-center gap-2 p-2 bg-[#121212]/95 backdrop-blur-3xl border border-white/10 rounded-full shadow-[0_20px_50px_rgba(0,0,0,0.5)]" x-data="{ controlsOpen: true }">
+            <div class="flex items-center gap-2 p-2 bg-[#121212]/95 backdrop-blur-3xl border border-white/10 rounded-full shadow-[0_20px_50px_rgba(0,0,0,0.5)]" x-data="{ controlsOpen: false  }">
                 <button @click="controlsOpen = !controlsOpen" class="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center transition-all">
                     <span class="text-[10px]" x-text="controlsOpen ? '▼' : '⚡'"></span>
                 </button>

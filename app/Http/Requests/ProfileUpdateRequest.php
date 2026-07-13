@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Models\User;
+use App\Enums\UserInterest;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -13,7 +14,8 @@ public function rules(): array
     return [
         'name' => ['required', 'string', 'max:255'],
         'email' => ['required', 'string', 'lowercase', 'email', 'max:255', Rule::unique(User::class)->ignore($this->user()->id)],
-        'interests_string' => ['nullable', 'string', 'max:1000'], // Добавить эту строку
+        'interests' => ['nullable', 'array'],
+        'interests.*' => [Rule::enum(UserInterest::class)],
     ];
 }
 }

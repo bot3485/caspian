@@ -35,6 +35,6 @@ class MatchFoundEvent implements ShouldBroadcastNow
 
     public function broadcastAs(): string
     {
-        return 'MatchFoundEvent';
+        return 'MatchFoundEvent'; // Теперь Echo будет ловить его как .MatchFoundEvent
     }
 }

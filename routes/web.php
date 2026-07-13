@@ -6,105 +6,105 @@ use App\Http\Controllers\RoomController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\BrowserLogController;
 use Illuminate\Support\Facades\Route;
-use App\Models\User;
 use App\Models\Matchmaking;
-use App\Models\Room;
+use Illuminate\Support\Facades\Auth;
 
-// --- ПУБЛИЧНЫЕ РОУТЫ ---
+/*
+|--------------------------------------------------------------------------
+| Public Routes
+|--------------------------------------------------------------------------
+*/
+
 Route::get('/', function () { 
     return view('welcome'); 
-});
+})->name('home');
 
-// Логирование ошибок браузера
 Route::post('_boost/browser-logs', [BrowserLogController::class, 'store']);
 
-// --- РОУТЫ С АВТОРИЗАЦИЕЙ ---
+/*
+|--------------------------------------------------------------------------
+| Protected Routes (Auth & Verified)
+|--------------------------------------------------------------------------
+*/
+
 Route::middleware(['auth', 'verified'])->group(function () {
 
-Route::get('/chat/user-info/{user}', function (App\Models\User $user) {
-    return response()->json([
-        'id' => $user->id,
-        'name' => $user->name,
-        'level' => $user->level,
-        'rank_name' => $user->rank_name,
-    ]);
-});
-
-    // ГЛАВНАЯ ПАНЕЛЬ (Dashboard)
+    // --- Основные страницы ---
     Route::get('/dashboard', function () {
-        return view('dashboard', [
-            'stats' => [
-                'total_users'   => User::count(),
-                'online_now'    => Matchmaking::whereIn('status', ['searching', 'matched'])->count(),
-                'total_minutes' => User::sum('total_minutes'),
-                'active_rooms'  => Room::where('is_public', true)->count(),
-            ]
-        ]);
+        return view('dashboard');
     })->name('dashboard');
 
-    // Таблица лидеров
     Route::get('/leaderboard', function () { 
         return view('leaderboard'); 
     })->name('leaderboard');
 
-    // Пульс (Heartbeat) для обновления статуса last_seen
-    Route::post('/ping', function () {
-        if (Auth::check()) {
-            // Продлеваем жизнь записи в очереди/матче при каждом пинге
-            \App\Models\Matchmaking::where('user_id', Auth::id())->update([
-                'updated_at' => now()
-            ]);
+    // --- Система активности (Ping) ---
+Route::post('/ping', function () {
+    if (Auth::check()) {
+        // Продлеваем жизнь записи в очереди
+        \App\Models\Matchmaking::where('user_id', Auth::id())->update(['updated_at' => now()]);
+        
+        // Продлеваем жизнь прав на сигналы в Redis (чтобы TURN/сигналы не отвалились через час)
+        $match = \App\Models\Matchmaking::where('user_id', Auth::id())->first();
+        if ($match && $match->partner_id) {
+            \Illuminate\Support\Facades\Redis::expire("allow_signal:".Auth::id().":{$match->partner_id}", 3600);
+            \Illuminate\Support\Facades\Redis::expire("allow_signal:{$match->partner_id}:".Auth::id(), 3600);
         }
-        return response()->json(['status' => 'pong']);
-    })->name('ping');
+    }
+    return response()->json(['status' => 'pong']);
+})->name('ping');
 
-    // ЖАЛОБЫ И БЛОКИРОВКИ
+    // --- Жалобы ---
     Route::post('/report', [ReportController::class, 'store'])->name('report.store');
 
-    // ПРОФИЛЬ ПОЛЬЗОВАТЕЛЯ
+    // --- Профиль пользователя ---
     Route::controller(ProfileController::class)->group(function () {
         Route::get('/profile', 'edit')->name('profile.edit');
         Route::patch('/profile', 'update')->name('profile.update');
         Route::delete('/profile', 'destroy')->name('profile.destroy');
     });
 
-    // ВИДЕО-ЧАТ (РУЛЕТКА) И МЕССЕНДЖЕР
-    // Здесь мы используем префикс пути 'chat', но НЕ используем ->name('chat.'), чтобы сохранить имена роутов как были
-    Route::prefix('chat')->controller(ChatController::class)->group(function () {
-        Route::get('/', function () { return view('chat'); })->name('chat'); // Имя роута: chat
-        
-        // Matchmaking и Сигналы WebRTC
-        Route::post('/search', 'startSearching');
-        Route::post('/leave', 'leaveChat');
-        Route::post('/signal', 'sendSignal');
-        
-        // Контакты и Друзья
-        Route::get('/contacts', 'getContacts');
-        Route::post('/contact/add', 'addContact');
-        Route::post('/contact/call', 'callContact');
-        
-        // История и Сообщения
-        Route::get('/history-all', 'getInteractionHistory');
-        Route::get('/history/{contactId}', 'getChatHistory');
-        Route::post('/message/send', 'sendMessage');
-        Route::post('/message/typing', 'sendTypingSignal');
+    // --- Видеочат и Мессенджер ---
+    Route::prefix('chat')->group(function () {
+        Route::get('/', [ChatController::class, 'index'])->name('chat');
 
-        // Черный список
-        Route::get('/blocked', 'getBlockedUsers');
-        Route::post('/unblock', 'unblockUser');
+        Route::controller(ChatController::class)->group(function () {
+            // Рулетка (Поиск и сигналы)
+            Route::post('/search', 'startSearching')->name('chat.search');
+            Route::post('/leave', 'leaveChat')->name('chat.leave');
+            Route::post('/signal', 'sendSignal')->name('chat.signal');
+            Route::get('/user-info/{user}', 'getUserInfo')->name('chat.user-info');
+
+            // Контакты и друзья
+            Route::get('/contacts', 'getContacts')->name('chat.contacts');
+            Route::post('/contact/add', 'addContact')->name('chat.contact.add');
+            Route::post('/contact/call', 'callContact')->name('chat.contact.call');
+
+            // Сообщения и Печать
+            Route::post('/message/send', 'sendMessage')->name('chat.message.send');
+            Route::post('/message/typing', 'sendTypingSignal')->name('chat.message.typing');
+            Route::get('/history/{contactId}', 'getChatHistory')->name('chat.history.single');
+
+            // История взаимодействий (всех встреч)
+            Route::get('/history-all', 'getInteractionHistory')->name('chat.history.all');
+
+            // Черный список и блокировка
+            Route::get('/blocked', 'getBlockedUsers')->name('chat.blocked');
+            Route::post('/block', 'blockUser')->name('chat.block'); // <--- Теперь здесь
+            Route::post('/unblock', 'unblockUser')->name('chat.unblock');
+        });
     });
 
-    // КОМНАТЫ (SPACES)
+    // --- Групповые комнаты (Spaces) ---
     Route::controller(RoomController::class)->prefix('rooms')->name('rooms.')->group(function () {
-        Route::get('/', 'index')->name('index');                // rooms.index
-        Route::post('/', 'store')->name('store');              // rooms.store
-        Route::get('/{uuid}', 'show')->name('show');           // rooms.show
-        Route::post('/{uuid}/join', 'join')->name('join');     // rooms.join
-        Route::delete('/{uuid}', 'destroy')->name('destroy');  // rooms.destroy
-        
-        // Исправленный роут синхронизации:
-        Route::post('/{uuid}/sync-occupancy', 'syncOccupancy')->name('sync-occupancy'); // rooms.sync-occupancy
+        Route::get('/', 'index')->name('index');
+        Route::post('/', 'store')->name('store');
+        Route::get('/{uuid}', 'show')->name('show');
+        Route::post('/{uuid}/join', 'join')->name('join');
+        Route::delete('/{uuid}', 'destroy')->name('destroy');
+        Route::post('/{uuid}/sync-occupancy', 'syncOccupancy')->name('sync-occupancy');
     });
+
 });
 
 require __DIR__.'/auth.php';

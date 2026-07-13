@@ -3,7 +3,6 @@
 namespace App\Actions;
 
 use App\Models\Matchmaking;
-use App\Events\WebRTCSignalEvent;
 use Illuminate\Support\Facades\Redis;
 use Illuminate\Support\Facades\DB;
 
@@ -11,30 +10,31 @@ class LeaveChat
 {
     public function execute(int $userId): void
     {
-        // 1. Удаляем из очередей Redis
-        (new FindPartner())->removeFromQueue($userId);
-
-        // 2. Находим текущий активный матч
+        // 1. Находим текущий активный матч перед удалением
         $match = Matchmaking::where('user_id', $userId)->first();
         
         if ($match && $match->partner_id) {
             $partnerId = $match->partner_id;
 
-            // Чистим Redis права на сигналы
+            // Удаляем конкретные ключи доступа (без Redis::keys)
             Redis::del("allow_signal:{$userId}:{$partnerId}");
             Redis::del("allow_signal:{$partnerId}:{$userId}");
 
-            // Отправляем партнеру сигнал, что мы ушли
-            broadcast(new WebRTCSignalEvent($partnerId, [
+            // Уведомляем партнера
+            broadcast(new \App\Events\WebRTCSignalEvent($partnerId, [
                 'type' => 'peer-disconnected',
                 'from' => $userId
             ]));
             
-            // Удаляем запись у партнера (чтобы он вернулся в idle)
+            // Очищаем запись у партнера, чтобы он не "завис"
             Matchmaking::where('user_id', $partnerId)->delete();
         }
 
-        // 3. Удаляем свою запись поиска/матча
+        // 2. Удаляем из очередей
+        Redis::lrem('matchmaking_high', 0, $userId);
+        Redis::lrem('matchmaking_low', 0, $userId);
+
+        // 3. Удаляем свою запись
         Matchmaking::where('user_id', $userId)->delete();
     }
 }

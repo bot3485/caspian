@@ -2,7 +2,8 @@
 
 namespace App\Events;
 
-use Illuminate\Broadcasting\{InteractsWithSockets, PrivateChannel};
+use Illuminate\Broadcasting\InteractsWithSockets;
+use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
@@ -18,12 +19,13 @@ class UserTypingEvent implements ShouldBroadcastNow
 
     public function broadcastOn(): array
     {
-        return [new PrivateChannel("user.{$this->receiverId}")];
+        return [
+            new PrivateChannel("user.{$this->receiverId}"),
+        ];
     }
 
     public function broadcastAs(): string
     {
-        // Это имя критически важно для фронтенда
         return 'UserTypingEvent';
     }
 }

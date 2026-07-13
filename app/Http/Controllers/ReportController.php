@@ -12,66 +12,50 @@ class ReportController extends Controller
     /**
      * Обработка жалобы с автоматической блокировкой (ЧС).
      */
-    public function store(Request $request)
-    {
-        $validated = $request->validate([
-            'reported_id' => 'required|integer|exists:users,id',
-            'reason' => 'required|string|max:255'
+public function store(Request $request)
+{
+    $reporterId = Auth::id();
+    $reportedId = (int)$request->reported_id;
+
+    return DB::transaction(function() use ($reporterId, $reportedId) {
+        // 1. Создаем запись в черном списке
+        // Это наш "замок". Пока эта запись существует, юзер не виден в списках.
+        DB::table('blocks')->updateOrInsert([
+            'blocker_id' => $reporterId,
+            'blocked_id' => $reportedId
+        ], [
+            'created_at' => now(), 
+            'updated_at' => now()
         ]);
 
-        $reporterId = Auth::id();
-        $reportedId = (int)$validated['reported_id'];
+        // 2. Мгновенно уведомляем нарушителя (Blacklist Protocol)
+        // У него на экране выскочит тост и его выкинет в Dashboard
+        broadcast(new \App\Events\WebRTCSignalEvent($reportedId, [
+            'type' => 'you-are-blocked',
+            'from' => $reporterId
+        ]));
 
-        if ($reporterId === $reportedId) {
-            return response()->json(['error' => 'Self-report'], 400);
+        // 3. Обрываем текущую активную связь (если она есть)
+        // Удаляем обоих из очереди подбора/текущего матча
+        \App\Models\Matchmaking::whereIn('user_id', [$reporterId, $reportedId])->delete();
+
+        // 4. Аннулируем ключи доступа к WebRTC сигналам в Redis
+        \Illuminate\Support\Facades\Redis::del("allow_signal:{$reporterId}:{$reportedId}");
+        \Illuminate\Support\Facades\Redis::del("allow_signal:{$reportedId}:{$reporterId}");
+
+        // 5. Штраф кармы за репорт
+        $reportedUser = \App\Models\User::find($reportedId);
+        if ($reportedUser) {
+            $reportedUser->decrement('karma', 25);
+            // Если карма упала в ноль - бан на 24 часа
+            if ($reportedUser->karma <= 0) {
+                $reportedUser->update(['banned_until' => now()->addHours(24)]);
+            }
         }
 
-        return DB::transaction(function() use ($reporterId, $reportedId, $validated) {
-            
-            // 1. ЗАПИСЫВАЕМ В ЧЕРНЫЙ СПИСОК (Если еще не там)
-            DB::table('blocks')->updateOrInsert([
-                'blocker_id' => $reporterId,
-                'blocked_id' => $reportedId
-            ], [
-                'created_at' => now(),
-                'updated_at' => now()
-            ]);
-
-            // 2. ПРОВЕРЯЕМ СПАМ ЖАЛОБАМИ (Не чаще раза в сутки)
-            $alreadyReported = DB::table('reports')
-                ->where('reporter_id', $reporterId)
-                ->where('reported_id', $reportedId)
-                ->where('created_at', '>', now()->subDay())
-                ->exists();
-
-            if ($alreadyReported) {
-                return response()->json(['status' => 'already_reported_but_blocked'], 200);
-            }
-
-            // 3. СОЗДАЕМ ЖАЛОБУ
-            DB::table('reports')->insert([
-                'reporter_id' => $reporterId,
-                'reported_id' => $reportedId,
-                'reason' => $validated['reason'],
-                'created_at' => now(),
-            ]);
-
-            // 4. ШТРАФ КАРМЫ И ПРОВЕРКА НА БАН
-            $reportedUser = User::find($reportedId);
-            if ($reportedUser) {
-                // Срезаем 20 единиц кармы
-                $reportedUser->decrement('karma', 20);
-                
-                // Если карма упала в 0 или ниже — системный бан на 12 часов
-                if ($reportedUser->karma <= 0) {
-                    $reportedUser->update([
-                        'banned_until' => Carbon::now()->addHours(12),
-                        'karma' => 50 // Частичный сброс после бана
-                    ]);
-                }
-            }
-
-            return response()->json(['status' => 'success', 'info' => 'User blocked and reported']);
-        });
-    }
+        // ВАЖНО: Мы НЕ вызываем delete() для таблиц 'contacts' и 'interactions' больше!
+        
+        return response()->json(['status' => 'success']);
+    });
+}
 }

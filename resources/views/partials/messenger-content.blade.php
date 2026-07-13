@@ -1,23 +1,13 @@
 <!-- Навигация по вкладкам -->
 <div class="flex border-b border-white/5 bg-[#0a0a0a] px-2 shrink-0">
-    <button x-show="callContext !== 'personal'" 
-            @click="tab = 'chat'; activeFriend = null" 
-            :class="tab === 'chat' && !activeFriend ? 'text-indigo-400 border-b-2 border-indigo-500' : 'text-gray-500'" 
-            class="flex-1 py-5 text-[9px] font-black uppercase tracking-widest transition-all">
-        Roulette
-    </button>
-    
-    <button @click="tab = 'friends'; activeFriend = null; loadFriends()" 
-            :class="(tab === 'friends' || activeFriend) ? 'text-indigo-400 border-b-2 border-indigo-500' : 'text-gray-500'" 
-            class="flex-1 py-5 text-[9px] font-black uppercase tracking-widest transition-all">Друзья</button>
-    
-    <button @click="tab = 'history'; activeFriend = null; loadHistory()" 
-            :class="tab === 'history' ? 'text-indigo-400 border-b-2 border-indigo-500' : 'text-gray-500'" 
-            class="flex-1 py-5 text-[9px] font-black uppercase tracking-widest transition-all">История</button>
-    
-    <button @click="tab = 'blacklist'; activeFriend = null; loadBlocked()" 
-            :class="tab === 'blacklist' ? 'text-red-500 border-b-2 border-red-500' : 'text-gray-500'" 
-            class="flex-1 py-5 text-[9px] font-black uppercase tracking-widest transition-all">ЧС</button>
+    <button @click="tab = 'chat'" :class="tab === 'chat' ? 'text-brand-indigo border-b-2 border-brand-indigo' : 'text-gray-600'" 
+            class="flex-1 py-5 text-[10px] font-black uppercase tracking-widest">Global</button>
+    <button @click="tab = 'friends'" :class="tab === 'friends' ? 'text-brand-indigo border-b-2 border-brand-indigo' : 'text-gray-600'" 
+            class="flex-1 py-5 text-[10px] font-black uppercase tracking-widest">Contacts</button>
+    <button @click="tab = 'history'" :class="tab === 'history' ? 'text-brand-indigo border-b-2 border-brand-indigo' : 'text-gray-600'" 
+            class="flex-1 py-5 text-[10px] font-black uppercase tracking-widest">Logs</button>
+    <button @click="tab = 'blacklist'" :class="tab === 'blacklist' ? 'text-red-500 border-b-2 border-red-500' : 'text-gray-600'" 
+            class="flex-1 py-5 text-[10px] font-black uppercase tracking-widest">Blocked</button>
 </div>
 
 <div class="flex-1 flex flex-col overflow-hidden bg-[#050505]">
@@ -118,13 +108,19 @@
         </template>
     </div>
 
-    <!-- ЧЕРНЫЙ СПИСОК -->
-    <div x-show="tab === 'blacklist' && !activeFriend" class="flex-1 overflow-y-auto p-4 space-y-2">
-        <template x-for="b in blockedList" :key="b.id">
-            <div class="p-4 bg-red-500/5 border border-red-500/10 rounded-3xl flex items-center justify-between">
-                <div class="text-xs font-bold text-red-200" x-text="b.name"></div>
-                <button @click="unblock(b.id)" class="px-4 py-2 bg-white/5 hover:bg-red-600 rounded-xl text-[8px] font-black uppercase">Разблокировать</button>
+<!-- ЧЕРНЫЙ СПИСОК -->
+<div x-show="tab === 'blacklist'" class="flex-1 overflow-y-auto p-4 space-y-2">
+    <template x-for="b in blockedList" :key="b.id">
+        <div class="p-4 caspian-glass rounded-3xl flex items-center justify-between border-red-500/10 bg-red-500/5">
+            <div class="flex flex-col">
+                <span class="text-xs font-black uppercase italic" x-text="b.name"></span>
+                <span class="text-[7px] text-gray-500 uppercase tracking-widest">Protocol Terminated</span>
             </div>
-        </template>
-    </div>
+            <button @click="unblock(b.id)" 
+                    class="px-4 py-2 bg-white text-black rounded-xl text-[8px] font-black uppercase hover:bg-brand-indigo hover:text-white transition-all shadow-lg">
+                Restore Data
+            </button>
+        </div>
+    </template>
+</div>
 </div>

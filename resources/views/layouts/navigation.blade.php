@@ -1,90 +1,66 @@
-<nav class="sticky top-0 z-[300] bg-black/40 backdrop-blur-2xl border-b border-white/5">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+<nav class="sticky top-0 z-[300] bg-black/60 backdrop-blur-3xl border-b border-white/[0.05]">
+    <div class="max-w-[1600px] mx-auto px-6">
         <div class="flex justify-between h-20 items-center">
             
-            <div class="flex items-center gap-8">
-                <a href="{{ route('dashboard') }}" class="group flex items-center gap-3">
-                    <div class="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-[0_0_15px_rgba(79,70,229,0.4)]">
-                        <x-application-logo class="w-6 h-6 fill-white" />
-                    </div>
-                    <span class="text-lg font-black tracking-tighter uppercase hidden sm:block">Caspian</span>
+            <!-- Logo Group -->
+            <div class="flex items-center gap-10">
+                <a href="{{ route('dashboard') }}" class="flex items-center gap-3 hover:opacity-80 transition-opacity">
+                    <img src="{{ asset('roulette.jpg') }}" class="w-9 h-9 rounded-lg" alt="C">
+                    <span class="text-lg font-black tracking-tighter uppercase italic hidden lg:block">Caspian</span>
                 </a>
 
-                <div class="hidden space-x-1 sm:flex">
-                    <x-nav-link :href="route('chat')" :active="request()->routeIs('chat')" class="px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest !border-none hover:bg-white/5 transition-colors">Roulette</x-nav-link>
-                    <x-nav-link :href="route('rooms.index')" :active="request()->routeIs('rooms.*')" class="px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest !border-none hover:bg-white/5 transition-colors">Spaces</x-nav-link>
+                <!-- Desktop Nav -->
+                <div class="hidden md:flex items-center bg-white/5 rounded-2xl p-1 gap-1 border border-white/5">
+                    <a href="{{ route('chat') }}" 
+                       class="px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all {{ request()->routeIs('chat') ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-400 hover:text-white' }}">
+                       Roulette
+                    </a>
+                    <a href="{{ route('rooms.index') }}" 
+                       class="px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all {{ request()->routeIs('rooms.*') ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-400 hover:text-white' }}">
+                       Spaces
+                    </a>
                 </div>
             </div>
 
-           <div class="flex items-center gap-2 sm:gap-4">
-                <!-- Глобальный онлайн -->
-                <div class="flex items-center gap-2 px-3 py-1.5 bg-green-500/5 border border-green-500/10 rounded-xl"
-                    x-data="{ globalOnline: 0 }" 
-                    x-init="window.Echo.join('online-status').here(u => globalOnline = u.length).joining(u => globalOnline++).leaving(u => globalOnline--)">
-                    <div class="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse shadow-[0_0_8px_#22c55e]"></div>
-                    <span class="text-[9px] font-black text-white leading-none uppercase" x-text="globalOnline"></span>
-                    <span class="text-[9px] font-black text-white leading-none uppercase hidden xs:inline">online</span>
-                </div>
+            <!-- Right Controls -->
+            <div class="flex items-center gap-3">
+                <!-- Status -->
+                <div class="flex items-center gap-2 px-4 py-2 bg-green-500/5 border border-green-500/10 rounded-xl"
+                    x-data="{ online: 0 }" 
+                    x-init="window.Echo.join('online-status').here(u => online = u.length).joining(u => online++).leaving(u => online--)">
+                    <div class="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div>
+                    <span class="text-[10px] font-black text-white" x-text="online"></span>
+                </a>
 
-                <!-- Профиль для мобильных (показываем только на маленьких экранах) -->
-    <div class="block sm:hidden">
-        <x-dropdown align="right" width="48">
-            <x-slot name="trigger">
-                <button class="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center font-black text-xs">
-                    {{ substr(Auth::user()->name, 0, 1) }}
-                </button>
-            </x-slot>
-            <x-slot name="content">
-                <div class="bg-[#0a0a0a] border border-white/10 p-1">
-                    <x-dropdown-link :href="route('profile.edit')" class="!text-gray-300">Профиль</x-dropdown-link>
-                    <form method="POST" action="{{ route('logout') }}">
-                        @csrf
-                        <x-dropdown-link :href="route('logout')" onclick="event.preventDefault(); this.closest('form').submit();" class="!text-red-500">Выйти</x-dropdown-link>
-                    </form>
-                </div>
-            </x-slot>
-        </x-dropdown>
-    </div>
-
-                <!-- Кнопка Глобального Мессенджера (Теперь видна везде: и на мобилках, и на десктопе) -->
+                <!-- Chat Toggle -->
                 <button @click="globalSidebarOpen = !globalSidebarOpen" 
-                        class="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center hover:bg-indigo-600/20 hover:border-indigo-500/50 transition-all group relative">
-                    <span class="text-lg sm:text-xl group-hover:scale-110 transition-transform">💬</span>
-                    <!-- Индикатор печати -->
+                        class="w-11 h-11 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center hover:bg-indigo-600/20 transition-all relative">
+                    <span class="text-lg">💬</span>
                     <div x-show="isPartnerTyping" class="absolute -top-1 -right-1 w-3 h-3 bg-indigo-500 rounded-full animate-ping"></div>
                 </button>
 
-                <!-- Десктопное меню профиля (Скрыто на телефонах, так как там есть нижнее меню) -->
-                <div class="hidden sm:block">
-                    <x-dropdown align="right" width="64">
-                        <x-slot name="trigger">
-                            <button class="flex items-center gap-3 p-1 pr-4 bg-white/5 border border-white/10 rounded-2xl hover:bg-white/10 transition-all group">
-                                <div class="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center text-sm font-black shadow-lg">
-                                    {{ substr(Auth::user()->name, 0, 1) }}
-                                </div>
-                                <div class="text-left">
-                                    <p class="text-[10px] font-black text-white leading-none uppercase tracking-tighter">{{ Auth::user()->name }}</p>
-                                    <p class="text-[9px] font-bold mt-1 uppercase tracking-widest text-gray-500">{{ Auth::user()->rank_name }}</p>
-                                </div>
-                            </button>
-                        </x-slot>
-
-                        <x-slot name="content">
-                            <div class="bg-[#0a0a0a] border border-white/10 rounded-2xl overflow-hidden shadow-2xl p-2 space-y-1">
-                                <x-dropdown-link :href="route('profile.edit')" class="!bg-transparent !text-gray-400 hover:!text-white hover:!bg-white/5 !rounded-xl !p-3 font-bold text-xs">
-                                    👤 Настройки профиля
-                                </x-dropdown-link>
-                                <form method="POST" action="{{ route('logout') }}">
-                                    @csrf
-                                    <x-dropdown-link :href="route('logout')" onclick="event.preventDefault(); this.closest('form').submit();"
-                                        class="!bg-transparent !text-red-500 hover:!bg-red-500/10 !rounded-xl !p-3 font-bold text-xs">
-                                        🚪 Выйти из системы
-                                    </x-dropdown-link>
-                                </form>
+                <!-- User Dropdown -->
+                <x-dropdown align="right" width="64">
+                    <x-slot name="trigger">
+                        <button class="flex items-center gap-3 p-1 pr-3 bg-white/5 border border-white/10 rounded-xl hover:border-white/20 transition-all">
+                            <div class="w-9 h-9 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center text-xs font-black">
+                                {{ substr(Auth::user()->name, 0, 1) }}
                             </div>
-                        </x-slot>
-                    </x-dropdown>
-                </div>
+                            <span class="text-[10px] font-black uppercase tracking-tight hidden sm:block">{{ Auth::user()->name }}</span>
+                        </button>
+                    </x-slot>
+
+                    <x-slot name="content">
+                        <div class="bg-[#0a0a0a] border border-white/10 rounded-xl p-2 space-y-1">
+                            <a href="{{ route('profile.edit') }}" class="block px-4 py-3 text-[10px] font-black uppercase text-gray-400 hover:text-white hover:bg-white/5 rounded-lg transition-all">Settings</a>
+                            <div class="h-px bg-white/5 mx-2"></div>
+                            <form method="POST" action="{{ route('logout') }}">
+                                @csrf
+                                <button type="submit" class="w-full text-left px-4 py-3 text-[10px] font-black uppercase text-red-500 hover:bg-red-500/10 rounded-lg transition-all">Terminate Session</button>
+                            </form>
+                        </div>
+                    </x-slot>
+                </x-dropdown>
             </div>
         </div>
     </div>

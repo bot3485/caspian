@@ -46,6 +46,15 @@ class ChatController extends Controller
 
 public function callContact(Request $request): JsonResponse
 {
+    $isBlocked = DB::table('blocks')
+    ->where(fn($q) => $q->where('blocker_id', $receiverId)->where('blocked_id', $senderId))
+    ->orWhere(fn($q) => $q->where('blocker_id', $senderId)->where('blocked_id', $receiverId))
+    ->exists();
+
+    if ($isBlocked) {
+        return response()->json(['error' => 'Connection refused by security policy'], 403);
+    }
+
     $request->validate(['contactId' => 'required|integer']);
     $receiverId = (int)$request->contactId;
     $senderId = Auth::id();
@@ -197,12 +206,19 @@ public function getContacts(): JsonResponse
 { 
     $userId = Auth::id();
     
+    // 1. Получаем ID всех пользователей, которых заблокировал текущий юзер
+    $blockedIds = DB::table('blocks')
+        ->where('blocker_id', $userId)
+        ->pluck('blocked_id');
+
+    // 2. Получаем контакты, исключая тех, кто находится в ЧС
     $contacts = User::whereIn('id', function($query) use ($userId) {
-            $query->select('contact_id')->from('contacts')->where('user_id', $userId);
+            $query->select('contact_id')
+                ->from('contacts')
+                ->where('user_id', $userId);
         })
-        // Выбираем только реальные колонки из БД
+        ->whereNotIn('id', $blockedIds) // Исключаем заблокированных
         ->select('id', 'name', 'last_seen', 'level') 
-        // Универсальный способ сортировки: сначала те, кто заходил недавно
         ->orderBy('last_seen', 'desc')
         ->get()
         ->map(fn($u) => [
@@ -211,7 +227,7 @@ public function getContacts(): JsonResponse
             'is_online' => $u->isOnline(), 
             'last_seen_human' => $u->getLastSeenForHumans(),
             'level' => $u->level,
-            // rank_name берется из модели User (Accessor), а не из SQL запроса
+            // rank_name берется из модели User (Accessor)
             'rank_name' => $u->rank_name 
         ]);
 
@@ -238,8 +254,10 @@ public function getInteractionHistory(): JsonResponse
 {
     $userId = Auth::id();
 
+    $blockedIds = DB::table('blocks')->where('blocker_id', $userId)->pluck('blocked_id');
     $history = DB::table('interactions')
         ->where('interactions.user_id', $userId)
+        ->whereNotIn('interactions.partner_id', $blockedIds) // Скрываем из истории
         ->join('users', 'interactions.partner_id', '=', 'users.id')
         ->select(
             'users.id', 
@@ -287,12 +305,18 @@ public function getInteractionHistory(): JsonResponse
         return response()->json(['blocked' => $blocked]);
     }
 
-    public function unblockUser(Request $request): JsonResponse
-    {
-        $request->validate(['blockedId' => 'required|integer']);
-        DB::table('blocks')->where('blocker_id', Auth::id())->where('blocked_id', $request->blockedId)->delete();
-        return response()->json(['status' => 'unblocked']);
-    }
+public function unblockUser(Request $request): JsonResponse
+{
+    $request->validate(['blockedId' => 'required|integer']);
+    
+    // Удаляем запись из ЧС
+    DB::table('blocks')
+        ->where('blocker_id', Auth::id())
+        ->where('blocked_id', $request->blockedId)
+        ->delete();
+
+    return response()->json(['status' => 'unblocked']);
+}
 
     public function blockUser(Request $request): JsonResponse
 {

@@ -1,54 +1,76 @@
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+<html lang="en">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0, viewport-fit=cover">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>Caspian — Next Gen Video</title>
+    
+    <title>Caspian — Intelligence Ecosystem</title>
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/jpeg" href="{{ asset('roulette.jpg') }}">
+
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <style>
         [x-cloak] { display: none !important; }
         :root { --app-height: 100svh; }
-        html, body { min-height: var(--app-height); background: #050505; margin: 0; padding: 0; overflow-x: hidden; }
-        /* Filter Effects */
-        .filter-beauty { filter: saturate(1.2) contrast(1.1) brightness(1.1) blur(0.4px); }
-        .filter-cinema { filter: grayscale(1) contrast(1.5) brightness(0.9); }
-        .filter-both { filter: grayscale(1) contrast(1.5) brightness(0.9) blur(0.4px); }
+        body { background: #020202; color: #fff; overflow-x: hidden; }
+        .caspian-glass { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.08); }
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(99, 102, 241, 0.3); border-radius: 10px; }
-        .no-scrollbar::-webkit-scrollbar { display: none; }
     </style>
 </head>
-<body class="font-sans antialiased text-white" 
+<body class="antialiased"
       x-data="window.caspianApp({{ auth()->id() }}, {{ json_encode(auth()->user()->interests ?? []) }}, @js(config('webrtc.ice_servers')))"
       x-init="init()"
       @click="unlockAudio()"
-      @visibilitychange.window="handleVisibilityChange()">
+      @visibilitychange.window="handleVisibilityChange()"
+      @pagehide.window="handleVisibilityChange()"
+      @blur.window="handleVisibilityChange()"
+      @focus.window="handleVisibilityChange()">
 
-    <!-- GLOBAL INCOMING CALL MODAL -->
-    <div x-show="incomingCall" class="fixed top-6 left-1/2 -translate-x-1/2 z-[600] w-full max-w-sm px-4" x-cloak x-transition>
-        <div class="bg-[#121212]/95 backdrop-blur-3xl border border-indigo-500/30 p-4 rounded-[2rem] shadow-2xl flex items-center justify-between">
-            <div class="flex items-center gap-3">
-                <div class="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center animate-bounce font-black text-xl" x-text="incomingCall?.fromName ? incomingCall.fromName[0] : '?'"></div>
+    <!-- SMART TOAST NOTIFICATIONS (ANTI-SPAM) -->
+    <div x-data="{ 
+            toasts: [], 
+            addToast(msg) {
+                // Игнорируем, если такое сообщение уже висит на экране (Anti-spam)
+                if (this.toasts.some(t => t.msg === msg)) return;
+                
+                const id = Date.now();
+                this.toasts.push({id, msg});
+                setTimeout(() => this.toasts = this.toasts.filter(t => t.id !== id), 3500);
+            }
+         }" 
+         @toast.window="addToast($event.detail.msg)" 
+         class="fixed top-24 left-1/2 -translate-x-1/2 z-[1000] w-full max-w-xs space-y-2 pointer-events-none">
+        <template x-for="toast in toasts" :key="toast.id">
+            <div x-transition:enter="transition ease-out duration-300"
+                 x-transition:enter-start="opacity-0 translate-y-[-20px] scale-90"
+                 x-transition:enter-end="opacity-100 translate-y-0 scale-100"
+                 x-transition:leave="transition ease-in duration-200"
+                 x-transition:leave-start="opacity-100 scale-100"
+                 x-transition:leave-end="opacity-0 scale-90"
+                 class="pointer-events-auto bg-brand-indigo/90 backdrop-blur-2xl border border-white/20 px-6 py-3 rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.5)] text-center">
+                <span class="text-[10px] font-black uppercase tracking-[0.2em] text-white" x-text="toast.msg"></span>
+            </div>
+        </template>
+    </div>
+
+    <!-- INCOMING CALL (English Only) -->
+    <div x-show="incomingCall" class="fixed top-8 left-1/2 -translate-x-1/2 z-[600] w-full max-w-sm px-4" x-cloak x-transition>
+        <div class="caspian-glass p-4 rounded-[2.5rem] shadow-2xl flex items-center justify-between border-brand-indigo/30">
+            <div class="flex items-center gap-4">
+                <div class="w-12 h-12 bg-brand-indigo rounded-2xl flex items-center justify-center animate-pulse font-black shadow-lg" x-text="incomingCall?.fromName ? incomingCall.fromName[0] : '?'"></div>
                 <div>
-                    <p class="text-[8px] font-black text-indigo-400 uppercase tracking-widest">Incoming Call</p>
-                    <p class="text-sm font-black uppercase" x-text="incomingCall?.fromName"></p>
+                    <p class="text-[8px] font-black text-brand-indigo uppercase tracking-[0.3em]">Incoming Session</p>
+                    <p class="text-sm font-black uppercase italic" x-text="incomingCall?.fromName"></p>
                 </div>
             </div>
             <div class="flex gap-2">
-                <button @click="rejectCall()" class="w-12 h-12 bg-red-600 rounded-full flex items-center justify-center shadow-lg hover:bg-red-500 transition-colors">✕</button>
-                <button @click="acceptCall()" class="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center shadow-lg hover:bg-green-400 transition-colors">📞</button>
+                <button @click="rejectCall()" class="w-12 h-12 bg-white/5 hover:bg-red-600 rounded-full flex items-center justify-center transition-all">✕</button>
+                <button @click="acceptCall()" class="w-12 h-12 bg-brand-indigo hover:scale-110 rounded-full flex items-center justify-center shadow-indigo-500/50 shadow-lg transition-all">📞</button>
             </div>
         </div>
-    </div>
-
-    <!-- TOAST NOTIFICATIONS -->
-    <div x-data="{ toasts: [] }" @toast.window="const id = Date.now(); toasts.push({id, msg: $event.detail.msg}); setTimeout(() => toasts = toasts.filter(t => t.id !== id), 3000)" class="fixed top-20 left-1/2 -translate-x-1/2 z-[1000] w-full max-w-xs space-y-2 pointer-events-none">
-        <template x-for="toast in toasts" :key="toast.id">
-            <div class="pointer-events-auto bg-indigo-600/90 backdrop-blur-xl border border-indigo-400/50 px-6 py-2 rounded-xl shadow-2xl text-center">
-                <span class="text-[9px] font-black uppercase tracking-widest" x-text="toast.msg"></span>
-            </div>
-        </template>
     </div>
 
     <div class="flex flex-col min-h-screen relative">
@@ -57,12 +79,12 @@
 
         <!-- Sidebar Messenger -->
         <div x-show="globalSidebarOpen" @click.outside="globalSidebarOpen = false"
-             class="fixed right-0 top-0 bottom-0 z-[450] w-full md:w-[400px] bg-[#080808] border-l border-white/5 shadow-2xl flex flex-col"
-             x-transition:enter="transition ease-out duration-300 transform" x-transition:enter-start="translate-x-full" x-transition:enter-end="translate-x-0"
-             x-transition:leave="transition ease-in duration-200 transform" x-transition:leave-start="translate-x-0" x-transition:leave-end="translate-x-full" x-cloak>
-            <div class="p-6 border-b border-white/5 bg-[#0a0a0a] flex justify-between items-center shrink-0">
-                <h2 class="text-xs font-black uppercase tracking-[0.3em] italic">Messenger</h2>
-                <button @click="globalSidebarOpen = false" class="text-gray-500 hover:text-white">✕</button>
+             class="fixed right-0 top-0 bottom-0 z-[450] w-full md:w-[420px] bg-[#050505] border-l border-white/[0.05] shadow-2xl flex flex-col"
+             x-transition:enter="transition ease-out duration-300" x-transition:enter-start="translate-x-full"
+             x-transition:leave="transition ease-in duration-200" x-transition:leave-end="translate-x-full" x-cloak>
+            <div class="p-8 border-b border-white/5 flex justify-between items-center bg-[#080808]">
+                <h2 class="text-[10px] font-black uppercase tracking-[0.5em] text-gray-500">Communications</h2>
+                <button @click="globalSidebarOpen = false" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/5 transition-colors">✕</button>
             </div>
             @include('partials.messenger-content')
         </div>
@@ -75,6 +97,8 @@ window.caspianApp = function(myId, myInterests, iceServers) {
         globalSidebarOpen: false, tab: 'chat', controlsOpen: true, state: 'idle', callContext: null,
         incomingCall: null, ringtone: new Audio('/sounds/call.mp3'), msgSound: new Audio('/sounds/message.mp3'),
         audioUnlocked: false,
+        layoutFocus: 'split', // может быть 'split', 'remote', 'local'
+        actionsOpen: true,
 
         // --- PARTNER DATA ---
         partnerId: null, partnerData: null, isFriend: false, partnerState: 'active',
@@ -92,10 +116,47 @@ window.caspianApp = function(myId, myInterests, iceServers) {
 
         // --- CHAT ---
         messages: [], chatInput: '', 
+        deviceModalOpen: false,
+        videoDevices: [],
+        audioDevices: [],
+        selectedVideoId: '',
+        selectedAudioId: '',
 
         // --- INTERNAL LOGIC ---
         isProcessingSignal: false, makingOffer: false, processedEvents: new Set(), iceQueue: [],
         rtcConfig: { iceServers: iceServers, bundlePolicy: "balanced", iceCandidatePoolSize: 10 },
+
+
+        async openDeviceSettings() {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    this.videoDevices = devices.filter(d => d.kind === 'videoinput');
+    this.audioDevices = devices.filter(d => d.kind === 'audioinput');
+    this.deviceModalOpen = true;
+},
+
+async changeVideoDevice() {
+    if (this.localStream) {
+        this.localStream.getVideoTracks().forEach(t => t.stop());
+        const newStream = await navigator.mediaDevices.getUserMedia({ 
+            video: { deviceId: { exact: this.selectedVideoId } },
+            audio: { deviceId: this.selectedAudioId ? { exact: this.selectedAudioId } : undefined }
+        });
+        this.localStream = newStream;
+        if (this.$refs.localVideo) this.$refs.localVideo.srcObject = newStream;
+        
+        // Если мы в звонке, обновляем стрим у партнера
+        if (this.pc) {
+            const sender = this.pc.getSenders().find(s => s.track.kind === 'video');
+            if (sender) sender.replaceTrack(newStream.getVideoTracks()[0]);
+        }
+    }
+},
+
+
+async changeAudioDevice() {
+    // Аналогичная логика для аудио (просто перезапрашиваем поток)
+    this.changeVideoDevice(); 
+},
 
         async init() {
             const self = this; 
@@ -125,22 +186,51 @@ window.caspianApp = function(myId, myInterests, iceServers) {
 
         // --- MEDIA CONTROL ---
 
-        async initMedia() {
-            if (this.localStream) {
-                if (this.$refs.localVideo) this.$refs.localVideo.srcObject = this.localStream;
-                return;
-            }
-            try {
-                this.localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-                if (this.$refs.localVideo) this.$refs.localVideo.srcObject = this.localStream;
-            } catch (e) { window.dispatchEvent(new CustomEvent('toast', {detail: {msg: 'Camera Denied'}})); }
-        },
+async initMedia() {
+    if (this.localStream) {
+        if (this.$refs.localVideo) this.$refs.localVideo.srcObject = this.localStream;
+        return;
+    }
+    try {
+        this.localStream = await navigator.mediaDevices.getUserMedia({ 
+            video: { width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { max: 30 } }, 
+            audio: true 
+        });
+        if (this.$refs.localVideo) {
+            this.$refs.localVideo.srcObject = this.localStream;
+            // ФИКС ДЛЯ МОБИЛОК: Принудительный старт
+            this.$refs.localVideo.play().catch(e => console.log("Auto-play blocked", e));
+        }
+    } catch (e) { 
+        window.dispatchEvent(new CustomEvent('toast', {detail: {msg: 'Camera Permission Denied'}})); 
+    }
+},
 
+        toggleFocus(target) {
+            if (this.state !== 'connected') return; // не меняем в режиме поиска
+            this.layoutFocus = (this.layoutFocus === target) ? 'split' : target;
+        },
         toggleMic() { this.micEnabled = !this.micEnabled; if(this.localStream) this.localStream.getAudioTracks()[0].enabled = this.micEnabled; },
         toggleCam() { this.camEnabled = !this.camEnabled; if(this.localStream) this.localStream.getVideoTracks()[0].enabled = this.camEnabled; },
-        toggleBeauty() { this.beautyFilter = !this.beautyFilter; this.syncFilters(); },
-        toggleCinema() { this.cinemaFilter = !this.cinemaFilter; this.syncFilters(); },
-        syncFilters() { this.signal({ type: 'filter-sync', filters: { beauty: this.beautyFilter, cinema: this.cinemaFilter } }); },
+        toggleBeauty() {
+            this.beautyFilter = !this.beautyFilter;
+            this.syncFilters();
+            window.dispatchEvent(new CustomEvent('toast', {detail: {msg: this.beautyFilter ? 'Beauty Filter On' : 'Beauty Filter Off'}}));
+        },
+
+        toggleCinema() {
+            this.cinemaFilter = !this.cinemaFilter;
+            this.syncFilters();
+            window.dispatchEvent(new CustomEvent('toast', {detail: {msg: this.cinemaFilter ? 'Cinema Mode On' : 'Cinema Mode Off'}}));
+        },
+
+        syncFilters() {
+            // Отправляем текущее состояние своих фильтров партнеру
+            this.signal({ 
+                type: 'filter-sync', 
+                filters: { beauty: this.beautyFilter, cinema: this.cinemaFilter } 
+            });
+        },
         
         getFilterClass(target) {
             const f = (target === 'local') ? { b: this.beautyFilter, c: this.cinemaFilter } : { b: this.partnerFilters.beauty, c: this.partnerFilters.cinema };
@@ -173,6 +263,16 @@ window.caspianApp = function(myId, myInterests, iceServers) {
         async handleSignal(e) {
             const m = e.data;
             const self = this;
+
+            if (m.type === 'you-are-blocked') {
+                this.stopCall(false); // Обрываем звонок
+                window.dispatchEvent(new CustomEvent('toast', {
+                    detail: { msg: 'YOU HAVE BEEN BLACKLISTED BY THIS USER' }
+                }));
+                // Можно даже сделать редирект, чтобы он не видел пустой экран
+                setTimeout(() => window.location.href = '/dashboard', 3000);
+                return;
+            }
             if (m.type === 'incoming-call') { this.incomingCall = m; if(this.audioUnlocked) this.ringtone.play().catch(()=>{}); return; }
             if (m.type === 'status-sync') { this.partnerState = m.state; return; }
             if (m.type === 'filter-sync') { this.partnerFilters = m.filters; return; }
@@ -235,6 +335,16 @@ window.caspianApp = function(myId, myInterests, iceServers) {
                     else { this.state = 'connected'; this.initPC(); }
                 }
             } catch (e) { this.stopCall(false); }
+        },
+
+        unblock(blockedId) {
+            window.axios.post('/chat/unblock', { blockedId: blockedId })
+                .then(() => {
+                    window.dispatchEvent(new CustomEvent('toast', {detail: {msg: 'Protocol Restored'}}));
+                    this.loadBlocked(); // Обновить список ЧС
+                    this.loadFriends(); // <--- ЭТОТ ВЫЗОВ ВЕРНЕТ ДРУГА В ИНТЕРФЕЙС
+                    this.loadHistory(); // <--- ЭТОТ ВЫЗОВ ВЕРНЕТ В ИСТОРИЮ
+                });
         },
 
         acceptCall() {
@@ -314,7 +424,23 @@ window.caspianApp = function(myId, myInterests, iceServers) {
         unlockAudio() { if(!this.audioUnlocked) { this.ringtone.muted=true; this.ringtone.play().then(()=>{this.ringtone.pause(); this.ringtone.muted=false;}); this.audioUnlocked=true; } },
         startHeartbeat() { setInterval(() => window.axios.post('/ping'), 15000); },
         startStats() { setInterval(async () => { if (this.pc?.iceConnectionState === 'connected') { const s = await this.pc.getStats(); s.forEach(r => { if (r.type === 'candidate-pair' && r.state === 'succeeded') this.ping = Math.round(r.currentRoundTripTime * 1000); }); } }, 3000); },
-        handleVisibilityChange() { if (this.partnerId) this.signal({ type: 'status-sync', state: document.visibilityState === 'hidden' ? 'away' : 'active' }); },
+        handleVisibilityChange() {
+            if (!this.partnerId) return;
+
+            // Определяем, скрыт ли пользователь реально
+            // hidden — вкладка неактивна, !hasFocus() — окно свернуто или перекрыто
+            const isAway = document.hidden || document.visibilityState === 'hidden' || !document.hasFocus();
+            const newState = isAway ? 'away' : 'active';
+
+            // Отправляем сигнал только если состояние реально изменилось, чтобы не спамить
+            if (this.myLastStatus !== newState) {
+                this.myLastStatus = newState;
+                this.signal({ 
+                    type: 'status-sync', 
+                    state: newState 
+                });
+            }
+        },
         async startSearch() { this.reset(); this.state = 'searching'; this.callContext = 'roulette'; await window.axios.post('/chat/search'); },
         loadFriends() {
             window.axios.get('/chat/contacts').then(r => {

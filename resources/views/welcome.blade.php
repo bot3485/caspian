@@ -2,63 +2,61 @@
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>ChatRoulette</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>CASPIAN — Universe of Connections</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
-<body class="bg-gray-950 text-white antialiased selection:bg-indigo-500 selection:text-white">
-    <div class="relative min-h-screen flex flex-col justify-center items-center overflow-hidden">
-        <!-- Декоративные градиенты на фоне -->
-        <div class="absolute top-0 -left-4 w-72 h-72 bg-indigo-600 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
-        <div class="absolute top-0 -right-4 w-72 h-72 bg-purple-600 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
-        <div class="absolute -bottom-8 left-20 w-72 h-72 bg-blue-600 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
+<body class="overflow-hidden">
+    <!-- Глобальный фон с живыми градиентами -->
+    <div class="fixed inset-0 z-0">
+        <div class="absolute top-[-20%] left-[-10%] w-[70%] h-[70%] bg-indigo-600/10 blur-[150px] rounded-full animate-pulse"></div>
+        <div class="absolute bottom-[-10%] right-[-5%] w-[60%] h-[60%] bg-purple-600/10 blur-[150px] rounded-full animate-pulse" style="animation-delay: 2s"></div>
+    </div>
 
-        <div class="relative z-10 text-center px-4">
-            <div class="flex justify-center mb-8">
-                <x-application-logo class="w-20 h-20 fill-current text-indigo-500" />
+    <div class="relative z-10 min-h-screen flex flex-col">
+        <!-- Навигация -->
+        <nav class="flex justify-between items-center px-8 h-24">
+            <div class="flex items-center gap-3">
+                <img src="{{ asset('roulette.jpg') }}" class="w-10 h-10 rounded-xl neon-glow" alt="C">
+                <span class="text-xl font-black tracking-tighter uppercase italic">Caspian <span class="text-indigo-500">3.0</span></span>
             </div>
-            
-            <h1 class="text-6xl md:text-8xl font-black tracking-tighter mb-4 bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-500">
-                ChatRoulette
-            </h1>
-            <p class="text-lg md:text-xl text-gray-400 max-w-2xl mx-auto mb-10 leading-relaxed">
-                Интеллектуальная платформа для видео-встреч, случайных знакомств и приватного общения. 
-                <span class="text-indigo-400 font-bold">Будущее связи уже здесь.</span>
-            </p>
-
-            <div class="flex flex-col sm:flex-row gap-4 justify-center items-center">
+            <div class="flex gap-4">
                 @auth
-                    <a href="{{ route('dashboard') }}" class="px-8 py-4 bg-white text-black rounded-2xl font-black hover:bg-gray-200 transition-all transform hover:scale-105 active:scale-95 shadow-xl">
-                        ПЕРЕЙТИ В ПАНЕЛЬ УПРАВЛЕНИЯ
-                    </a>
+                    <a href="{{ route('dashboard') }}" class="btn-primary">Dashboard</a>
                 @else
-                    <a href="{{ route('login') }}" class="px-8 py-4 bg-indigo-600 text-white rounded-2xl font-black hover:bg-indigo-700 transition-all transform hover:scale-105 active:scale-95 shadow-lg shadow-indigo-500/20">
-                        ВОЙТИ В СИСТЕМУ
-                    </a>
-                    <a href="{{ route('register') }}" class="px-8 py-4 bg-gray-800 text-white border border-gray-700 rounded-2xl font-black hover:bg-gray-700 transition-all transform hover:scale-105 active:scale-95">
-                        РЕГИСТРАЦИЯ
-                    </a>
+                    <a href="{{ route('login') }}" class="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 hover:text-white transition-colors">Login</a>
                 @endauth
             </div>
+        </nav>
 
-            <div class="mt-20 grid grid-cols-1 md:grid-cols-3 gap-8 text-left max-w-5xl mx-auto">
-                <div class="p-6 bg-white/5 backdrop-blur-lg rounded-3xl border border-white/10">
-                    <div class="text-indigo-400 text-2xl mb-3">🎲</div>
-                    <h3 class="font-bold text-lg mb-1">Рулетка</h3>
-                    <p class="text-sm text-gray-500">Видео-чат один на один с алгоритмом умного подбора партнеров.</p>
-                </div>
-                <div class="p-6 bg-white/5 backdrop-blur-lg rounded-3xl border border-white/10">
-                    <div class="text-indigo-400 text-2xl mb-3">👥</div>
-                    <h3 class="font-bold text-lg mb-1">Конференции</h3>
-                    <p class="text-sm text-gray-500">Групповые комнаты до 6 человек с защитой паролем и P2P связью.</p>
-                </div>
-                <div class="p-6 bg-white/5 backdrop-blur-lg rounded-3xl border border-white/10">
-                    <div class="text-indigo-400 text-2xl mb-3">💬</div>
-                    <h3 class="font-bold text-lg mb-1">Мессенджер</h3>
-                    <p class="text-sm text-gray-500">Постоянные чаты с друзьями и отслеживание статуса «В сети».</p>
-                </div>
+        <!-- Контент -->
+        <main class="flex-1 flex flex-col items-center justify-center px-4 text-center">
+            <div class="inline-block px-4 py-1 rounded-full border border-indigo-500/20 bg-indigo-500/5 text-[9px] font-black uppercase tracking-[0.3em] text-indigo-400 mb-8">
+                Welcome to the Future of Communication
             </div>
-        </div>
+            
+            <h1 class="text-[clamp(3rem,15vw,10rem)] font-black leading-[0.8] tracking-tighter uppercase italic mb-10">
+                Visual<br><span class="text-indigo-600">Freedom.</span>
+            </h1>
+            
+            <p class="max-w-xl text-gray-500 font-medium text-lg leading-relaxed mb-12">
+                Интеллектуальная экосистема для видеосвязи нового поколения. <br class="hidden md:block">
+                Безопасность, скорость и абсолютное качество.
+            </p>
+
+            <div class="flex flex-col sm:flex-row gap-6">
+                @guest
+                    <a href="{{ route('register') }}" class="btn-primary !px-12 !py-5 !text-xs">Start Journey</a>
+                @else
+                    <a href="{{ route('chat') }}" class="btn-primary !px-12 !py-5 !text-xs">Open Roulette</a>
+                @endguest
+            </div>
+        </main>
+
+        <!-- Футер -->
+        <footer class="h-24 flex items-center justify-center opacity-20">
+            <p class="text-[10px] font-bold uppercase tracking-[0.5em]">Caspian Ecosystem © 2025</p>
+        </footer>
     </div>
 </body>
 </html>

@@ -31,11 +31,9 @@ class RoomController extends Controller
     {
         $userId = Auth::id();
 
-        if (Room::where('creator_id', $userId)->exists()) {
-            return response()->json([
-                'message' => 'У вас уже есть созданная комната. Удалите её, чтобы создать новую.'
-            ], 403);
-        }
+    if (Room::where('creator_id', Auth::id())->exists()) {
+        return response()->json(['message' => 'You already have an active Space. Delete it to create a new one.'], 403);
+    }
 
         $validated = $request->validate([
             'title' => 'required|string|max:40|min:3',
@@ -88,7 +86,7 @@ class RoomController extends Controller
             return response()->json(['status' => 'access_granted']);
         }
 
-        return response()->json(['message' => 'Неверный пароль.'], 403);
+        return response()->json(['message' => 'Security check failed. Wrong password.'], 403);
     }
 
     public function destroy(string $uuid): JsonResponse
@@ -98,18 +96,21 @@ class RoomController extends Controller
         return response()->json(['status' => 'success']);
     }
 
-    public function syncOccupancy(Request $request, string $uuid): JsonResponse
-    {
-        $request->validate(['count' => 'required|integer|min:0|max:10']);
-        $room = Room::where('uuid', $uuid)->firstOrFail();
+public function syncOccupancy(Request $request, string $uuid): JsonResponse
+{
+    // Beacon присылает данные в виде строки, поэтому приводим к int
+    $count = (int) $request->input('count', 0);
+    
+    $room = Room::where('uuid', $uuid)->firstOrFail();
 
-        // Обновляем количество И время (touch), чтобы планировщик не удалил онлайн
-        $room->current_occupancy = $request->count;
-        $room->touch(); // Это обновит updated_at
-        $room->save();
-        
-        broadcast(new \App\Events\RoomOccupancyUpdated($uuid, $request->count))->toOthers();
+    // Обновляем количество участников
+    $room->current_occupancy = $count < 0 ? 0 : $count;
+    $room->touch(); // Обновляем updated_at, чтобы Schedule не считал комнату мертвой
+    $room->save();
+    
+    // Оповещаем всех в лобби (на главной странице)
+    broadcast(new \App\Events\RoomOccupancyUpdated($uuid, $room->current_occupancy))->toOthers();
 
-        return response()->json(['status' => 'ok']);
-    }
+    return response()->json(['status' => 'ok', 'count' => $room->current_occupancy]);
+}
 }

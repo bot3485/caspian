@@ -16,13 +16,13 @@
                     
                     <div class="relative z-10">
                         <div class="flex items-center gap-4 mb-6">
-                            <span class="px-4 py-1.5 rounded-full bg-white/15 backdrop-blur-md text-[8px] font-black uppercase tracking-widest border border-white/10 animate-pulse">Active Now</span>
+                            <span class="px-4 py-1.5 rounded-full bg-white/15 backdrop-blur-md text-[8px] font-black uppercase tracking-widest border border-white/10 animate-pulse">{{ __('dashboard.Good_Luck') }}</span>
                         </div>
-                        <h2 class="text-4xl sm:text-6xl font-black tracking-tighter uppercase italic leading-[0.85] text-white">Video<br>Roulette</h2>
+                        <h2 class="text-4xl sm:text-6xl font-black tracking-tighter uppercase italic leading-[0.85] text-white">Video<br>{{ __('dashboard.Roulette') }}</h2>
                     </div>
                     
                     <div class="relative z-10 flex items-end justify-between gap-6">
-                        <p class="text-indigo-100/60 font-bold text-[10px] max-w-xs uppercase tracking-wider leading-relaxed">Experience high-speed P2P connections and intelligent interest-based matching.</p>
+                        <p class="text-indigo-100/60 font-bold text-[10px] max-w-xs uppercase tracking-wider leading-relaxed">{{ __('dashboard.Roulette_Desc') }}</p>
                         <div class="w-14 h-14 bg-white rounded-2xl flex items-center justify-center text-xl group-hover:rotate-45 transition-transform duration-500 shrink-0 shadow-2xl text-black">➔</div>
                     </div>
                 </a>
@@ -31,13 +31,13 @@
                 <a href="{{ route('rooms.index') }}" class="md:col-span-6 group relative min-h-[350px] rounded-[2.5rem] overflow-hidden bg-[#050505]/40 backdrop-blur-xl border border-white/[0.04] p-8 flex flex-col justify-between transition-all duration-500 hover:border-brand-indigo/30 hover:shadow-[0_20px_80px_rgba(99,102,241,0.05)]">
                     <div class="relative z-10">
                         <div class="flex items-center gap-4 mb-6">
-                            <span class="px-4 py-1.5 rounded-full bg-white/[0.02] border border-white/[0.05] text-[8px] font-black uppercase tracking-widest">Conference Enclaves</span>
+                            <span class="px-4 py-1.5 rounded-full bg-white/[0.02] border border-white/[0.05] text-[8px] font-black uppercase tracking-widest">{{ __('dashboard.Conference_Enclaves') }}</span>
                         </div>
-                        <h2 class="text-4xl sm:text-6xl font-black tracking-tighter uppercase italic leading-[0.85] text-white/90 group-hover:text-brand-indigo transition-colors duration-500">Live<br>Spaces</h2>
+                        <h2 class="text-4xl sm:text-6xl font-black tracking-tighter uppercase italic leading-[0.85] text-white/90 group-hover:text-brand-indigo transition-colors duration-500">{{ __('dashboard.Rooms') }}</h2>
                     </div>
                     
                     <div class="relative z-10 flex items-end justify-between gap-6">
-                        <p class="text-gray-500 font-bold text-[10px] max-w-xs uppercase tracking-wider leading-relaxed">Deploy or join decentralized multi-user conferences with active screen-sharing.</p>
+                        <p class="text-gray-500 font-bold text-[10px] max-w-xs uppercase tracking-wider leading-relaxed">{{ __('dashboard.Rooms_Desc') }}</p>
                         <div class="w-14 h-14 bg-white/[0.02] border border-white/[0.06] rounded-2xl flex items-center justify-center text-xl group-hover:bg-brand-indigo group-hover:text-white transition-all duration-500 shrink-0 text-white">➔</div>
                     </div>
                 </a>
@@ -58,8 +58,8 @@
                     <!-- Progress Level Matrix -->
                     <div class="w-full max-w-md mt-6 space-y-2">
                         <div class="flex justify-between text-[7px] font-black uppercase text-gray-500 tracking-widest">
-                            <span>Level {{ Auth::user()->level }}</span>
-                            <span>{{ Auth::user()->xp_progress }}% Progress</span>
+                            <span>{{ __('dashboard.Level') }} {{ Auth::user()->level }}</span>
+                            <span>{{ Auth::user()->xp_progress }}% {{ __('dashboard.Progress') }}</span>
                         </div>
                         <div class="h-1.5 w-full bg-white/[0.03] border border-white/[0.05] rounded-full overflow-hidden">
                             <div class="h-full bg-brand-indigo transition-all duration-1000 shadow-[0_0_8px_#6366f1]" style="width: {{ Auth::user()->xp_progress }}%"></div>
@@ -76,16 +76,16 @@
                         {{ number_format(\App\Models\User::count()) }}
                     </div>
                     
-                    <h4 class="text-[9px] font-black uppercase text-brand-indigo tracking-[0.35em] mt-3">Registered Citizens</h4>
-                    <p class="text-[8.5px] text-gray-500 font-bold uppercase tracking-wider mt-2 max-w-[240px]">The ecosystem expands globally. Connect with peers all over the world.</p>
+                    <h4 class="text-[9px] font-black uppercase text-brand-indigo tracking-[0.35em] mt-3">{{ __('dashboard.Registered_Citizens') }}</h4>
+                    <p class="text-[8.5px] text-gray-500 font-bold uppercase tracking-wider mt-2 max-w-[240px]">{{ __('dashboard.Registered_Citizens_Desc') }}</p>
                 </div>
 
                 <!-- 5. LEADERBOARD (Соразмерные нижние блоки) -->
                 <a href="{{ route('leaderboard') }}" class="md:col-span-6 bg-[#050505]/40 backdrop-blur-xl border border-white/[0.03] rounded-2xl p-6 md:p-8 group hover:border-amber-500/35 hover:bg-[#080808]/60 transition-all duration-300 flex items-center gap-5">
                     <div class="w-14 h-14 bg-amber-500/10 rounded-xl flex items-center justify-center text-2xl border border-amber-500/10 group-hover:scale-105 transition-transform duration-300">🏆</div>
                     <div>
-                        <h4 class="text-lg font-black uppercase italic tracking-tight">Leaderboard</h4>
-                        <p class="text-[8px] text-gray-500 font-bold uppercase tracking-widest mt-1">Global Rankings & Fame</p>
+                        <h4 class="text-lg font-black uppercase italic tracking-tight">{{ __('dashboard.Leaderboard') }}</h4>
+                        <p class="text-[8px] text-gray-500 font-bold uppercase tracking-widest mt-1">{{ __('dashboard.Leaderboard_Desc') }}</p>
                     </div>
                 </a>
 
@@ -93,8 +93,8 @@
                 <div class="md:col-span-6 bg-[#050505]/40 backdrop-blur-xl border border-white/[0.03] rounded-2xl p-6 md:p-8 flex items-center gap-5">
                     <div class="w-14 h-14 bg-emerald-500/10 rounded-xl flex items-center justify-center text-2xl border border-emerald-500/10">🛡️</div>
                     <div>
-                        <h4 class="text-lg font-black uppercase italic tracking-tight">System Trust</h4>
-                        <p class="text-[8px] text-emerald-500 font-black uppercase tracking-widest mt-1">{{ Auth::user()->karma }} Trust Points</p>
+                        <h4 class="text-lg font-black uppercase italic tracking-tight">{{ __('dashboard.System_Trust') }}</h4>
+                        <p class="text-[8px] text-emerald-500 font-black uppercase tracking-widest mt-1">{{ Auth::user()->karma }} {{ __('dashboard.System_Trust_Desc') }}</p>
                     </div>
                 </div>
 

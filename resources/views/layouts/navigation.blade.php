@@ -13,11 +13,11 @@
                 <div class="hidden md:flex items-center bg-white/5 backdrop-blur-md rounded-2xl p-1 border border-white/10">
                     <a href="{{ route('chat') }}" 
                        class="px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all {{ request()->routeIs('chat') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'text-gray-400 hover:text-white hover:bg-white/5' }}">
-                       Roulette
+                       {{ __('navigation.Roulette') }}
                     </a>
                     <a href="{{ route('rooms.index') }}" 
                        class="px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all {{ request()->routeIs('rooms.*') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'text-gray-400 hover:text-white hover:bg-white/5' }}">
-                       Spaces
+                       {{ __('navigation.Rooms') }}
                     </a>
                 </div>
             </div>

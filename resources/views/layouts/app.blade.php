@@ -92,7 +92,7 @@
              x-transition:enter="transition ease-out duration-300" x-transition:enter-start="translate-x-full"
              x-transition:leave="transition ease-in duration-200" x-transition:leave-end="translate-x-full" x-cloak>
             <div class="p-8 border-b border-white/5 flex justify-between items-center bg-[#080808]">
-                <h2 class="text-[10px] font-black uppercase tracking-[0.5em] text-gray-500">Communications</h2>
+                <h2 class="text-[10px] font-black uppercase tracking-[0.5em] text-gray-500">{{ __('app.Personal_Messenger') }}</h2>
                 <button @click="globalSidebarOpen = false" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/5 transition-colors">✕</button>
             </div>
             @include('partials.messenger-content')

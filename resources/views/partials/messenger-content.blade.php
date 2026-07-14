@@ -117,8 +117,8 @@
                 <span class="text-[7px] text-gray-500 uppercase tracking-widest">Protocol Terminated</span>
             </div>
             <button @click="unblock(b.id)" 
-                    class="px-4 py-2 bg-white text-black rounded-xl text-[8px] font-black uppercase hover:bg-brand-indigo hover:text-white transition-all shadow-lg">
-                Restore Data
+                    class="px-4 py-2 bg-indigo-600 text-white rounded-xl text-[8px] font-black uppercase hover:bg-indigo-500 transition-all shadow-lg">
+                unblock
             </button>
         </div>
     </template>

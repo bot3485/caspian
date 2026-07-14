@@ -219,12 +219,12 @@ public function getContacts(): JsonResponse
         ->pluck('blocked_id');
 
     // 2. Получаем контакты, исключая тех, кто находится в ЧС
-    $contacts = User::whereIn('id', function($query) use ($userId) {
-            $query->select('contact_id')
-                ->from('contacts')
-                ->where('user_id', $userId);
-        })
-        ->whereNotIn('id', $blockedIds) // Исключаем заблокированных
+        $contacts = User::whereIn('id', function($query) use ($userId) {
+                $query->select('contact_id')->from('contacts')->where('user_id', $userId);
+            })
+            ->whereNotIn('id', function($q) use ($userId) {
+                $q->select('blocked_id')->from('blocks')->where('blocker_id', $userId);
+            })
         ->select('id', 'name', 'last_seen', 'level') 
         ->orderBy('last_seen', 'desc')
         ->get()
@@ -264,7 +264,9 @@ public function getInteractionHistory(): JsonResponse
     $blockedIds = DB::table('blocks')->where('blocker_id', $userId)->pluck('blocked_id');
     $history = DB::table('interactions')
         ->where('interactions.user_id', $userId)
-        ->whereNotIn('interactions.partner_id', $blockedIds) // Скрываем из истории
+        ->whereNotIn('interactions.partner_id', function($q) use ($userId) {
+            $q->select('blocked_id')->from('blocks')->where('blocker_id', $userId);
+        })
         ->join('users', 'interactions.partner_id', '=', 'users.id')
         ->select(
             'users.id', 

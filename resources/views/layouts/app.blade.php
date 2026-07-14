@@ -150,56 +150,44 @@ async changeVideoDevice() {
             this.localStream.getTracks().forEach(t => t.stop());
         }
 
-        // 2. СБРОС ТЕГА (Важно для мобилок: полностью очищаем старый поток из плеера)
-        const localEl = document.getElementById('localVideo');
-        if (localEl) localEl.srcObject = null;
-
-        // 3. Запрашиваем новый поток
-        // Используем только deviceId без exact, чтобы браузер мог адаптироваться
         const constraints = {
-            video: { 
-                deviceId: { ideal: this.selectedVideoId },
-                width: { ideal: 1280 }, // Задние камеры любят более высокое разрешение
-                height: { ideal: 720 }
-            },
-            audio: { 
-                deviceId: { ideal: this.selectedAudioId } 
-            }
+            video: { deviceId: { ideal: this.selectedVideoId }, width: { ideal: 1280 }, height: { ideal: 720 } },
+            audio: { deviceId: { ideal: this.selectedAudioId } }
         };
-
         const newStream = await navigator.mediaDevices.getUserMedia(constraints);
-        this.localStream = newStream;
 
-        // 4. Привязываем новый поток
-        if (localEl) {
-            localEl.srcObject = this.localStream;
-            // Принудительный запуск через 100мс (дает мобильному браузеру "продышаться")
-            setTimeout(() => {
-                localEl.play().catch(e => console.warn("Mobile autoplay failed, click needed"));
-            }, 100);
+        // 2. Останавливаем только ТЕКУЩИЕ треки
+        if (this.localStream) {
+            this.localStream.getTracks().forEach(track => track.stop());
         }
 
-        // 5. Заменяем трек у партнера, если мы в звонке
+        // 3. Обновляем локальную ссылку и видео-тег
+        this.localStream = newStream;
+        if (this.$refs.localVideo) {
+            this.$refs.localVideo.srcObject = newStream;
+            await this.$refs.localVideo.play();
+        }
+
+        // 4. ГЛАВНОЕ: Заменяем треки в активном PeerConnection без разрыва связи
         if (this.pc) {
-            const videoTrack = this.localStream.getVideoTracks()[0];
-            const videoSender = this.pc.getSenders().find(s => s.track?.kind === 'video');
-            if (videoSender) await videoSender.replaceTrack(videoTrack);
+            const videoTrack = newStream.getVideoTracks()[0];
+            const audioTrack = newStream.getAudioTracks()[0];
             
-            const audioTrack = this.localStream.getAudioTracks()[0];
+            const videoSender = this.pc.getSenders().find(s => s.track?.kind === 'video');
             const audioSender = this.pc.getSenders().find(s => s.track?.kind === 'audio');
+
+            if (videoSender) await videoSender.replaceTrack(videoTrack);
             if (audioSender) await audioSender.replaceTrack(audioTrack);
         }
 
-        window.dispatchEvent(new CustomEvent('toast', {detail: {msg: 'Hardware Switched'}}));
+        window.dispatchEvent(new CustomEvent('toast', {detail: {msg: 'Hardware Synced'}}));
+        this.deviceModalOpen = false;
     } catch (e) {
-        console.error("Camera switch failed:", e);
-        // Если задняя камера не завелась, пробуем вернуться хоть к какой-то
-        this.localStream = null;
-        await this.initMedia();
+        console.error(e);
+        window.dispatchEvent(new CustomEvent('toast', {detail: {msg: 'Device Error: Access Denied'}}));
     }
-    
-    this.deviceModalOpen = false;
 },
+
 refreshVideoTags() {
     const localEl = document.getElementById('localVideo');
     if (localEl && this.localStream && localEl.srcObject !== this.localStream) {

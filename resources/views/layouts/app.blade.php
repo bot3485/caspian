@@ -28,7 +28,6 @@
       @pagehide.window="handleVisibilityChange()"
       @blur.window="handleVisibilityChange()"
       @focus.window="handleVisibilityChange()">
-
     <!-- SMART TOAST NOTIFICATIONS (ANTI-SPAM) -->
     <div x-data="{ 
             toasts: [], 

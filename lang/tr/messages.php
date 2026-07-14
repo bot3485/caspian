@@ -1,7 +1,8 @@
 <?php
 return [
     'welcome_future' => 'İletişimin Geleceğine Hoş Geldiniz',
-    'visual_freedom' => 'Görsel Özgürlük.',
+    'visual' => 'Görsel',
+    'freedom' => 'Özgürlük',
     'subtitle' => 'Yeni nesil video iletişim ekosistemi. Anında P2P bağlantısı, önce gizlilik ve mutlak akıcılık.',
     'create_account' => 'Hesap Oluştur',
     'already_registered' => 'Zaten Üye Misiniz',

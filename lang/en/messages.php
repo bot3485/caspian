@@ -1,7 +1,8 @@
 <?php
 return [
     'welcome_future' => 'Welcome to the Future of Communication',
-    'visual_freedom' => 'Visual Freedom.',
+    'visual' => 'Visual',
+    'freedom' => 'Freedom',
     'subtitle' => 'Next-generation video communication ecosystem. Instant P2P connection, privacy-first, and absolute fluidity.',
     'create_account' => 'Create Account',
     'already_registered' => 'Already Registered',

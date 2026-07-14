@@ -8,6 +8,7 @@ use App\Http\Controllers\BrowserLogController;
 use Illuminate\Support\Facades\Route;
 use App\Models\Matchmaking;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Http\Request;
 
 /*
 |--------------------------------------------------------------------------
@@ -20,6 +21,19 @@ Route::get('/', function () {
 })->name('home');
 
 Route::post('_boost/browser-logs', [BrowserLogController::class, 'store']);
+
+
+Route::post('/lang/set', function (Request $request) {
+    // Валидация входных данных
+    $lang = $request->input('locale');
+    
+    if (in_array($lang, ['en', 'ru', 'tr'])) {
+        session(['locale' => $lang]);
+        return response()->json(['success' => true]);
+    }
+    
+    return response()->json(['error' => 'Invalid locale'], 400);
+});
 
 // Роут переключения языка интерфейса
 Route::get('/lang/{lang}', function ($lang) {

@@ -48,9 +48,23 @@
                 </div>
 
                 <!-- PING TAG -->
-                <div x-show="state === 'connected' && ping > 0" class="absolute top-6 right-6 px-3 py-1.5 caspian-glass rounded-full border-none">
-                    <span class="text-[7px] font-black uppercase tracking-widest" :class="ping < 150 ? 'text-green-500' : 'text-red-500'">
-                        <span x-text="ping + 'ms'"></span>
+                <!-- Элегантный микро-индикатор пинга -->
+                <div x-show="state === 'connected' && ping > 0" 
+                    class="absolute top-6 right-6 px-3.5 py-1.5 flex items-center gap-2 rounded-full border border-white/[0.04] bg-black/40 backdrop-blur-md shadow-[0_4px_30px_rgba(0,0,0,0.5)] transition-all duration-300">
+                    
+                    <!-- Динамический пульсирующий индикатор состояния сети -->
+                    <span class="relative flex h-1.5 w-1.5">
+                        <span :class="ping < 150 ? 'bg-green-500' : 'bg-red-500'" 
+                            class="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75"></span>
+                        <span :class="ping < 150 ? 'bg-green-500' : 'bg-red-500'" 
+                            class="relative inline-flex rounded-full h-1.5 w-1.5 transition-colors duration-300"></span>
+                    </span>
+
+                    <!-- Текстовое значение пинга -->
+                    <span :class="ping < 150 ? 'text-green-400/90' : 'text-red-400/90'" 
+                        class="text-[8px] font-black tracking-[0.15em] uppercase transition-colors duration-300"
+                        x-text="ping + ' ms'">
+                        28 ms
                     </span>
                 </div>
             </div>

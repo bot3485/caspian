@@ -29,16 +29,16 @@
         <!-- MAIN HERO CONTEXT -->
         <main class="flex-1 flex flex-col items-center justify-center px-6 text-center max-w-4xl mx-auto">
             <div class="inline-flex px-4 py-1.5 rounded-full border border-indigo-500/15 bg-indigo-500/5 text-[8px] font-black uppercase tracking-[0.3em] text-indigo-400 mb-8 animate-pulse">
-                {{ __('messages.welcome_future') }}
+                {{ __('welcome.Welcome_Future') }}
             </div>
             
             <h1 class="text-[clamp(2.5rem,12vw,8rem)] font-black leading-[0.85] tracking-tighter uppercase italic mb-8 bg-gradient-to-b from-white via-white to-white/30 bg-clip-text text-transparent">
-                {{ __('messages.visual') }}<br><span class="text-indigo-500">{{ __('messages.freedom') }}</span>
+                {{ __('welcome.Visual') }}<br><span class="text-indigo-500">{{ __('welcome.Freedom') }}</span>
             </h1>
             
             <p class="max-w-md text-gray-500 font-bold text-xs sm:text-sm uppercase tracking-wider leading-relaxed mb-12">
-                {{ __('messages.next_gen') }} <br>
-                {{ __('messages.p2p') }}
+                {{ __('welcome.Next_Gen') }} <br>
+                {{ __('welcome.P2P') }}
             </p>
 
             <!-- ACTION DECK -->
@@ -46,16 +46,16 @@
                 @guest
                     <div class="flex flex-col sm:flex-row gap-2">
                         <a href="{{ route('register') }}" class="flex-1 bg-brand-indigo hover:scale-[1.02] active:scale-95 text-white py-4 px-6 rounded-2xl font-black text-[9px] uppercase tracking-[0.25em] text-center transition-all duration-300 shadow-xl shadow-brand-indigo/15 border border-white/15">
-                            {{ __('messages.create_account') }}
+                            {{ __('welcome.Create_Account') }}
                         </a>
                         <a href="{{ route('login') }}" class="flex-1 bg-white/[0.02] border border-white/[0.06] hover:bg-white/10 text-gray-300 hover:text-white py-4 px-6 rounded-2xl font-black text-[9px] uppercase tracking-[0.25em] text-center transition-all duration-300">
-                            {{ __('messages.already_registered') }}
+                            {{ __('welcome.Already_Registered') }}
                         </a>
                     </div>
                 @else
                     <!-- Для авторизованных пользователей ведем на Dashboard -->
                     <a href="{{ route('dashboard') }}" class="block w-full bg-brand-indigo hover:scale-[1.01] active:scale-95 text-white py-4.5 px-8 rounded-2xl font-black text-[9px] uppercase tracking-[0.25em] text-center transition-all duration-300 border border-white/10 shadow-xl">
-                        {{ __('messages.open_dashboard') }} ➔
+                        {{ __('welcome.Open_Dashboard') }} ➔
                     </a>
                 @endguest
             </div>

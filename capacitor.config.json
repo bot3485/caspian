@@ -1,0 +1,9 @@
+{
+  "appId": "chatroulette.linkpc.net",
+  "appName": "Roulette",
+  "webDir": "public",
+  "server": {
+    "url": "https://chatroulette.linkpc.net",
+    "cleartextNavigation": false
+  }
+}

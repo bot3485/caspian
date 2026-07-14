@@ -33,14 +33,24 @@
     <div x-data="{ 
             toasts: [], 
             addToast(msg) {
-                // Игнорируем, если такое сообщение уже висит на экране (Anti-spam)
                 if (this.toasts.some(t => t.msg === msg)) return;
                 
                 const id = Date.now();
                 this.toasts.push({id, msg});
                 setTimeout(() => this.toasts = this.toasts.filter(t => t.id !== id), 3500);
+            },
+            async changeLanguage(lang) {
+                try {
+                    await window.axios.post('/profile', { 
+                        _method: 'PATCH',
+                        locale: lang 
+                    });
+                    window.location.reload(); 
+                } catch (e) {
+                    this.addToast('Language change failed');
+                }
             }
-         }" 
+        }"
          @toast.window="addToast($event.detail.msg)" 
          class="fixed top-24 left-1/2 -translate-x-1/2 z-[1000] w-full max-w-xs space-y-2 pointer-events-none">
         <template x-for="toast in toasts" :key="toast.id">

@@ -14,6 +14,7 @@ public function rules(): array
     {
         return [
             // Добавляем 'sometimes', чтобы правила проверялись только если поля переданы в запросе
+            'locale' => ['nullable', 'string', 'in:en,ru,tr'],
             'name' => ['sometimes', 'required', 'string', 'max:255'],
             'email' => [
                 'sometimes', 

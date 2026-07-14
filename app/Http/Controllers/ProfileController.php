@@ -39,6 +39,11 @@ public function update(ProfileUpdateRequest $request): RedirectResponse|\Illumin
         }
     }
 
+    if ($request->has('locale')) {
+    $user->locale = $request->input('locale');
+    $user->save();
+    }
+    
     // Сохраняем массив интересов, только если они были переданы
     if ($request->has('interests')) {
         $user->interests = $request->input('interests', []);

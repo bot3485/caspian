@@ -22,9 +22,13 @@ Route::get('/', function () {
 Route::post('_boost/browser-logs', [BrowserLogController::class, 'store']);
 
 // Роут переключения языка интерфейса
-Route::get('lang/{locale}', function ($locale) {
-    if (in_array($locale, ['en', 'ru', 'tr'])) {
-        session(['locale' => $locale]);
+Route::get('/lang/{lang}', function ($lang) {
+    if (in_array($lang, ['en', 'ru', 'tr'])) {
+        Session::put('locale', $lang);
+        // Сохраняем в профиль пользователя, если он авторизован
+        if (auth()->check()) {
+            auth()->user()->update(['locale' => $lang]);
+        }
     }
     return redirect()->back();
 })->name('lang.switch');

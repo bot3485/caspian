@@ -28,22 +28,20 @@ class ProfileController extends Controller
 public function update(ProfileUpdateRequest $request): RedirectResponse
 {
     $user = $request->user();
-    $user->fill($request->validated());
+    
+    // Заполняем основные поля (name, email)
+    $user->fill($request->safe()->except('interests'));
 
     if ($user->isDirty('email')) {
         $user->email_verified_at = null;
     }
 
-    $raw = $request->input('interests_string', '');
-    if (!empty(trim($raw))) {
-        // Очищаем теги от лишних пробелов и пустых значений
-        $tags = array_filter(array_map('trim', explode(',', $raw)));
-        $user->interests = array_values($tags);
-    } else {
-        $user->interests = [];
-    }
+    // Сохраняем массив интересов напрямую. 
+    // Если ничего не выбрано, записываем пустой массив.
+    $user->interests = $request->input('interests', []);
 
     $user->save();
+
     return Redirect::route('profile.edit')->with('status', 'profile-updated');
 }
 

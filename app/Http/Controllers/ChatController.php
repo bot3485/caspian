@@ -46,40 +46,52 @@ class ChatController extends Controller
 
 public function callContact(Request $request): JsonResponse
 {
+    // 1. Сначала валидируем входные данные
+    $request->validate(['contactId' => 'required|integer|exists:users,id']);
+    
+    // 2. ОПРЕДЕЛЯЕМ переменные ДО того, как их использовать
+    $receiverId = (int)$request->contactId;
+    $senderId = Auth::id();
+
+    if ($senderId === $receiverId) {
+        return response()->json(['error' => 'Self-call'], 400);
+    }
+
+    // 3. Теперь проверяем блокировку (теперь переменные существуют)
     $isBlocked = DB::table('blocks')
-    ->where(fn($q) => $q->where('blocker_id', $receiverId)->where('blocked_id', $senderId))
-    ->orWhere(fn($q) => $q->where('blocker_id', $senderId)->where('blocked_id', $receiverId))
-    ->exists();
+        ->where(function($q) use ($senderId, $receiverId) {
+            $q->where('blocker_id', $receiverId)->where('blocked_id', $senderId);
+        })
+        ->orWhere(function($q) use ($senderId, $receiverId) {
+            $q->where('blocker_id', $senderId)->where('blocked_id', $receiverId);
+        })
+        ->exists();
 
     if ($isBlocked) {
         return response()->json(['error' => 'Connection refused by security policy'], 403);
     }
 
-    $request->validate(['contactId' => 'required|integer']);
-    $receiverId = (int)$request->contactId;
-    $senderId = Auth::id();
+    // 4. ПРОВЕРКА: Занят ли собеседник
+    $receiver = User::find($receiverId);
+    $isBusy = false;
+        if ($receiver && $receiver->isOnline()) {
+            $isBusy = Matchmaking::where('user_id', $receiverId)
+                ->where('status', MatchmakingStatus::Matched)
+                ->exists();
+        }
 
-    if ($senderId === $receiverId) return response()->json(['error' => 'Self-call'], 400);
+        if ($isBusy) {
+            $msg = Message::create([
+                'sender_id' => $senderId,
+                'receiver_id' => $receiverId,
+                'message' => '📞 Missed call (Receiver was busy)'
+            ]);
+            broadcast(new MessageSentEvent($msg->toArray()));
+            
+            return response()->json(['status' => 'busy', 'message' => 'User is busy']);
+        }
 
-    // 1. ПРОВЕРКА: Занят ли собеседник (в рулетке или в другом приватном звонке)
-    $isBusy = Matchmaking::where('user_id', $receiverId)
-        ->where('status', MatchmakingStatus::Matched)
-        ->exists();
-
-    if ($isBusy) {
-        // Создаем сообщение о пропущенном вызове в базу
-        $msg = Message::create([
-            'sender_id' => $senderId,
-            'receiver_id' => $receiverId,
-            'message' => '📞 Missed call (Receiver was busy)'
-        ]);
-        // Отправляем событие сообщения, чтобы оно появилось в мессенджере у получателя
-        broadcast(new MessageSentEvent($msg->toArray()));
-        
-        return response()->json(['status' => 'busy', 'message' => 'User is busy']);
-    }
-
-    // 2. Если свободен — готовим звонок
+    // 5. Если свободен — готовим звонок
     $this->leaveChatAction->execute($senderId);
     
     Matchmaking::updateOrCreate(
@@ -87,7 +99,6 @@ public function callContact(Request $request): JsonResponse
         ['status' => MatchmakingStatus::Matched, 'partner_id' => $receiverId, 'updated_at' => now()]
     );
     
-    // Даем права на сигналы в Redis
     \Illuminate\Support\Facades\Redis::setex("allow_signal:{$senderId}:{$receiverId}", 3600, "1");
     \Illuminate\Support\Facades\Redis::setex("allow_signal:{$receiverId}:{$senderId}", 3600, "1");
     
@@ -160,24 +171,53 @@ public function sendSignal(Request $request): JsonResponse
 
     public function sendMessage(Request $request): JsonResponse
     {
-        $validated = $request->validate(['receiver_id' => 'required|integer', 'message' => 'required|string']);
+        $validated = $request->validate([
+            'receiver_id' => 'required|integer', 
+            'message' => 'required|string'
+        ]);
+
+        // Принудительно пишем в лог, что пытаемся сохранить
+        \Illuminate\Support\Facades\Log::info("Сохраняем сообщение в БД:", [
+            'sender_id' => Auth::id(),
+            'receiver_id' => $validated['receiver_id'],
+            'message' => $validated['message']
+        ]);
+
         $message = Message::create([
             'sender_id' => Auth::id(),
             'receiver_id' => $validated['receiver_id'],
             'message' => $validated['message']
         ]);
+
+        \Illuminate\Support\Facades\Log::info("Сообщение успешно сохранено с ID: " . $message->id);
+
         broadcast(new MessageSentEvent($message->toArray()));
+
         return response()->json(['status' => 'sent', 'message' => $message]);
     }
 
     public function getChatHistory(int $contactId): JsonResponse
     {
         $userId = Auth::id();
+        
+        // 1. Сначала забираем 100 САМЫХ СВЕЖИХ сообщений (сортируем по убыванию id/created_at)
         $messages = Message::where(function($q) use ($userId, $contactId) {
                 $q->where('sender_id', $userId)->where('receiver_id', $contactId);
             })->orWhere(function($q) use ($userId, $contactId) {
                 $q->where('sender_id', $contactId)->where('receiver_id', $userId);
-            })->orderBy('created_at', 'asc')->take(100)->get();
+            })
+            ->orderBy('id', 'desc') // Берем сначала самые новые
+            ->take(100)
+            ->get()
+            ->reverse() // Переворачиваем массив обратно, чтобы в чате они шли хронологически (сверху вниз)
+            ->values(); // Сбрасываем ключи массива для корректного JSON
+
+        // 2. Помечаем входящие от этого контакта как прочитанные
+        Message::where('sender_id', $contactId)
+            ->where('receiver_id', $userId)
+            ->where('is_read', false)
+            ->update(['is_read' => true]);
+
         return response()->json(['messages' => $messages]);
     }
 
@@ -212,12 +252,12 @@ public function getContacts(): JsonResponse
         ->pluck('blocked_id');
 
     // 2. Получаем контакты, исключая тех, кто находится в ЧС
-    $contacts = User::whereIn('id', function($query) use ($userId) {
-            $query->select('contact_id')
-                ->from('contacts')
-                ->where('user_id', $userId);
-        })
-        ->whereNotIn('id', $blockedIds) // Исключаем заблокированных
+        $contacts = User::whereIn('id', function($query) use ($userId) {
+                $query->select('contact_id')->from('contacts')->where('user_id', $userId);
+            })
+            ->whereNotIn('id', function($q) use ($userId) {
+                $q->select('blocked_id')->from('blocks')->where('blocker_id', $userId);
+            })
         ->select('id', 'name', 'last_seen', 'level') 
         ->orderBy('last_seen', 'desc')
         ->get()
@@ -257,7 +297,9 @@ public function getInteractionHistory(): JsonResponse
     $blockedIds = DB::table('blocks')->where('blocker_id', $userId)->pluck('blocked_id');
     $history = DB::table('interactions')
         ->where('interactions.user_id', $userId)
-        ->whereNotIn('interactions.partner_id', $blockedIds) // Скрываем из истории
+        ->whereNotIn('interactions.partner_id', function($q) use ($userId) {
+            $q->select('blocked_id')->from('blocks')->where('blocker_id', $userId);
+        })
         ->join('users', 'interactions.partner_id', '=', 'users.id')
         ->select(
             'users.id', 

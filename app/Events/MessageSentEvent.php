@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Events;
 
 use Illuminate\Broadcasting\{InteractsWithSockets, PrivateChannel};
@@ -18,5 +19,22 @@ class MessageSentEvent implements ShouldBroadcastNow
 
     public function broadcastAs(): string {
         return 'MessageSentEvent';
+    }
+
+    /**
+     * Определить, какие данные должны быть переданы в сокет.
+     */
+    public function broadcastWith(): array
+    {
+        return [
+            'messageData' => [
+                'id' => $this->messageData['id'] ?? null,
+                // Если sender_id пустой в массиве, берем ID текущего авторизованного юзера
+                'sender_id' => (int)($this->messageData['sender_id'] ?? auth()->id()),
+                'receiver_id' => (int)$this->messageData['receiver_id'],
+                'message' => $this->messageData['message'],
+                'created_at' => $this->messageData['created_at'] ?? now()->toIso8601String(),
+            ]
+        ];
     }
 }

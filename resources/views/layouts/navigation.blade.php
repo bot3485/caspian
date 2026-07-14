@@ -54,15 +54,15 @@
                          x-cloak
                          class="absolute right-0 mt-2 w-32 bg-[#0a0a0a]/90 backdrop-blur-2xl border border-white/10 rounded-2xl p-2 space-y-1 shadow-2xl z-50">
                          
-                        <a href="{{ route('lang.switch', 'en') }}" class="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-indigo-600 text-[10px] font-black uppercase tracking-widest transition-all text-gray-400 hover:text-white">
+                        <button @click="changeLanguage('en')" class="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-indigo-600 text-[10px] font-black uppercase tracking-widest transition-all text-gray-400 hover:text-white">
                             <span>🇺🇸</span> EN
-                        </a>
-                        <a href="{{ route('lang.switch', 'ru') }}" class="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-indigo-600 text-[10px] font-black uppercase tracking-widest transition-all text-gray-400 hover:text-white">
+                        </button>
+                        <button @click="changeLanguage('ru')" class="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-indigo-600 text-[10px] font-black uppercase tracking-widest transition-all text-gray-400 hover:text-white">
                             <span>🇷🇺</span> RU
-                        </a>
-                        <a href="{{ route('lang.switch', 'tr') }}" class="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-indigo-600 text-[10px] font-black uppercase tracking-widest transition-all text-gray-400 hover:text-white">
+                        </button>
+                        <button @click="changeLanguage('tr')" class="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-indigo-600 text-[10px] font-black uppercase tracking-widest transition-all text-gray-400 hover:text-white">
                             <span>🇹🇷</span> TR
-                        </a>
+                        </button>
                     </div>
                 </div>
 

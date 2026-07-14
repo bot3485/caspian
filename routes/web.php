@@ -24,28 +24,23 @@ Route::post('_boost/browser-logs', [BrowserLogController::class, 'store']);
 
 
 Route::post('/lang/set', function (Request $request) {
-    // Валидация входных данных
     $lang = $request->input('locale');
     
+    // Проверка, что язык поддерживается
     if (in_array($lang, ['en', 'ru', 'tr'])) {
+        // Устанавливаем в сессию
         session(['locale' => $lang]);
-        return response()->json(['success' => true]);
-    }
-    
-    return response()->json(['error' => 'Invalid locale'], 400);
-});
-
-// Роут переключения языка интерфейса
-Route::get('/lang/{lang}', function ($lang) {
-    if (in_array($lang, ['en', 'ru', 'tr'])) {
-        Session::put('locale', $lang);
-        // Сохраняем в профиль пользователя, если он авторизован
+        
+        // Если пользователь авторизован, обновляем и его профиль
         if (auth()->check()) {
             auth()->user()->update(['locale' => $lang]);
         }
+        
+        return response()->json(['success' => true]);
     }
-    return redirect()->back();
-})->name('lang.switch');
+    
+    return response()->json(['error' => 'Invalid language'], 400);
+});
 
 /*
 |--------------------------------------------------------------------------

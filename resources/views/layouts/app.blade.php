@@ -201,7 +201,6 @@ async changeAudioDevice() {
 },
 
         async init() {
-            
             const self = this; 
             this.ringtone.loop = true;
 
@@ -229,6 +228,41 @@ async changeAudioDevice() {
             
         },
 
+formatDateTime(msg) {
+            if (!msg) return '';
+            
+            const dateSource = msg.created_at || msg.timestamp;
+            if (!dateSource) return '';
+
+            const msgDate = new Date(dateSource);
+            const today = new Date();
+            const yesterday = new Date();
+            yesterday.setDate(today.getDate() - 1);
+
+            // Форматируем время: HH:MM
+            const timeStr = msgDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+            // 1. Проверяем, сегодня ли отправлено сообщение
+            if (msgDate.toDateString() === today.toDateString()) {
+                return timeStr;
+            }
+
+            // 2. Проверяем, вчера ли
+            if (msgDate.toDateString() === yesterday.toDateString()) {
+                return `Вчера, ${timeStr}`;
+            }
+
+            // 3. Проверяем, прошлый ли это год
+            if (msgDate.getFullYear() !== today.getFullYear()) {
+                // Выведет локализованную дату с годом: "14 июля 2025 г., 10:59" (или без "г." в зависимости от настроек)
+                const dateWithYearStr = msgDate.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
+                return `${dateWithYearStr}, ${timeStr}`;
+            }
+
+            // 4. Если текущий год, но старше двух дней: "14 июля, 10:59"
+            const dateStr = msgDate.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
+            return `${dateStr}, ${timeStr}`;
+        },
         // --- MEDIA CONTROL ---
 
 async initMedia() {
@@ -350,23 +384,37 @@ async initMedia() {
         // --- CALLS LOGIC ---
 
 async handleMatch(e) {
-    if (this.callContext === 'personal') return;
-    this.reset();
-    this.partnerId = Number(e.partnerData?.id);
-    this.partnerData = e.partnerData || {};
-    
-    // Расчет совпадений
-    const pInterests = this.partnerData.interests || [];
-    this.commonInterests = pInterests.filter(i => this.myInterests.includes(i));
-    if (this.commonInterests.length > 0) {
-        this.showInterestMatch = true;
-        setTimeout(() => { this.showInterestMatch = false; }, 6000);
-    }
+            if (this.callContext === 'personal') return;
+            this.reset();
+            this.partnerId = Number(e.partnerData?.id);
+            this.partnerData = e.partnerData || {};
+            
+            // Проверяем, является ли партнер другом
+            this.isFriend = this.friendsList.some(f => Number(f.id) === this.partnerId);
 
-    this.state = 'connected';
-    this.initPC();
-    if (myId < this.partnerId) setTimeout(() => this.sendOffer(), 1200);
-},
+            // Расчет совпадений интересов
+            const pInterests = this.partnerData.interests || [];
+            this.commonInterests = pInterests.filter(i => this.myInterests.includes(i));
+            if (this.commonInterests.length > 0) {
+                this.showInterestMatch = true;
+                setTimeout(() => { this.showInterestMatch = false; }, 6000);
+            }
+
+            this.state = 'connected';
+            this.initPC();
+
+            // !!! НАША НОВАЯ ЛОГИКА !!!
+            if (this.isFriend) {
+                // Если это друг, сразу открываем личный чат с ним в боковой панели
+                this.openFriendChat(this.partnerId);
+            } else {
+                // Если незнакомец, открываем обычный глобальный чат
+                this.tab = 'chat';
+                this.activeFriend = null;
+            }
+
+            if (myId < this.partnerId) setTimeout(() => this.sendOffer(), 1200);
+        },
 
         async setupPersonalCall(id, isAccepted) {
             this.callContext = 'personal';
@@ -430,18 +478,72 @@ async handleMatch(e) {
 
         async toggleContact() {
             if (!this.partnerId) return;
-            const res = await window.axios.post('/chat/contact/add', { contactId: this.partnerId });
-            this.isFriend = res.data.isFriend;
-            this.loadFriends();
+            try {
+                const res = await window.axios.post('/chat/contact/add', { contactId: this.partnerId });
+                
+                // Наш контроллер возвращает flag 'isFriend' при добавлении/удалении
+                this.isFriend = res.data.isFriend;
+                
+                // Моментально обновляем локальный список контактов во вкладке Contacts
+                this.loadFriends();
+                
+                // Выводим красивое уведомление в зависимости от действия
+                const toastMsg = this.isFriend ? 'Identity Linked ✓' : 'Identity Unlinked ✕';
+                window.dispatchEvent(new CustomEvent('toast', { detail: { msg: toastMsg } }));
+            } catch (e) {
+                console.error("Ошибка при изменении статуса контакта:", e);
+            }
         },
 
-        handleIncomingMsg(e) {
+handleIncomingMsg(e) {
             const m = e.messageData;
             if (this.processedEvents.has('msg_' + m.id)) return;
             this.processedEvents.add('msg_' + m.id);
+            
             if (this.audioUnlocked) this.msgSound.play().catch(()=>{});
-            if (this.state === 'connected' && m.sender_id === this.partnerId) { this.messages.push({isMe: false, text: m.message, timestamp: Date.now()}); this.scrollChat(); }
-            if (this.activeFriend && m.sender_id === this.activeFriend.id) { this.friendMessages.push(m); this.scrollFriendChat(); }
+            
+            // ФОЛБЭК: Если по какой-то причине sender_id не пришел
+            if (!m.sender_id) {
+                if (this.partnerId) {
+                    m.sender_id = this.partnerId;
+                } else if (this.activeFriend) {
+                    m.sender_id = this.activeFriend.id;
+                }
+            }
+
+            const senderIdNum = Number(m.sender_id);
+            const partnerIdNum = Number(this.partnerId);
+
+            // 1. Если мы в активной РУЛЕТКЕ и сообщение пришло от партнера по рулетке
+            if (this.state === 'connected' && this.callContext === 'roulette' && senderIdNum === partnerIdNum) { 
+                this.messages.push({
+                    isMe: false, 
+                    text: m.message, 
+                    timestamp: Date.now()
+                }); 
+                this.scrollChat(); 
+                return; // Важно! Прерываем выполнение, чтобы сообщение не улетело во второй чат
+            }
+            
+            // 2. Если мы НЕ в рулетке (или сообщение от другого человека, не партнера по рулетке)
+            if (this.activeFriend && senderIdNum === Number(this.activeFriend.id)) { 
+                // Чат с этим другом открыт — пушим в персональный чат в реалтайме
+                this.friendMessages.push(m); 
+                this.scrollFriendChat(); 
+            } else {
+                // Если чат с ним закрыт — помечаем плашку непрочитанного сообщения
+                const friend = this.friendsList.find(f => Number(f.id) === senderIdNum);
+                if (friend) {
+                    friend.has_new_message = true; 
+                    if (!friend.unread_count) friend.unread_count = 0;
+                    friend.unread_count++;
+                    
+                    this.friendsList = [
+                        friend,
+                        ...this.friendsList.filter(f => Number(f.id) !== senderIdNum)
+                    ];
+                }
+            }
         },
 
         handleTyping(e) {
@@ -510,9 +612,66 @@ async handleMatch(e) {
         loadBlocked() { window.axios.get('/chat/blocked').then(r => this.blockedList = r.data.blocked); },
         scrollChat() { this.$nextTick(() => { if(this.$refs.chatBox) this.$refs.chatBox.scrollTop = this.$refs.chatBox.scrollHeight; }); },
         scrollFriendChat() { this.$nextTick(() => { if(this.$refs.friendChatBox) this.$refs.friendChatBox.scrollTop = this.$refs.friendChatBox.scrollHeight; }); },
-        openFriendChat(f) { this.tab = 'friends'; this.activeFriend = f; window.axios.get(`/chat/history/${f.id}`).then(res => { this.friendMessages = res.data.messages; this.scrollFriendChat(); }); },
-        async sendMsg() { if (!this.chatInput.trim() || !this.partnerId) return; const t = this.chatInput; this.chatInput = ''; this.messages.push({isMe: true, text: t, timestamp: Date.now()}); window.axios.post('/chat/message/send', { receiver_id: this.partnerId, message: t }); this.scrollChat(); },
-        async sendFriendMsg() { if (!this.friendChatInput.trim() || !this.activeFriend) return; const t = this.friendChatInput; this.friendChatInput = ''; const res = await window.axios.post('/chat/message/send', { receiver_id: this.activeFriend.id, message: t }); this.friendMessages.push(res.data.message); this.scrollFriendChat(); },
+        openFriendChat(friendId) {
+            console.log("Caspian DEBUG: Вызов openFriendChat с ID =", friendId);
+            
+            if (!friendId) {
+                console.error("Caspian DEBUG: Ошибка - передан пустой ID!");
+                return;
+            }
+
+            // Находим друга в нашем локальном списке
+            const target = this.friendsList.find(x => Number(x.id) === Number(friendId));
+            
+            // Если не нашли в друзьях (например, кликнули из истории встреч), временно создаем объект-заглушку
+            this.activeFriend = target ? target : { id: Number(friendId), name: 'User #' + friendId };
+            this.tab = 'friends'; 
+
+            // Сбрасываем счетчики локально
+            if (target) {
+                target.has_new_message = false;
+                target.unread_count = 0;
+            }
+
+            this.friendMessages = []; // Сразу чистим экран от старых сообщений
+
+            console.log("Caspian DEBUG: Отправка Axios-запроса на /chat/history/" + friendId);
+
+            window.axios.get(`/chat/history/${friendId}`)
+                .then(res => { 
+                    console.log("Caspian DEBUG: Ответ сервера получен!", res.data);
+                    this.friendMessages = Array.isArray(res.data.messages) ? res.data.messages : []; 
+                    this.scrollFriendChat(); 
+                })
+                .catch(err => {
+                    console.error("Caspian DEBUG: Ошибка при выполнении Axios-запроса:", err);
+                }); 
+        },
+        async sendMsg() { 
+            if (!this.chatInput.trim() || !this.partnerId) return; 
+            const t = this.chatInput; 
+            this.chatInput = ''; 
+            this.messages.push({isMe: true, text: t, timestamp: Date.now()}); 
+            
+            // Вот здесь отправка!
+            window.axios.post('/chat/message/send', { receiver_id: this.partnerId, message: t }); 
+            this.scrollChat(); 
+        },
+        async sendFriendMsg() { 
+            if (!this.friendChatInput.trim() || !this.activeFriend) return; 
+            const t = this.friendChatInput; 
+            this.friendChatInput = ''; 
+            
+            // Отправляем на бэкенд
+            const res = await window.axios.post('/chat/message/send', { 
+                receiver_id: this.activeFriend.id, 
+                message: t 
+            }); 
+            
+            // Пушим ответ сервера (в котором ГАРАНТИРОВАННО есть id из базы данных!)
+            this.friendMessages.push(res.data.message); 
+            this.scrollFriendChat(); 
+        },
         sendTypingSignal() { const rid = this.activeFriend ? this.activeFriend.id : this.partnerId; if (rid) window.axios.post('/chat/message/typing', { receiver_id: rid }); },
         callFriend(f) { if (!f.is_online) return; window.location.href = '/chat?call_to=' + f.id; }
     }

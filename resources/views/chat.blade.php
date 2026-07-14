@@ -177,20 +177,25 @@
                         <span class="text-[7px] font-black uppercase tracking-widest opacity-60">Privacy</span>
                     </button>
 
-                    <!-- Social Row (Active only when connected) -->
-                <template x-if="state === 'connected' && partnerId">
-                    <div class="col-span-3 grid grid-cols-4 gap-2 mt-1 pt-2 border-t border-white/5">
-                        <button @click="toggleContact()" 
-                                :class="isFriend ? 'bg-red-500/20 text-red-500 border-red-500/30' : 'bg-green-500/20 text-green-500 border-green-500/30'" 
-                                class="col-span-3 h-12 rounded-xl font-black text-[9px] uppercase tracking-[0.2em] transition-all border">
-                            <span x-text="isFriend ? '✕ Remove Friend' : '+ Add to Friends'"></span>
-                        </button>
-                        <button @click="reportPartner()" 
-                                class="col-span-1 h-12 bg-red-600 text-white rounded-xl flex items-center justify-center hover:bg-red-700 transition-all shadow-lg shadow-red-600/20">
-                            🚩
-                        </button>
-                    </div>
-                </template>
+                <!-- Social Row (Показываем только в рулетке, скрываем в персональном звонке) -->
+                    <template x-if="callContext !== 'personal'">
+                        <div class="col-span-3 grid grid-cols-4 gap-2 mt-1 pt-2 border-t border-white/5">
+                            
+                            <!-- Кнопка добавления / удаления друга -->
+                            <button @click="toggleContact()" 
+                                    :class="isFriend 
+                                        ? 'bg-red-600/10 text-red-500 border border-red-500/20 hover:bg-red-600 hover:text-white' 
+                                        : 'bg-brand-indigo/20 text-brand-indigo hover:bg-brand-indigo hover:text-white'" 
+                                    class="col-span-3 h-12 rounded-xl font-black text-[9px] uppercase tracking-[0.2em] transition-all">
+                                <span x-text="isFriend ? '✕ Remove Friend' : '+ Add Friend'"></span>
+                            </button>
+                            
+                            <!-- Кнопка жалобы -->
+                            <button @click="reportPartner()" class="col-span-1 h-12 bg-red-600/10 text-red-500 rounded-xl flex items-center justify-center hover:bg-red-600 hover:text-white transition-all">
+                                🚩
+                            </button>
+                        </div>
+                    </template>
                 </div>
             </div>
 

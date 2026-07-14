@@ -72,20 +72,24 @@ public function callContact(Request $request): JsonResponse
     }
 
     // 4. ПРОВЕРКА: Занят ли собеседник
-    $isBusy = Matchmaking::where('user_id', $receiverId)
-        ->where('status', MatchmakingStatus::Matched)
-        ->exists();
+    $receiver = User::find($receiverId);
+    $isBusy = false;
+        if ($receiver && $receiver->isOnline()) {
+            $isBusy = Matchmaking::where('user_id', $receiverId)
+                ->where('status', MatchmakingStatus::Matched)
+                ->exists();
+        }
 
-    if ($isBusy) {
-        $msg = Message::create([
-            'sender_id' => $senderId,
-            'receiver_id' => $receiverId,
-            'message' => '📞 Missed call (Receiver was busy)'
-        ]);
-        broadcast(new MessageSentEvent($msg->toArray()));
-        
-        return response()->json(['status' => 'busy', 'message' => 'User is busy']);
-    }
+        if ($isBusy) {
+            $msg = Message::create([
+                'sender_id' => $senderId,
+                'receiver_id' => $receiverId,
+                'message' => '📞 Missed call (Receiver was busy)'
+            ]);
+            broadcast(new MessageSentEvent($msg->toArray()));
+            
+            return response()->json(['status' => 'busy', 'message' => 'User is busy']);
+        }
 
     // 5. Если свободен — готовим звонок
     $this->leaveChatAction->execute($senderId);
@@ -167,24 +171,53 @@ public function sendSignal(Request $request): JsonResponse
 
     public function sendMessage(Request $request): JsonResponse
     {
-        $validated = $request->validate(['receiver_id' => 'required|integer', 'message' => 'required|string']);
+        $validated = $request->validate([
+            'receiver_id' => 'required|integer', 
+            'message' => 'required|string'
+        ]);
+
+        // Принудительно пишем в лог, что пытаемся сохранить
+        \Illuminate\Support\Facades\Log::info("Сохраняем сообщение в БД:", [
+            'sender_id' => Auth::id(),
+            'receiver_id' => $validated['receiver_id'],
+            'message' => $validated['message']
+        ]);
+
         $message = Message::create([
             'sender_id' => Auth::id(),
             'receiver_id' => $validated['receiver_id'],
             'message' => $validated['message']
         ]);
+
+        \Illuminate\Support\Facades\Log::info("Сообщение успешно сохранено с ID: " . $message->id);
+
         broadcast(new MessageSentEvent($message->toArray()));
+
         return response()->json(['status' => 'sent', 'message' => $message]);
     }
 
     public function getChatHistory(int $contactId): JsonResponse
     {
         $userId = Auth::id();
+        
+        // 1. Сначала забираем 100 САМЫХ СВЕЖИХ сообщений (сортируем по убыванию id/created_at)
         $messages = Message::where(function($q) use ($userId, $contactId) {
                 $q->where('sender_id', $userId)->where('receiver_id', $contactId);
             })->orWhere(function($q) use ($userId, $contactId) {
                 $q->where('sender_id', $contactId)->where('receiver_id', $userId);
-            })->orderBy('created_at', 'asc')->take(100)->get();
+            })
+            ->orderBy('id', 'desc') // Берем сначала самые новые
+            ->take(100)
+            ->get()
+            ->reverse() // Переворачиваем массив обратно, чтобы в чате они шли хронологически (сверху вниз)
+            ->values(); // Сбрасываем ключи массива для корректного JSON
+
+        // 2. Помечаем входящие от этого контакта как прочитанные
+        Message::where('sender_id', $contactId)
+            ->where('receiver_id', $userId)
+            ->where('is_read', false)
+            ->update(['is_read' => true]);
+
         return response()->json(['messages' => $messages]);
     }
 

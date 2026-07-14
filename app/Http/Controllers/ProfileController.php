@@ -25,22 +25,39 @@ class ProfileController extends Controller
         ]);
     }
 
-public function update(ProfileUpdateRequest $request): RedirectResponse
+public function update(ProfileUpdateRequest $request): RedirectResponse|\Illuminate\Http\JsonResponse
 {
     $user = $request->user();
-    
-    // Заполняем основные поля (name, email)
-    $user->fill($request->safe()->except('interests'));
+    $data = $request->safe()->only(['name', 'email']);
 
-    if ($user->isDirty('email')) {
-        $user->email_verified_at = null;
+    // Обновляем имя и email только если они пришли в запросе
+    if (!empty($data)) {
+        $user->fill($data);
+        
+        if ($user->isDirty('email')) {
+            $user->email_verified_at = null;
+        }
     }
 
-    // Сохраняем массив интересов напрямую. 
-    // Если ничего не выбрано, записываем пустой массив.
-    $user->interests = $request->input('interests', []);
+    // Сохраняем массив интересов, только если они были переданы
+    if ($request->has('interests')) {
+        $user->interests = $request->input('interests', []);
+    }
+
+    // Сохраняем target_country, только если оно передано
+    if ($request->has('target_country')) {
+        $user->target_country = $request->input('target_country');
+    }
 
     $user->save();
+
+    // Если это AJAX-запрос из рулетки, возвращаем чистый JSON 200 OK
+    if ($request->expectsJson() || $request->wantsJson()) {
+        return response()->json([
+            'status' => 'success',
+            'user' => $user
+        ]);
+    }
 
     return Redirect::route('profile.edit')->with('status', 'profile-updated');
 }

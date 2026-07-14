@@ -21,6 +21,14 @@ Route::get('/', function () {
 
 Route::post('_boost/browser-logs', [BrowserLogController::class, 'store']);
 
+// Роут переключения языка интерфейса
+Route::get('lang/{locale}', function ($locale) {
+    if (in_array($locale, ['en', 'ru', 'tr'])) {
+        session(['locale' => $locale]);
+    }
+    return redirect()->back();
+})->name('lang.switch');
+
 /*
 |--------------------------------------------------------------------------
 | Protected Routes (Auth & Verified)
@@ -39,20 +47,20 @@ Route::middleware(['auth', 'verified'])->group(function () {
     })->name('leaderboard');
 
     // --- Система активности (Ping) ---
-Route::post('/ping', function () {
-    if (Auth::check()) {
-        // Продлеваем жизнь записи в очереди
-        \App\Models\Matchmaking::where('user_id', Auth::id())->update(['updated_at' => now()]);
-        
-        // Продлеваем жизнь прав на сигналы в Redis (чтобы TURN/сигналы не отвалились через час)
-        $match = \App\Models\Matchmaking::where('user_id', Auth::id())->first();
-        if ($match && $match->partner_id) {
-            \Illuminate\Support\Facades\Redis::expire("allow_signal:".Auth::id().":{$match->partner_id}", 3600);
-            \Illuminate\Support\Facades\Redis::expire("allow_signal:{$match->partner_id}:".Auth::id(), 3600);
+    Route::post('/ping', function () {
+        if (Auth::check()) {
+            // Продлеваем жизнь записи в очереди
+            \App\Models\Matchmaking::where('user_id', Auth::id())->update(['updated_at' => now()]);
+            
+            // Продлеваем жизнь прав на сигналы в Redis (чтобы TURN/сигналы не отвалились через час)
+            $match = \App\Models\Matchmaking::where('user_id', Auth::id())->first();
+            if ($match && $match->partner_id) {
+                \Illuminate\Support\Facades\Redis::expire("allow_signal:".Auth::id().":{$match->partner_id}", 3600);
+                \Illuminate\Support\Facades\Redis::expire("allow_signal:{$match->partner_id}:".Auth::id(), 3600);
+            }
         }
-    }
-    return response()->json(['status' => 'pong']);
-})->name('ping');
+        return response()->json(['status' => 'pong']);
+    })->name('ping');
 
     // --- Жалобы ---
     Route::post('/report', [ReportController::class, 'store'])->name('report.store');
@@ -69,7 +77,7 @@ Route::post('/ping', function () {
         Route::get('/', [ChatController::class, 'index'])->name('chat');
 
         Route::controller(ChatController::class)->group(function () {
-            // Рулетка (Поиск и сигналы)
+            // Рулетка (Поиск, сигналы и гео-фильтрация)
             Route::post('/search', 'startSearching')->name('chat.search');
             Route::post('/leave', 'leaveChat')->name('chat.leave');
             Route::post('/signal', 'sendSignal')->name('chat.signal');
@@ -90,7 +98,7 @@ Route::post('/ping', function () {
 
             // Черный список и блокировка
             Route::get('/blocked', 'getBlockedUsers')->name('chat.blocked');
-            Route::post('/block', 'blockUser')->name('chat.block'); // <--- Теперь здесь
+            Route::post('/block', 'blockUser')->name('chat.block');
             Route::post('/unblock', 'unblockUser')->name('chat.unblock');
         });
     });

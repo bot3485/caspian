@@ -328,7 +328,41 @@ async initMedia() {
             this.pc = new RTCPeerConnection(this.rtcConfig);
             
             this.pc.onicecandidate = (e) => { if (e.candidate) self.signal({ type: 'ice', candidate: e.candidate }); };
-            this.pc.ontrack = (e) => { if (self.$refs.remoteVideo) self.$refs.remoteVideo.srcObject = e.streams[0]; };
+            this.pc.ontrack = (e) => { 
+                const remoteStream = e.streams[0];
+                
+                let videoEl = self.$refs.remoteVideo;
+                if (!videoEl) {
+                    videoEl = document.getElementById('remoteVideo');
+                }
+
+                if (videoEl) {
+                    // Анти-прерывание: Если этот поток уже привязан к видеотегу, не перезаписываем его!
+                    if (videoEl.srcObject === remoteStream) {
+                        return;
+                    }
+
+                    videoEl.srcObject = remoteStream;
+                    
+                    // Безопасный запуск воспроизведения через промис
+                    const playPromise = videoEl.play();
+                    if (playPromise !== undefined) {
+                        playPromise.then(() => {
+                        }).catch(err => {
+                            if (err.name === 'AbortError') {
+                                console.warn("[Caspian WebRTC] Play was aborted by browser loading cycle, retrying in 100ms...");
+                                setTimeout(() => videoEl.play().catch(() => {}), 100);
+                            } else {
+                                console.warn("[Caspian WebRTC] Play blocked, trying muted...", err);
+                                videoEl.muted = true;
+                                videoEl.play().catch(e => console.error("[Caspian WebRTC] Double block play failed:", e));
+                            }
+                        });
+                    }
+                } else {
+                    console.error("[Caspian WebRTC] CRITICAL: Video element (#remoteVideo / x-ref) not found in DOM!");
+                }
+            };
             
             this.pc.oniceconnectionstatechange = () => {
                 if (self.pc.iceConnectionState === 'failed') self.sendOffer({ iceRestart: true });
@@ -342,7 +376,6 @@ async initMedia() {
         async handleSignal(e) {
             const m = e.data;
             const self = this;
-
             if (m.type === 'you-are-blocked') {
                 this.stopCall(false); // Обрываем звонок
                 window.dispatchEvent(new CustomEvent('toast', {
@@ -385,48 +418,69 @@ async initMedia() {
 
 async handleMatch(e) {
             if (this.callContext === 'personal') return;
-            this.reset();
-            this.partnerId = Number(e.partnerData?.id);
-            this.partnerData = e.partnerData || {};
             
-            // Проверяем, является ли партнер другом
+            // В Laravel Echo объект события e обычно содержит public свойства класса MatchFoundEvent.
+            // Если событие пришло как { partnerData: {...} }, берем его, если нет - берем e напрямую.
+            const partner = e.partnerData || e || {};
+            const newPartnerId = partner.id ? Number(partner.id) : null;
+            
+            if (!newPartnerId) {
+                console.error("[Caspian] Match received but partner ID is missing!", e);
+                return;
+            }
+
+            // Анти-дублирование
+            if (this.partnerId === newPartnerId && this.state === 'connected') {
+                return;
+            }
+
+            this.reset();
+            this.partnerId = newPartnerId;
+            
+            // Наполняем объект данными
+            this.partnerData = {
+                id: this.partnerId,
+                name: partner.name || 'Anonymous Peer',
+                level: partner.level || 1,
+                rank_name: partner.rank_name || 'Regular',
+                karma: partner.karma || 0,
+                country_code: partner.country_code || 'us',
+                country_flag: partner.country_flag || 'https://cdnjs.cloudflare.com/ajax/libs/twemoji/14.0.2/svg/1f30e.svg',
+                interests: partner.interests || [],
+                // Забираем общие интересы, если бэкенд их прислал
+                common_interests: partner.common_interests || [] 
+            };
+            
             this.isFriend = this.friendsList.some(f => Number(f.id) === this.partnerId);
 
+            // ЛОГИКА ОТОБРАЖЕНИЯ ИНТЕРЕСОВ
+            // 1. Приоритет данным от бэкенда (common_interests)
+            // 2. Если бэкенд пуст, считаем сами на фронте
+            let common = this.partnerData.common_interests;
+            
+            if (!common || common.length === 0) {
+                const myInts = (this.myInterests || []).map(i => String(i).toLowerCase());
+                const pInts = (this.partnerData.interests || []).map(i => String(i).toLowerCase());
+                common = pInts.filter(i => myInts.includes(i));
+            }
+
+            this.commonInterests = common;
+
+            if (this.commonInterests.length > 0) {
+                this.showInterestMatch = true;
+                setTimeout(() => { this.showInterestMatch = false; }, 6000);
+            }
+
+            // Статус и инициализация
             this.state = 'connected';
+            this.tab = 'chat';
+            
             this.initPC();
 
-            // Автоматически перенаправляем в личный чат, если это друг
-            if (this.isFriend) {
-                this.openFriendChat(this.partnerId);
-            } else {
-                this.tab = 'chat';
-                this.activeFriend = null;
+            if (myId < this.partnerId) {
+                setTimeout(() => this.sendOffer(), 1200);
             }
-
-            // !!! ЛОГИКА СОВПАДЕНИЯ ИНТЕРЕСОВ !!!
-            // Получаем общие интересы из события Laravel Echo
-            const common = e.partnerData?.common_interests || [];
-            
-            if (common && common.length > 0) {
-                // Переводим системные значения Enum на красивый английский
-                const formattedInterests = common.map(interest => {
-                    // Делаем первую букву заглавной (например: gaming -> Gaming)
-                    return interest.charAt(0).toUpperCase() + interest.slice(1);
-                }).join(', ');
-
-                // Отправляем событие для вывода Toast-уведомления
-                setTimeout(() => {
-                    window.dispatchEvent(new CustomEvent('toast', { 
-                        detail: { 
-                            msg: `⚡ Mutual interests found! You both like: ${formattedInterests}` 
-                        } 
-                    }));
-                }, 1500); // Небольшая задержка, чтобы уведомление всплыло плавно после соединения
-            }
-
-            if (myId < this.partnerId) setTimeout(() => this.sendOffer(), 1200);
         },
-
         async setupPersonalCall(id, isAccepted) {
             this.callContext = 'personal';
             this.partnerId = id;
@@ -572,14 +626,37 @@ handleIncomingMsg(e) {
             }
         },
 
-        async sendOffer(options = {}) { 
-            if (!this.pc || this.makingOffer || this.pc.signalingState !== 'stable') return;
+async sendOffer(options = {}) { 
+            if (!this.pc) {
+                console.warn("[Caspian WebRTC] sendOffer aborted: RTCPeerConnection (this.pc) is null.");
+                return;
+            }
+            if (this.makingOffer) {
+                console.warn("[Caspian WebRTC] sendOffer aborted: already making offer.");
+                return;
+            }
+            if (this.pc.signalingState !== 'stable') {
+                console.warn(`[Caspian WebRTC] sendOffer aborted: signalingState is not stable (current: ${this.pc.signalingState})`);
+                return;
+            }
+
+            // Проверяем, есть ли вообще треки в PeerConnection
+            const senders = this.pc.getSenders();
+            if (senders.length === 0 && this.localStream) {
+                this.localStream.getTracks().forEach(t => this.pc.addTrack(t, this.localStream));
+            }
+
             this.makingOffer = true; 
+            
             try { 
                 const offer = await this.pc.createOffer(options); 
                 await this.pc.setLocalDescription(offer); 
                 this.signal({ type: 'offer', sdp: this.pc.localDescription.sdp }); 
-            } finally { this.makingOffer = false; } 
+            } catch (error) {
+                console.error("[Caspian WebRTC] CRITICAL ERROR inside sendOffer:", error);
+            } finally { 
+                this.makingOffer = false; 
+            } 
         },
 
         reportPartner() { if (!this.partnerId || !confirm('Report and block?')) return; window.axios.post('/report', { reported_id: this.partnerId, reason: 'general' }).then(() => this.startSearch()); },
@@ -592,12 +669,11 @@ handleIncomingMsg(e) {
         handleVisibilityChange() {
             if (!this.partnerId) return;
 
-            // Определяем, скрыт ли пользователь реально
-            // hidden — вкладка неактивна, !hasFocus() — окно свернуто или перекрыто
-            const isAway = document.hidden || document.visibilityState === 'hidden' || !document.hasFocus();
+            // Считаем пользователя away, ТОЛЬКО если вкладка реально свернута или скрыта.
+            // Игнорируем focus/blur (hasFocus), чтобы не ломать тесты в соседних окнах и мобилках.
+            const isAway = document.hidden || document.visibilityState === 'hidden';
             const newState = isAway ? 'away' : 'active';
 
-            // Отправляем сигнал только если состояние реально изменилось, чтобы не спамить
             if (this.myLastStatus !== newState) {
                 this.myLastStatus = newState;
                 this.signal({ 
@@ -624,8 +700,7 @@ handleIncomingMsg(e) {
         scrollChat() { this.$nextTick(() => { if(this.$refs.chatBox) this.$refs.chatBox.scrollTop = this.$refs.chatBox.scrollHeight; }); },
         scrollFriendChat() { this.$nextTick(() => { if(this.$refs.friendChatBox) this.$refs.friendChatBox.scrollTop = this.$refs.friendChatBox.scrollHeight; }); },
         openFriendChat(friendId) {
-            console.log("Caspian DEBUG: Вызов openFriendChat с ID =", friendId);
-            
+
             if (!friendId) {
                 console.error("Caspian DEBUG: Ошибка - передан пустой ID!");
                 return;
@@ -646,11 +721,8 @@ handleIncomingMsg(e) {
 
             this.friendMessages = []; // Сразу чистим экран от старых сообщений
 
-            console.log("Caspian DEBUG: Отправка Axios-запроса на /chat/history/" + friendId);
-
             window.axios.get(`/chat/history/${friendId}`)
                 .then(res => { 
-                    console.log("Caspian DEBUG: Ответ сервера получен!", res.data);
                     this.friendMessages = Array.isArray(res.data.messages) ? res.data.messages : []; 
                     this.scrollFriendChat(); 
                 })

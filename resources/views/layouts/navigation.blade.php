@@ -1,4 +1,4 @@
-<nav class="sticky top-0 z-[300] bg-black/10 backdrop-blur-2xl border-b border-white/[0.05]">
+<nav class="sticky top-0 z-[300] bg-black/10 backdrop-blur-2xl border-b border-b-white/[0.05]">
     <div class="max-w-[1600px] mx-auto px-6">
         <div class="flex justify-between h-20 items-center">
             
@@ -24,12 +24,50 @@
 
             <!-- Right Controls -->
             <div class="flex items-center gap-3">
+                
                 <!-- Online Status (Элегантный прозрачный индикатор) -->
                 <div class="flex items-center gap-2 px-4 py-2 bg-white/5 backdrop-blur-md border border-white/10 rounded-xl"
                     x-data="{ online: 0 }" 
                     x-init="window.Echo.join('online-status').here(u => online = u.length).joining(u => online++).leaving(u => online--)">
                     <div class="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse shadow-[0_0_10px_#22c55e]"></div>
                     <span class="text-[10px] font-black text-white/90" x-text="online"></span>
+                </div>
+
+                <!-- NEW: Language Selector Component (Alpine.js) -->
+                <div class="relative" x-data="{ langOpen: false }">
+                    <button @click="langOpen = !langOpen" 
+                            class="h-11 px-3 bg-white/5 border border-white/10 rounded-xl flex items-center justify-center gap-2 hover:bg-white/10 transition-all text-[10px] font-black uppercase tracking-widest">
+                        <span>
+                            @if(App::getLocale() === 'en')
+                                🇺🇸 EN
+                            @elseif(App::getLocale() === 'ru')
+                                🇷🇺 RU
+                            @else
+                                🇹🇷 TR
+                            @endif
+                        </span>
+                        <span class="text-[7px] opacity-40">▼</span>
+                    </button>
+                    
+                    <!-- Language Dropdown Menu -->
+                    <div x-show="langOpen" 
+                         @click.away="langOpen = false"
+                         x-transition:enter="transition ease-out duration-100"
+                         x-transition:enter-start="opacity-0 scale-95"
+                         x-transition:enter-end="opacity-100 scale-100"
+                         x-cloak
+                         class="absolute right-0 mt-2 w-32 bg-[#0a0a0a]/90 backdrop-blur-2xl border border-white/10 rounded-2xl p-2 space-y-1 shadow-2xl">
+                         
+                        <a href="{{ route('lang.switch', 'en') }}" class="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-indigo-600 text-[10px] font-black uppercase tracking-widest transition-all text-gray-400 hover:text-white">
+                            <span>🇺🇸</span> EN
+                        </a>
+                        <a href="{{ route('lang.switch', 'ru') }}" class="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-indigo-600 text-[10px] font-black uppercase tracking-widest transition-all text-gray-400 hover:text-white">
+                            <span>🇷🇺</span> RU
+                        </a>
+                        <a href="{{ route('lang.switch', 'tr') }}" class="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-indigo-600 text-[10px] font-black uppercase tracking-widest transition-all text-gray-400 hover:text-white">
+                            <span>🇹🇷</span> TR
+                        </a>
+                    </div>
                 </div>
 
                 <!-- Chat Toggle -->
@@ -52,11 +90,16 @@
 
                     <x-slot name="content">
                         <div class="bg-[#0a0a0a]/90 backdrop-blur-2xl border border-white/10 rounded-2xl p-2 space-y-1 shadow-2xl">
-                            <a href="{{ route('profile.edit') }}" class="block px-4 py-3 text-[10px] font-black uppercase text-gray-400 hover:text-white hover:bg-indigo-600 rounded-xl transition-all">Settings</a>
+                            <!-- Мультиязычные кнопки навигации в профиле -->
+                            <a href="{{ route('profile.edit') }}" class="block px-4 py-3 text-[10px] font-black uppercase text-gray-400 hover:text-white hover:bg-indigo-600 rounded-xl transition-all">
+                                {{ App::getLocale() === 'ru' ? 'Настройки' : (App::getLocale() === 'tr' ? 'Ayarlar' : 'Settings') }}
+                            </a>
                             <div class="h-px bg-white/5 mx-2"></div>
                             <form method="POST" action="{{ route('logout') }}">
                                 @csrf
-                                <button type="submit" class="w-full text-left px-4 py-3 text-[10px] font-black uppercase text-red-500 hover:bg-red-500/10 rounded-xl transition-all">Terminate Session</button>
+                                <button type="submit" class="w-full text-left px-4 py-3 text-[10px] font-black uppercase text-red-500 hover:bg-red-500/10 rounded-xl transition-all">
+                                    {{ App::getLocale() === 'ru' ? 'Выйти из сессии' : (App::getLocale() === 'tr' ? 'Oturumu Kapat' : 'Terminate Session') }}
+                                </button>
                             </form>
                         </div>
                     </x-slot>

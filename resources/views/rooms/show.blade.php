@@ -2,40 +2,46 @@
     <div class="h-[calc(100svh-80px)] bg-[#020202] flex flex-col overflow-hidden text-white font-sans relative" 
          x-data="groupRoomComponent('{{ $room->uuid }}', {{ auth()->id() }}, '{{ auth()->user()->name }}')">
         
+        <!-- Фоновые лучи для атмосферы космической комнаты -->
+        <div class="absolute -top-40 left-1/2 -translate-x-1/2 w-[600px] h-[350px] bg-brand-indigo/5 rounded-full blur-[100px] pointer-events-none"></div>
+
         <!-- HEADER: FLOATING SPACE HUB -->
         <div class="absolute top-0 left-0 right-0 z-[110] p-4 md:p-6 pointer-events-none">
             <div class="max-w-[1600px] mx-auto flex justify-between items-start">
-                <div class="pointer-events-auto flex items-center gap-4 bg-black/60 backdrop-blur-xl px-5 py-3 rounded-[2rem] border border-white/10 shadow-2xl">
-                    <div class="w-10 h-10 bg-brand-indigo/20 rounded-xl flex items-center justify-center text-xl border border-brand-indigo/30 shadow-inner">🛸</div>
+                
+                <!-- Информация о комнате -->
+                <div class="pointer-events-auto flex items-center gap-3.5 bg-black/50 backdrop-blur-md px-4.5 py-2.5 rounded-2xl border border-white/[0.04] shadow-2xl transition-all duration-300">
+                    <div class="w-8 h-8 bg-brand-indigo/10 rounded-lg flex items-center justify-center text-base border border-brand-indigo/20">🛸</div>
                     <div class="min-w-0">
-                        <h1 class="text-[10px] font-black uppercase tracking-[0.3em] text-white/90 truncate">{{ $room->title }}</h1>
-                        <div class="flex items-center gap-2 mt-1">
-                            <div class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse shadow-[0_0_8px_#22c55e]"></div>
-                            <p class="text-[8px] font-bold text-gray-400 uppercase tracking-widest">
+                        <h1 class="text-[9px] font-black uppercase tracking-[0.25em] text-white/95 truncate">{{ $room->title }}</h1>
+                        <div class="flex items-center gap-1.5 mt-0.5">
+                            <div class="w-1 h-1 rounded-full bg-green-500 animate-pulse shadow-[0_0_6px_#22c55e]"></div>
+                            <p class="text-[7.5px] font-bold text-gray-400 uppercase tracking-widest">
                                 Live: <span x-text="currentCount" class="text-white font-black"></span><span class="mx-0.5 text-gray-600">/</span>6
                             </p>
                         </div>
                     </div>
                 </div>
 
-                <div class="pointer-events-auto flex items-center gap-3">
+                <!-- Кнопка Поделиться -->
+                <div class="pointer-events-auto flex items-center">
                     <button @click="copyLink()" 
-                            class="caspian-glass p-3 md:px-6 md:py-3 rounded-2xl hover:bg-brand-indigo hover:text-white transition-all group flex items-center gap-2 shadow-2xl border-white/10">
-                        <span class="text-lg md:text-sm">🔗</span>
-                        <span class="hidden md:block text-[9px] font-black uppercase tracking-[0.2em]">Share Hub</span>
+                            class="bg-black/50 backdrop-blur-md p-3 md:px-5 md:py-2.5 rounded-2xl hover:bg-brand-indigo hover:text-white transition-all duration-300 group flex items-center gap-2 shadow-2xl border border-white/[0.04]">
+                        <span class="text-sm">🔗</span>
+                        <span class="hidden md:block text-[8px] font-black uppercase tracking-[0.2em] mt-[1px]">Share Hub</span>
                     </button>
                 </div>
             </div>
         </div>
 
-        <!-- SMART ADAPTIVE GRID (Исправлено для ноутбуков) -->
+        <!-- SMART ADAPTIVE GRID -->
         <div class="flex-1 relative p-4 overflow-hidden bg-[#020202] flex items-center justify-center">
             <div class="w-full h-full flex flex-wrap gap-4 justify-center items-center content-center max-w-[1600px] mx-auto transition-all duration-500">
                 
                 <!-- HOST VIDEO (YOU) -->
                 <div @click="toggleFocus('me')"
-                     class="relative overflow-hidden rounded-[2rem] md:rounded-[3rem] border transition-all duration-700 cursor-pointer group bg-[#050505] shadow-2xl"
-                     :class="focusedId === 'me' ? 'border-brand-indigo ring-4 ring-brand-indigo/20 z-[50]' : 'border-white/5 hover:border-white/20 z-10'"
+                     class="relative overflow-hidden rounded-[1.75rem] md:rounded-[2.5rem] border transition-all duration-700 cursor-pointer group bg-[#050505] shadow-2xl"
+                     :class="focusedId === 'me' ? 'border-brand-indigo ring-4 ring-brand-indigo/15 z-[50]' : 'border-white/[0.03] hover:border-white/15 z-10'"
                      :style="getBoxStyle('me')">
                     
                     <video x-ref="localVideo" 
@@ -44,10 +50,11 @@
                            :class="isScreenSharing ? 'scale-x-100' : 'scale-x-[-1]'"> 
                     </video>
                     
-                    <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent opacity-60"></div>
-                    <div class="absolute bottom-4 left-6 md:bottom-6 md:left-8 flex items-center gap-3">
-                        <div class="px-3 py-1.5 bg-brand-indigo/20 backdrop-blur-xl rounded-xl border border-brand-indigo/30 flex items-center gap-2">
-                            <span class="text-[8px] md:text-[10px] font-black uppercase tracking-widest text-white">Host (You)</span>
+                    <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent opacity-80"></div>
+                    
+                    <div class="absolute bottom-4 left-5 flex items-center gap-2">
+                        <div class="px-2.5 py-1 bg-brand-indigo/10 backdrop-blur-md rounded-lg border border-brand-indigo/20 flex items-center">
+                            <span class="text-[8px] font-black uppercase tracking-widest text-white mt-[1px]">Host (You)</span>
                         </div>
                     </div>
                 </div>
@@ -55,39 +62,43 @@
                 <!-- PEERS -->
                 <template x-for="peer in peers" :key="peer.id">
                     <div @click="toggleFocus(peer.id)"
-                         class="relative overflow-hidden rounded-[2rem] md:rounded-[3rem] border transition-all duration-700 cursor-pointer group bg-[#050505] shadow-2xl"
-                         :class="focusedId === peer.id ? 'border-brand-indigo ring-4 ring-brand-indigo/20 z-[50]' : 'border-white/5 hover:border-white/20 z-10'"
+                         class="relative overflow-hidden rounded-[1.75rem] md:rounded-[2.5rem] border transition-all duration-700 cursor-pointer group bg-[#050505] shadow-2xl"
+                         :class="focusedId === peer.id ? 'border-brand-indigo ring-4 ring-brand-indigo/15 z-[50]' : 'border-white/[0.03] hover:border-white/15 z-10'"
                          :style="getBoxStyle(peer.id)">
                         
                         <video :id="'video-' + peer.id" autoplay playsinline webkit-playsinline class="w-full h-full object-cover bg-black"></video>
-                        <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent opacity-60"></div>
-                        <div class="absolute bottom-4 left-6 md:bottom-6 md:left-8 px-4 py-2 bg-black/40 backdrop-blur-xl rounded-xl border border-white/10 flex items-center gap-2">
-                            <div class="w-1.5 h-1.5 rounded-full" :class="peer.connected ? 'bg-green-500 shadow-[0_0_8px_#22c55e]' : 'bg-amber-500 animate-pulse'"></div>
-                            <span class="text-[8px] md:text-[10px] font-black uppercase tracking-widest text-white/90" x-text="peer.name"></span>
+                        <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent opacity-80"></div>
+                        
+                        <div class="absolute bottom-4 left-5 px-3 py-1.5 bg-black/40 backdrop-blur-md rounded-lg border border-white/[0.04] flex items-center gap-2">
+                            <div class="w-1 h-1 rounded-full" :class="peer.connected ? 'bg-green-500 shadow-[0_0_6px_#22c55e]' : 'bg-amber-500 animate-pulse'"></div>
+                            <span class="text-[8px] font-black uppercase tracking-widest text-white/90" x-text="peer.name"></span>
                         </div>
                     </div>
                 </template>
             </div>
         </div>
 
-        <!-- CONTROLS -->
-        <div class="absolute bottom-10 left-0 right-0 px-4 z-[120] flex justify-center">
-            <div class="flex items-center gap-2 p-2 bg-[#121212]/95 backdrop-blur-3xl border border-white/10 rounded-full shadow-[0_20px_50px_rgba(0,0,0,0.5)]" x-data="{ controlsOpen: false  }">
-                <button @click="controlsOpen = !controlsOpen" class="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center transition-all">
-                    <span class="text-[10px]" x-text="controlsOpen ? '▼' : '⚡'"></span>
+        <!-- CONTROLS CONTAINER -->
+        <div class="absolute bottom-8 left-0 right-0 px-4 z-[120] flex justify-center pointer-events-none">
+            <div class="pointer-events-auto flex items-center gap-2 p-1.5 bg-black/60 backdrop-blur-xl border border-white/[0.05] rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.6)]" x-data="{ controlsOpen: true }">
+                <!-- Кнопка сворачивания (Минималистичная точка вместо стрелки) -->
+                <button @click="controlsOpen = !controlsOpen" class="w-10 h-10 rounded-xl bg-white/[0.02] hover:bg-white/5 flex items-center justify-center transition-all">
+                    <span class="text-[8px] tracking-widest font-black" x-text="controlsOpen ? '▼' : '▲'"></span>
                 </button>
-                <div x-show="controlsOpen" x-transition class="flex items-center gap-2 pr-2">
-                    <button @click="toggleMic()" :class="micEnabled ? 'bg-white/5' : 'bg-red-600'" class="w-12 h-12 rounded-full flex items-center justify-center text-lg transition-all">
+                
+                <!-- Сами Кнопки с приятным скольжением -->
+                <div x-show="controlsOpen" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100" class="flex items-center gap-2 pr-1.5">
+                    <button @click="toggleMic()" :class="micEnabled ? 'bg-white/[0.02] text-white hover:bg-white/10' : 'bg-red-600/20 text-red-500 border border-red-500/25'" class="w-10 h-10 rounded-xl flex items-center justify-center text-sm transition-all border border-white/[0.03]">
                         <span x-text="micEnabled ? '🎤' : '🔇'"></span>
                     </button>
-                    <button @click="toggleCam()" :class="camEnabled ? 'bg-white/5' : 'bg-red-600'" class="w-12 h-12 rounded-full flex items-center justify-center text-lg transition-all">
+                    <button @click="toggleCam()" :class="camEnabled ? 'bg-white/[0.02] text-white hover:bg-white/10' : 'bg-red-600/20 text-red-500 border border-red-500/25'" class="w-10 h-10 rounded-xl flex items-center justify-center text-sm transition-all border border-white/[0.03]">
                         <span x-text="camEnabled ? '📷' : '🚫'"></span>
                     </button>
-                    <button @click="toggleScreenShare()" :class="isScreenSharing ? 'bg-brand-indigo' : 'bg-white/5'" class="w-12 h-12 rounded-full flex items-center justify-center text-lg transition-all">
+                    <button @click="toggleScreenShare()" :class="isScreenSharing ? 'bg-brand-indigo/20 text-brand-indigo border-brand-indigo/30' : 'bg-white/[0.02] text-white hover:bg-white/10'" class="w-10 h-10 rounded-xl flex items-center justify-center text-sm transition-all border border-white/[0.03]">
                         <span>📺</span>
                     </button>
-                    <div class="w-px h-8 bg-white/10 mx-2"></div>
-                    <a href="{{ route('rooms.index') }}" class="bg-red-600/20 hover:bg-red-600 text-red-500 hover:text-white px-8 py-3.5 rounded-full font-black text-[10px] uppercase tracking-widest transition-all">Exit Hub</a>
+                    <div class="w-px h-6 bg-white/10 mx-1"></div>
+                    <a href="{{ route('rooms.index') }}" class="bg-red-600/10 border border-red-600/20 hover:bg-red-600 text-red-500 hover:text-white px-5 py-2.5 rounded-xl font-black text-[8px] uppercase tracking-wider transition-all">Exit Hub</a>
                 </div>
             </div>
         </div>
@@ -144,16 +155,30 @@
 
                 async init() {
                     const self = this;
+                    
+                    // 1. Ждем ГАРАНТИРОВАННОГО получения медиа-потока
                     await this.initMedia();
+                    
+                    // 2. Только после этого заходим в комнату сокетов, когда мы готовы слать/принимать потоки
                     const channel = window.Echo.join(`room.${roomUuid}`);
+                    
                     channel.here(users => {
                         this.currentCount = users.length;
                         this.syncOccupancy(users.length);
-                        users.forEach(u => { if (u.id !== myId) self.initiateConnection(u.id, u.name, true); });
+                        
+                        // Инициируем соединение с теми, кто уже в комнате
+                        users.forEach(u => { 
+                            if (u.id !== myId) {
+                                self.initiateConnection(u.id, u.name, true); 
+                            }
+                        });
                     }).joining(u => {
                         this.currentCount = channel.subscription.members.count;
                         this.syncOccupancy(this.currentCount);
                         window.dispatchEvent(new CustomEvent('toast', {detail:{msg: u.name + ' joined'}}));
+                        
+                        // Когда заходит новый участник, МЫ (кто уже внутри) инициируем с ним связь
+                        self.initiateConnection(u.id, u.name, true);
                     }).leaving(u => {
                         self.removePeer(u.id);
                         this.currentCount = Math.max(0, channel.subscription.members.count - 1);
@@ -181,22 +206,42 @@
 
                 async initiateConnection(partnerId, partnerName, isInitiator) {
                     if (this.peers.find(p => p.id === partnerId)) return;
+                    
+                    // Если локальные медиа еще не готовы, откладываем инициализацию соединения
+                    if (!this.localStream) {
+                        setTimeout(() => {
+                            this.initiateConnection(partnerId, partnerName, isInitiator);
+                        }, 300);
+                        return;
+                    }
+
                     const self = this;
                     const pc = new RTCPeerConnection(this.rtcConfig);
                     const peerObj = { id: partnerId, name: partnerName, pc: pc, iceQueue: [], connected: false };
                     this.peers.push(peerObj);
-                    if (this.localStream) this.localStream.getTracks().forEach(t => pc.addTrack(t, this.localStream));
-                    pc.onicecandidate = e => { if (e.candidate) self.sendSignal(partnerId, { type: 'ice', candidate: e.candidate }); };
+                    
+                    // Добавляем наши треки в коннект
+                    this.localStream.getTracks().forEach(t => pc.addTrack(t, this.localStream));
+                    
+                    pc.onicecandidate = e => { 
+                        if (e.candidate) self.sendSignal(partnerId, { type: 'ice', candidate: e.candidate }); 
+                    };
+                    
                     pc.ontrack = e => { 
                         this.$nextTick(() => {
                             const v = document.getElementById('video-' + partnerId);
-                            if (v) { v.srcObject = e.streams[0]; v.play().catch(()=>{}); }
+                            if (v) { 
+                                v.srcObject = e.streams[0]; 
+                                v.play().catch(()=>{}); 
+                            }
                         });
                     };
+                    
                     pc.oniceconnectionstatechange = () => {
                         const p = self.peers.find(x => x.id === partnerId);
                         if (p) p.connected = (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed');
                     };
+                    
                     if (isInitiator) {
                         const offer = await pc.createOffer();
                         await pc.setLocalDescription(offer);
@@ -206,28 +251,81 @@
 
                 async handleSignal(data) {
                     const signal = data.type ? data : data.data; 
-                    let peer = this.peers.find(p => p.id === signal.from);
+                    const fromId = Number(signal.from);
+                    let peer = this.peers.find(p => p.id === fromId);
+                    
                     if (!peer && signal.type === 'offer') {
-                        await this.initiateConnection(signal.from, 'User ' + signal.from, false);
-                        peer = this.peers.find(p => p.id === signal.from);
+                        await this.initiateConnection(fromId, 'User ' + fromId, false);
+                        peer = this.peers.find(p => p.id === fromId);
                     }
                     if (!peer) return;
+
                     try {
                         if (signal.type === 'offer') {
-                            await peer.pc.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp: this.normalizeSdp(signal.sdp) }));
-                            const answer = await peer.pc.createAnswer();
-                            await peer.pc.setLocalDescription(answer);
-                            this.sendSignal(signal.from, { type: 'answer', sdp: peer.pc.localDescription.sdp });
-                            while(peer.iceQueue.length) await peer.pc.addIceCandidate(peer.iceQueue.shift()).catch(()=>{});
+                            const pc = peer.pc;
+                            
+                            // Защита от коллизий (Параллельный Offer)
+                            const signalingState = pc.signalingState;
+                            const offerCollision = (signal.type === "offer") && 
+                                (signalingState === "have-local-offer" || pc.localDescription);
+                            
+                            // Мы "вежливые", если наш ID меньше ID партнера
+                            const isPolite = Number(myId) < fromId;
+
+                            if (offerCollision) {
+                                if (!isPolite) {
+                                    // Мы "невежливые" — игнорируем встречный offer, наш важнее
+                                    console.log(`[WebRTC] Collision detected. Ignoring offer from ${fromId} (We are impolite)`);
+                                    return;
+                                }
+                                // Мы "вежливые" — откатываем свой локальный offer, чтобы принять чужой
+                                console.log(`[WebRTC] Collision detected. Rolling back local description for ${fromId} (We are polite)`);
+                                await pc.setLocalDescription({ type: "rollback" }).catch(() => {});
+                            }
+
+                            await pc.setRemoteDescription(new RTCSessionDescription({ 
+                                type: 'offer', 
+                                sdp: this.normalizeSdp(signal.sdp) 
+                            }));
+                            
+                            const answer = await pc.createAnswer();
+                            await pc.setLocalDescription(answer);
+                            
+                            this.sendSignal(fromId, { type: 'answer', sdp: pc.localDescription.sdp });
+                            
+                            while(peer.iceQueue.length) {
+                                await pc.addIceCandidate(peer.iceQueue.shift()).catch(()=>{});
+                            }
+
                         } else if (signal.type === 'answer') {
-                            await peer.pc.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp: this.normalizeSdp(signal.sdp) }));
-                            while(peer.iceQueue.length) await peer.pc.addIceCandidate(peer.iceQueue.shift()).catch(()=>{});
+                            const pc = peer.pc;
+                            
+                            // ПРОВЕРКА: Если мы уже в состоянии 'stable', игнорируем запоздавший answer
+                            if (pc.signalingState === "stable") {
+                                console.warn(`[WebRTC] Received answer from ${fromId} while in stable state. Ignored.`);
+                                return;
+                            }
+
+                            await pc.setRemoteDescription(new RTCSessionDescription({ 
+                                type: 'answer', 
+                                sdp: this.normalizeSdp(signal.sdp) 
+                            }));
+                            
+                            while(peer.iceQueue.length) {
+                                await pc.addIceCandidate(peer.iceQueue.shift()).catch(()=>{});
+                            }
+
                         } else if (signal.type === 'ice') {
                             const cand = new RTCIceCandidate(signal.candidate);
-                            if (peer.pc.remoteDescription) await peer.pc.addIceCandidate(cand).catch(()=>{});
-                            else peer.iceQueue.push(cand);
+                            if (peer.pc.remoteDescription && peer.pc.remoteDescription.type) {
+                                await peer.pc.addIceCandidate(cand).catch(()=>{});
+                            } else {
+                                peer.iceQueue.push(cand);
+                            }
                         }
-                    } catch(e) { console.error("Signal Error", e); }
+                    } catch(e) { 
+                        console.error("Signal Error", e); 
+                    }
                 },
 
                 normalizeSdp(sdp) {

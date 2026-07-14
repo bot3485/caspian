@@ -392,25 +392,36 @@ async handleMatch(e) {
             // Проверяем, является ли партнер другом
             this.isFriend = this.friendsList.some(f => Number(f.id) === this.partnerId);
 
-            // Расчет совпадений интересов
-            const pInterests = this.partnerData.interests || [];
-            this.commonInterests = pInterests.filter(i => this.myInterests.includes(i));
-            if (this.commonInterests.length > 0) {
-                this.showInterestMatch = true;
-                setTimeout(() => { this.showInterestMatch = false; }, 6000);
-            }
-
             this.state = 'connected';
             this.initPC();
 
-            // !!! НАША НОВАЯ ЛОГИКА !!!
+            // Автоматически перенаправляем в личный чат, если это друг
             if (this.isFriend) {
-                // Если это друг, сразу открываем личный чат с ним в боковой панели
                 this.openFriendChat(this.partnerId);
             } else {
-                // Если незнакомец, открываем обычный глобальный чат
                 this.tab = 'chat';
                 this.activeFriend = null;
+            }
+
+            // !!! ЛОГИКА СОВПАДЕНИЯ ИНТЕРЕСОВ !!!
+            // Получаем общие интересы из события Laravel Echo
+            const common = e.partnerData?.common_interests || [];
+            
+            if (common && common.length > 0) {
+                // Переводим системные значения Enum на красивый английский
+                const formattedInterests = common.map(interest => {
+                    // Делаем первую букву заглавной (например: gaming -> Gaming)
+                    return interest.charAt(0).toUpperCase() + interest.slice(1);
+                }).join(', ');
+
+                // Отправляем событие для вывода Toast-уведомления
+                setTimeout(() => {
+                    window.dispatchEvent(new CustomEvent('toast', { 
+                        detail: { 
+                            msg: `⚡ Mutual interests found! You both like: ${formattedInterests}` 
+                        } 
+                    }));
+                }, 1500); // Небольшая задержка, чтобы уведомление всплыло плавно после соединения
             }
 
             if (myId < this.partnerId) setTimeout(() => this.sendOffer(), 1200);

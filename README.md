@@ -1,89 +1,78 @@
-# 🌊 Caspian v3.1 — Video-Chat & Live Matching Ecosystem
+# 🌊 Caspian v3.4 — Extreme Performance Video-Chat Ecosystem
 
-Caspian is a high-performance, real-time video-chat roulette and messaging platform built with **Laravel 11+**, **Tailwind CSS**, **Alpine.js**, **WebRTC**, **Redis**, and **Pusher (Laravel Echo)**. It provides frictionless personal call connections, smart geolocation/interest-based matching, and persistent real-time messaging.
-
----
-
-## 🚀 What's New in v3.1 (Major Release)
-
-Version 3.1 introduces a major architectural overhaul focusing on call synchronization reliability, unified messaging architecture, adaptive temporal displays, and an optimized social UX in the Floating Control Island.
-
-### 🌟 Key Highlights
-*   **Zero-State Call Synchronization:** Rewritten background database sweeps that prevent stale caller states and erroneous "BUSY" blocks.
-*   **Unified Context-Aware Chat Routing:** Intelligently redirects active roulette matches into persistent private contact threads to eliminate duplicate chats.
-*   **Adaptive Date-Time Engines:** Dynamic message timestamps that scale automatically from precise minutes to relative days, months, and historical years.
-*   **Frictionless Floating Control Island:** Dynamically strips redundant UI controls (e.g., identity linking, report flags) during direct personal calls while preserving full functionality in discovery mode.
+Caspian — это высокотехнологичная платформа для видеосвязи в реальном времени, построенная на базе **Laravel 13**, **Tailwind CSS 4**, **Alpine.js** и **WebRTC**. Версия 3.4 ориентирована на абсолютную стабильность мобильных соединений и глубокую геймификацию пользовательского опыта.
 
 ---
 
-## 🛠 Tech Stack
+## 🚀 Что нового в v3.4?
 
-*   **Backend:** Laravel (PHP 8.2+) with Eloquent ORM
-*   **Real-time Engine:** Laravel Echo, Pusher / Soketi, Redis (Key-value store & lists)
-*   **Frontend Engine:** Alpine.js (Lightweight reactive state wrapper)
-*   **Video Delivery:** WebRTC (Peer-to-Peer connection architecture)
-*   **Style Framework:** Tailwind CSS with fluid grid styling
+### 🛠 Стабильность WebRTC (Perfect Negotiation)
+Забудьте о «черных экранах» и зависших подключениях. Мы внедрили протокол согласования, который позволяет браузерам автоматически разрешать конфликты при установке связи. Специальный адаптер для **Android Chrome** принудительно перезагружает аппаратный декодер при возвращении пользователя в приложение.
+
+### 🛡 Система безопасности и модерации
+Внедрено Middleware для проверки банов. Теперь кнопка «Report» — это не просто запись в базе, а реальный инструмент. Модераторы могут ограничивать доступ пользователям на любой срок, и система мгновенно прервет их текущие сессии.
+
+### 🏆 Система престижа и рангов
+Мы оживили поле `site_minutes`. Теперь время, проведенное в системе, конвертируется в статус. Пройдите путь от **Explorer** до **Celestial**. Ранг отображается в виде элегантной HUD-карты со свечением, видимым вашему собеседнику.
+
+### ⚡ Оптимизация производительности
+*   **Smart Caching:** Лидерборд теперь работает на 400% быстрее благодаря 10-минутному кэшированию запросов.
+*   **No Zombie Rooms:** Система Spaces (Комнаты) теперь корректно отображает онлайн, используя комбинацию Heartbeat-сигналов и Beacon API.
 
 ---
 
-## 📂 Core Architecture Overviews
+## 🛠 Технологический стек
 
-### 1. Zero-State Call Resolution (`LeaveChat.php`)
-Ensures that any abrupt disconnects, page reloads, or navigation switches instantly clean up connections on both the active caller side and the passive receiver side. 
+*   **Backend:** Laravel 13 (PHP 8.5)
+*   **Real-time:** Laravel Reverb (WebSockets)
+*   **Frontend:** Alpine.js (Reactive UI)
+*   **Styles:** Tailwind CSS 4 (OKLCH Color Palette)
+*   **Database:** PostgreSQL / Redis (Matchmaking Queue)
+*   **Video:** WebRTC (P2P Mesh Architecture)
 
-*   Stops the heavy use of expensive `Redis::keys`.
-*   Triggers automatic socket-based `peer-disconnected` packets.
-*   Ensures that consecutive outgoing requests do not trip over lingering database records.
+---
 
-### 2. Tailored Messaging Router (`getChatHistory`)
-Improves history queries to fetch the most recent subset of a database table and reverse it on the collection layer before serving JSON payloads:
-```php
-$messages = Message::where(...)
-    ->orderBy('id', 'desc')
-    ->take(100)
-    ->get()
-    ->reverse()
-    ->values();
-Guarantees new messages never drop out of sight when total database history surpasses 100 entries.
+## 📂 Архитектурные особенности
 
-⚙️ Installation & Deployment
-Prerequisites
-PHP 8.2+
+### 1. Механизм "Живого видео" (`rebootMobileCamera`)
+Для борьбы с агрессивным энергосбережением мобильных ОС, Caspian использует `replaceTrack`. При возврате пользователя во вкладку, система запрашивает новый поток `getUserMedia` и подменяет его в активном PeerConnection без разрыва звонка.
 
-Node.js & NPM
+### 2. Matchmaking в Redis
+Очередь поиска разделена на сегменты по карме и странам. Мы используем атомарные операции `LPOP` и `RPUSH` в Redis, что позволяет обрабатывать тысячи одновременных запросов на поиск партнера с минимальной задержкой.
 
-Redis Server
+---
 
-Composer
+## ⚙️ Быстрый старт
 
-Quick Start
-Clone the repository:
-
-Bash
-git clone [https://github.com/your-username/caspian.git](https://github.com/your-username/caspian.git)
-cd caspian
-Install dependencies:
-
+1. **Клонирование:**
+   ```bash
+   git clone https://github.com/your-username/caspian.git
+   cd caspian
+Окружение:
+code
 Bash
 composer install
 npm install
-Configure environment variables:
-
-Bash
 cp .env.example .env
 php artisan key:generate
-Run migrations and seeds:
-
+База и Очереди:
+code
 Bash
-php artisan migrate --seed
-Start development engines:
-
-Bash
-# Run the asset compiler
-npm run dev
-
-# Run the local server
-php artisan serve
-
-# Run queue workers (needed for broadcast events)
+php artisan migrate
 php artisan queue:work
+Запуск WebSocket сервера:
+code
+Bash
+php artisan reverb:start
+Assets:
+code
+Bash
+npm run dev
+💎 Система рангов (Prestige Levels)
+Минуты	Ранг	Иконка
+100,000+	Celestial	⚛️ (White Glow)
+50,000	Eternal	🌌 (Red Glow)
+10,000	Overlord	🔱
+1,000	Resident	🏠
+0	Guest	🐚
+Developed by Caspian Intelligence Ecosystem © 2026

@@ -1,5 +1,5 @@
 <?php
 return [
-    'Roulette'=>                    'Рулетка',
-    'Rooms'=>                       'Комнаты',
+'Roulette'=> 'Рулетка',
+'Rooms'=>    'Комнаты',
 ];

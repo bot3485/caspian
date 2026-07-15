@@ -1,50 +1,7 @@
 <x-app-layout>
 
 <div class="fixed top-[120px] bottom-0 left-0 right-0 w-full bg-[#020202] overflow-hidden px-3 pt-4 pb-28 md:p-4 overscroll-none" 
-     style="height: calc(100vh - 120px - env(safe-area-inset-bottom));
-         x-init="
-            // Инициализируем выбранную страну пользователя из БД
-            targetCountry = '{{ Auth::user()->target_country }}';
-         "
-        x-data="{
-            targetCountry: '{{ Auth::user()->target_country }}',
-            // Добавляем словарь названий и флагов
-            countryNames: {
-                'global': '🌍 {{__('chatroulette.Global_Match')}}',
-                'az': '🇦🇿 Azerbaijan',
-                'ge': '🇬🇪 Georgia',
-                'am': '🇦🇲 Armenia',
-                'ru': '🇷🇺 Russia',
-                'kz': '🇰🇿 Kazakhstan',
-                'uz': '🇺🇿 Uzbekistan',
-                'ua': '🇺🇦 Ukraine',
-                'tr': '🇹🇷 Turkey',
-                'de': '🇩🇪 Germany',
-                'es': '🇪🇸 Spain',
-                'pl': '🇵🇱 Poland',
-                'us': '🇺🇸 USA',
-                'ca': '🇨🇦 Canada',
-                'fr': '🇫🇷 France',
-                'it': '🇮🇹 Italy',
-                'gb': '🇬🇧 UK'
-            },
-            async updateTargetCountry(country) {
-                this.targetCountry = country;
-                try {
-                    await window.axios.post('/profile', { 
-                        _method: 'PATCH',
-                        target_country: country 
-                    });
-                    window.dispatchEvent(new CustomEvent('toast', { 
-                        detail: { msg: '{{ __('chatroulette.Target_Country_Updated') }}' } 
-                    }));
-                } catch (e) {
-                    window.dispatchEvent(new CustomEvent('toast', { 
-                        detail: { msg: '{{ __('chatroulette.Update_Failed') }}' } 
-                    }));
-                }
-            }
-        }">
+     style="height: calc(100vh - 120px - env(safe-area-inset-bottom));">
         
         <!-- 1. VIDEO ECOSYSTEM (Dual-Engine Split Screen) -->
         <div class="flex flex-col md:flex-row w-full h-full gap-2 md:gap-4 transition-all duration-700 ease-in-out">
@@ -60,20 +17,24 @@
                 class="relative overflow-hidden rounded-[2.5rem] bg-[#050505] border border-white/5 transition-all duration-700 ease-in-out cursor-pointer group">
                 
                 <!-- Само видео внутри -->
-                <video x-ref="remoteVideo" 
-                    id="remoteVideo"
-                    autoplay playsinline webkit-playsinline 
-                    :class="{ 
-                        'blitz-visual-logic': isBlitzActive, /* Глитч-эффект на картинку */
-                        'blur-[100px] opacity-40': isRemoteBlurred && !isBlitzActive /* Не блюрим, если идет Блиц */
-                    }"
-                    class="w-full h-full object-cover transition-all duration-1000 bg-black">
-                </video>
+            <video x-ref="remoteVideo" 
+                id="remoteVideo"
+                autoplay 
+                playsinline 
+                webkit-playsinline 
+                @loadedmetadata="$el.play().catch(e => console.log('Remote play blocked', e))"
+                :class="[getFilterClass('remote'), { 
+                    'blitz-visual-logic': isBlitzActive,
+                    'blur-[100px] opacity-40': isRemoteBlurred && !isBlitzActive 
+                }]"
+                class="w-full h-full object-cover transition-all duration-1000 bg-black">
+            </video>
 
                 <!-- NEW: COUNTRY TARGET SELECTOR (Элегантный переключатель стран в рулетке) -->
-                <div x-show="state === 'idle' || state === 'searching'" 
-                     class="absolute top-6 right-6 z-30 pointer-events-auto"
-                     x-data="{ countryDropdown: false }">
+                    <div x-show="state === 'idle' || state === 'searching'" 
+                        class="absolute top-6 right-6 z-30 pointer-events-auto"
+                        x-data="{ countryDropdown: false }">
+                     
                     <button @click.stop="countryDropdown = !countryDropdown" 
                             class="px-4 py-2.5 bg-black/60 backdrop-blur-xl border border-white/10 rounded-2xl flex items-center gap-2 text-[10px] font-black uppercase tracking-wider hover:border-brand-indigo/40 transition-all shadow-2xl">
                     <span x-text="countryNames[targetCountry] || '🌍 {{__('chatroulette.Global_Match')}}'"></span>
@@ -115,96 +76,84 @@
                        x-text="state === 'searching' ? '{{ __('chatroulette.Searching') }}...' : '{{ __('chatroulette.Ready_To_Start') }}'"></p>
                 </div>
 
-<!-- PARTNER INFO WIDGET (Cyber-Minimalist Edition) -->
+<!-- PARTNER INFO WIDGET (Engine v3.5) -->
 <div x-show="state === 'connected' && partnerData" 
-     class="absolute top-6 left-6 z-[100] flex items-center gap-2 pointer-events-auto"
+     class="absolute top-6 left-6 z-[1000] flex items-center gap-3 pointer-events-none"
      x-cloak>
     
-    <!-- TRIGGER BUTTON (Smart Status Indicator) -->
-<button @click.stop="isPartnerProfileOpen = !isPartnerProfileOpen"
-        class="relative w-12 h-12 flex-shrink-0 transition-all duration-500 active:scale-90 group"
-        :class="{ 
-            'scale-90 opacity-50': partnerState === 'away',
-            'animate-[pulse_1s_infinite]': partnerState === 'problem'
-        }">
-    
-    <!-- 1. Динамическая обводка (Glow) -->
-    <div class="absolute inset-0 rounded-full border-2 transition-all duration-500"
-         :style="{ 
-            'border-color': partnerState === 'problem' ? '#ef4444' : (partnerState === 'away' ? '#f59e0b' : (partnerData?.badge?.color || '#6366f1')),
-            'box-shadow': partnerState === 'problem' ? '0 0 15px #ef4444' : 'none'
-         }">
-    </div>
-
-    <!-- 2. Основное тело аватара -->
-    <div class="relative w-full h-full bg-black/40 backdrop-blur-xl rounded-full flex items-center justify-center border border-white/10 shadow-2xl overflow-hidden transition-all duration-500"
-         :class="{ 'grayscale sepia': partnerState === 'problem', 'opacity-40': partnerState === 'away' }">
+    <!-- TRIGGER BUTTON -->
+    <button @click.stop.prevent="uiShowPartnerCard = !uiShowPartnerCard"
+            type="button"
+            class="relative w-16 h-16 shrink-0 transition-all duration-500 active:scale-90 group pointer-events-auto">
         
-        <span class="text-white text-xs font-black" x-text="partnerData?.name?.[0]"></span>
-        
-        <!-- Мини-флаг -->
-        <div class="absolute bottom-0 w-full h-1/3 bg-black/60 flex items-center justify-center border-t border-white/5">
-             <img :src="partnerData?.country_flag" class="w-3 h-2 object-cover opacity-80" crossorigin="anonymous">
-        </div>
-    </div>
-
-    <!-- 3. Оверлей иконок состояния -->
-    <!-- Иконка Потери связи -->
-    <div x-show="partnerState === 'problem'" 
-         class="absolute inset-0 flex items-center justify-center bg-red-600/20 rounded-full">
-        <span class="text-[10px] animate-bounce">⚠️</span>
-    </div>
-
-    <!-- Иконка AFK (Away) -->
-    <div x-show="partnerState === 'away'" 
-         class="absolute -top-1 -right-1 w-5 h-5 bg-amber-500 rounded-full border-2 border-[#020202] flex items-center justify-center shadow-lg">
-        <span class="text-[8px]">🌙</span>
-    </div>
-</button>
-
-    <!-- EXPANDABLE HUD CARD -->
-    <div x-show="isPartnerProfileOpen"
-         @click.away="isPartnerProfileOpen = false"
-         @click.stop=""
-         x-transition:enter="transition ease-out duration-400"
-         x-transition:enter-start="opacity-0 -translate-x-4 blur-md"
-         x-transition:enter-end="opacity-100 translate-x-0 blur-0"
-         x-transition:leave="transition ease-in duration-300"
-         x-transition:leave-end="opacity-0 -translate-x-4 blur-md"
-         class="bg-black/40 backdrop-blur-2xl px-5 py-3 rounded-2xl border border-white/5 shadow-[0_15px_40px_rgba(0,0,0,0.4)] flex items-center gap-6">
-        
-        <div class="flex flex-col gap-1.5">
-            <!-- Имя и Ранг -->
-            <div class="flex items-center gap-3">
-                <span class="text-[13px] font-black uppercase tracking-tight text-white/90 italic" x-text="partnerData?.name"></span>
-                <span class="text-[7px] font-black uppercase px-2 py-0.5 rounded bg-white/5 text-gray-400 border border-white/5 tracking-[0.2em]" 
-                      x-text="partnerData?.rank_name"></span>
+        <div class="relative w-full h-full rounded-2xl flex flex-col border border-white/10 shadow-2xl overflow-hidden transition-colors duration-500"
+             :style="{ 
+                'background-color': partnerState === 'problem' ? '#ef4444' : 
+                                    (partnerState === 'away' ? '#f59e0b' : 
+                                    (partnerData?.gender === 'female' ? '#db2777' : '#2563eb')) 
+             }">
+            
+            <!-- Пол и Возраст -->
+            <div class="flex-[0.8] flex items-center justify-center pt-1">
+                <span class="text-white text-[10px] font-black tracking-tighter uppercase" 
+                      x-text="(partnerData?.gender === 'male' ? 'M' : 'W') + ' ' + (partnerData?.age || '??')">
+                </span>
             </div>
+            
+            <!-- Флаг -->
+            <div class="flex-1 bg-black/20 flex items-center justify-center border-t border-white/5 overflow-hidden">
+                 <img :src="partnerData?.country_flag" 
+                      class="w-full h-full object-cover opacity-90 transition-transform group-hover:scale-110" 
+                      crossorigin="anonymous">
+            </div>
+        </div>
 
-            <!-- Доп. инфо: Уровень и Медаль -->
-            <div class="flex items-center gap-3">
-                <div class="flex items-center gap-1.5">
-                    <div class="w-1 h-1 rounded-full bg-green-500 shadow-[0_0_8px_#22c55e]"></div>
-                    <span class="text-[8px] font-black text-brand-indigo uppercase tracking-widest" x-text="'LVL ' + (partnerData?.level || 1)"></span>
+        <!-- AFK Dot -->
+        <div x-show="partnerState === 'away'" class="absolute -top-1 -right-1 w-6 h-6 bg-amber-500 rounded-full border-2 border-[#020202] flex items-center justify-center shadow-lg z-30"><span class="text-[9px]">🌙</span></div>
+    </button>
+
+<!-- EXPANDABLE PROFILE CARD -->
+        <div x-show="uiShowPartnerCard"
+             x-cloak 
+             @click.stop=""
+             @click.away="uiShowPartnerCard = false"
+             x-transition:enter="transition ease-out duration-400"
+             x-transition:enter-start="opacity-0 -translate-x-4 blur-md"
+             x-transition:enter-end="opacity-100 translate-x-0 blur-0"
+             x-transition:leave="transition ease-in duration-300"
+             x-transition:leave-end="opacity-0 -translate-x-4 blur-md"
+             class="pointer-events-auto bg-black/60 backdrop-blur-2xl px-6 py-4 rounded-[2rem] border border-white/10 shadow-2xl flex items-center gap-6 ml-2"
+             :style="{ 'border-color': partnerData?.gender === 'female' ? '#db277740' : '#2563eb40' }">
+            
+            <div class="flex flex-col gap-1">
+                <div class="flex items-center gap-3">
+                    <span class="text-[13px] font-black uppercase tracking-tight text-white italic" x-text="partnerData?.name"></span>
+                    <span class="text-[7px] font-black uppercase px-2 py-0.5 rounded bg-white/5 text-gray-400 border border-white/5 tracking-[0.2em]" 
+                          x-text="partnerData?.rank_name"></span>
                 </div>
-
-                <!-- Элегантная плашка медали -->
-                <template x-if="partnerData?.badge">
-                    <div class="flex items-center gap-1 px-2 py-0.5 rounded border border-white/5 bg-white/[0.03]">
-                        <span class="text-[10px]" x-text="partnerData.badge.icon"></span>
-                        <span class="text-[7px] font-black uppercase tracking-wider" 
-                              :style="'color:' + partnerData.badge.color" 
-                              x-text="partnerData.badge.name"></span>
+                <div class="flex items-center gap-3">
+                    <div class="flex items-center gap-1.5">
+                        <div class="w-1 h-1 rounded-full bg-green-500 shadow-[0_0_8px_#22c55e]"></div>
+                        <span class="text-[8px] font-black text-brand-indigo uppercase tracking-widest" x-text="'LVL ' + (partnerData?.level || 1)"></span>
                     </div>
-                </template>
+                    <template x-if="partnerData?.badge">
+                        <div class="flex items-center gap-1 px-2 py-0.5 rounded border border-white/5 bg-white/[0.03]">
+                            <span class="text-[10px]" x-text="partnerData.badge.icon"></span>
+                            <span class="text-[7px] font-black uppercase tracking-wider" :style="{ color: partnerData.badge.color }" x-text="partnerData.badge.name"></span>
+                        </div>
+                    </template>
+                </div>
             </div>
-        </div>
 
-        <!-- Кнопка "Закрыть профиль" -->
-        <button @click.stop="isPartnerProfileOpen = false" class="text-gray-600 hover:text-white transition-colors p-1">
-            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12"></path></svg>
-        </button>
-    </div>
+            <!-- КРЕСТИК ЗАКРЫТИЯ -->
+            <button @click.stop.prevent="uiShowPartnerCard = false" 
+                    type="button"
+                    class="p-2 hover:bg-white/10 rounded-full transition-colors group">
+                <svg class="w-4 h-4 text-gray-400 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
+        </div>
 </div>
 
                 <!-- PING TAG -->
@@ -231,15 +180,19 @@
                 }"
                 class="relative overflow-hidden rounded-[2.5rem] bg-[#050505] border border-white/5 transition-all duration-700 ease-in-out cursor-pointer group">
                 
-                <video x-ref="localVideo" 
-                    id="localVideo" 
-                    autoplay muted playsinline webkit-playsinline
-                    :class="{ 
-                        'blitz-visual-logic': isBlitzActive, /* Глитч на свою камеру */
-                        'scale-x-[-1]': true 
-                    }"
-                    class="w-full h-full object-cover transition-all duration-1000 bg-black">
-                </video>
+            <video x-ref="localVideo" 
+                id="localVideo" 
+                autoplay 
+                muted 
+                playsinline 
+                webkit-playsinline
+                @loadedmetadata="$el.play()"
+                :class="[getFilterClass('local'), { 
+                    'blitz-visual-logic': isBlitzActive,
+                    'scale-x-[-1]': true 
+                }]"
+                class="w-full h-full object-cover transition-all duration-1000 bg-black">
+            </video>
 
 
                 <!-- MY INFO TAG -->

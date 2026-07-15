@@ -108,7 +108,7 @@ public function execute(int $userId): ?int
     return $this->finalizeMatch($userId, $partnerId, $user);
 }
 
-    private function finalizeMatch(int $myId, int $partnerId, User $me): int
+private function finalizeMatch(int $myId, int $partnerId, User $me): int
     {
         $partner = User::find($partnerId);
         if (!$partner) return 0;
@@ -119,7 +119,6 @@ public function execute(int $userId): ?int
 
         DB::transaction(function () use ($myId, $partnerId) {
             Matchmaking::whereIn('user_id', [$myId, $partnerId])->delete();
-
             Matchmaking::create(['user_id' => $myId, 'status' => MatchmakingStatus::Matched, 'partner_id' => $partnerId, 'updated_at' => now()]);
             Matchmaking::create(['user_id' => $partnerId, 'status' => MatchmakingStatus::Matched, 'partner_id' => $myId, 'updated_at' => now()]);
 
@@ -130,11 +129,13 @@ public function execute(int $userId): ?int
             Redis::setex("allow_signal:{$partnerId}:{$myId}", 3600, "1");
         });
 
-        // Отправка события мне
+        // Отправка события МНЕ (я получаю данные ПАРТНЕРА)
         broadcast(new MatchFoundEvent($myId, [
             'id' => $partner->id, 
             'name' => $partner->name, 
             'level' => $partner->level,
+            'gender' => $partner->gender, // Данные собеседника
+            'age' => $partner->age,       // Данные собеседника
             'badge' => $partner->prestige_badge,
             'rank_name' => $partner->rank_name, 
             'karma' => $partner->karma,
@@ -143,11 +144,13 @@ public function execute(int $userId): ?int
             'common_interests' => $commonInterests 
         ], DB::table('contacts')->where('user_id', $myId)->where('contact_id', $partnerId)->exists()));
         
-        // Отправка события партнеру
+        // Отправка события ПАРТНЕРУ (партнер получает МОИ данные)
         broadcast(new MatchFoundEvent($partnerId, [
             'id' => $me->id, 
             'name' => $me->name, 
             'level' => $me->level,
+            'gender' => $me->gender, // ТВОИ данные (исправлено с $partner на $me)
+            'age' => $me->age,       // ТВОИ данные (исправлено с $partner на $me)
             'badge' => $me->prestige_badge,
             'rank_name' => $me->rank_name, 
             'karma' => $me->karma,

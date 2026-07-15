@@ -117,6 +117,10 @@ public function callContact(Request $request): JsonResponse
             'id' => $user->id,
             'name' => $user->name,
             'level' => $user->level,
+            'gender' => $user->gender, // ДОБАВЛЕНО
+            'age' => $user->age,       // ДОБАВЛЕНО
+            'country_code' => $user->country_code, // ДОБАВЛЕНО для флага
+            'country_flag' => \App\Enums\UserCountry::getFlag($user->country_code), // ДОБАВЛЕНО
             'badge' => $user->prestige_badge, 
             'rank_name' => $user->rank_name,
             'is_online' => $user->isOnline(),

@@ -25,13 +25,7 @@
       x-init="init()"
       @click="unlockAudio()"
       @visibilitychange.window="handleVisibilityChange()"
-      @pagehide.window="handleVisibilityChange()"
-      @blur.window="handleVisibilityChange()"
-      @focus.window="handleVisibilityChange()"
-      makingOffer: false,
-      ignoreOffer: false,
-      isSettingRemoteAnswerPending: false,
-      >
+      @focus.window="handleVisibilityChange()">
       
     <!-- SMART TOAST NOTIFICATIONS (ANTI-SPAM) -->
     <div x-data="{ 
@@ -114,7 +108,7 @@ window.caspianApp = function(myId, myInterests, iceServers) {
         layoutFocus: 'split', // может быть 'split', 'remote', 'local'
         actionsOpen: false,
         isPartnerProfileOpen: false,
-
+        uiShowPartnerCard: false,
         // --- PARTNER DATA ---
         partnerId: null, partnerData: null, isFriend: false, partnerState: 'active',
         isPartnerTyping: false, typingPartnerName: '', ping: 0, 
@@ -128,6 +122,7 @@ window.caspianApp = function(myId, myInterests, iceServers) {
         isRemoteBlurred: false, showSelfVideo: true,
         beautyFilter: false, cinemaFilter: false,
         partnerFilters: { beauty: false, cinema: false },
+        ignoreOffer: false,
 
         // --- CHAT ---
         messages: [], chatInput: '', 
@@ -145,11 +140,36 @@ window.caspianApp = function(myId, myInterests, iceServers) {
         isProcessingSignal: false, makingOffer: false, processedEvents: new Set(), iceQueue: [],
         rtcConfig: { iceServers: iceServers, bundlePolicy: "balanced", iceCandidatePoolSize: 10 },
 
-filterModalOpen: false,
-targetGender: '{{ Auth::user()->target_gender }}',
-targetAgeMin: {{ Auth::user()->target_age_min }},
-targetAgeMax: {{ Auth::user()->target_age_max }},
+        filterModalOpen: false,
+        targetGender: '{{ Auth::user()->target_gender }}',
+        targetAgeMin: {{ Auth::user()->target_age_min }},
+        targetAgeMax: {{ Auth::user()->target_age_max }},
 
+       // --- 2. ЛОГИКА ТАРГЕТИНГА (Перенесено из чата) ---
+        targetCountry: '{{ Auth::user()->target_country }}',
+        targetGender: '{{ Auth::user()->target_gender ?: 'all' }}',
+        targetAgeMin: {{ Auth::user()->target_age_min ?: 18 }},
+        targetAgeMax: {{ Auth::user()->target_age_max ?: 99 }},
+        
+        countryNames: {
+            'global': '🌍 {{__('chatroulette.Global_Match')}}',
+            'az': '🇦🇿 Azerbaijan', 'ge': '🇬🇪 Georgia', 'am': '🇦🇲 Armenia',
+            'ru': '🇷🇺 Russia', 'kz': '🇰🇿 Kazakhstan', 'uz': '🇺🇿 Uzbekistan',
+            'ua': '🇺🇦 Ukraine', 'tr': '🇹🇷 Turkey', 'de': '🇩🇪 Germany',
+            'es': '🇪🇸 Spain', 'pl': '🇵🇱 Poland', 'us': '🇺🇸 USA',
+            'ca': '🇨🇦 Canada', 'fr': '🇫🇷 France', 'it': '🇮🇹 Italy', 'gb': '🇬🇧 UK'
+        },
+
+
+        async updateTargetCountry(country) {
+            this.targetCountry = country;
+            try {
+                await window.axios.post('/profile', { _method: 'PATCH', target_country: country });
+                window.dispatchEvent(new CustomEvent('toast', { detail: { msg: '{{ __('chatroulette.Target_Country_Updated') }}' } }));
+            } catch (e) {
+                window.dispatchEvent(new CustomEvent('toast', { detail: { msg: '{{ __('chatroulette.Update_Failed') }}' } }));
+            }
+        },
 async applyFilters() {
     try {
         await window.axios.post('/profile', { 
@@ -341,6 +361,7 @@ async changeAudioDevice() {
 
         async init() {
             const self = this; 
+            this.uiShowPartnerCard = false;
             this.ringtone.loop = true;
 
             window.Echo.private(`user.${myId}`)
@@ -543,7 +564,8 @@ this.pc.oniceconnectionstatechange = () => {
         },
 
         isPolite() {
-            return Number(myId) < Number(this.partnerId);
+                if (!this.partnerId) return true; // По умолчанию вежливы, если партнер не определен
+                return Number(myId) < Number(this.partnerId);
         },
 
 async handleSignal(e) {
@@ -558,7 +580,16 @@ async handleSignal(e) {
         return; 
     }
     if (m.type === 'incoming-call') { this.incomingCall = m; if(this.audioUnlocked) this.ringtone.play().catch(()=>{}); return; }
-if (m.type === 'status-sync') {
+    
+        // 2. ЗАЩИТА: Если пришел медиа-сигнал (offer/answer/ice), но мы не в чате или PC не создан
+    if (['offer', 'answer', 'ice', 'request-keyframe', 'blitz', 'filter-sync'].includes(m.type)) {
+        if (!this.pc && m.type !== 'call-accepted') {
+            console.warn("[WebRTC] Signal received but PeerConnection is null. Ignoring:", m.type);
+            return; 
+        }
+    }
+    
+    if (m.type === 'status-sync') {
     this.partnerState = m.state;
     
     if (m.state === 'active') {
@@ -580,7 +611,13 @@ if (m.type === 'status-sync') {
 }
     if (m.type === 'filter-sync') { this.partnerFilters = m.filters; return; }
     if (['peer-disconnected', 'hang-up', 'peer-skipped'].includes(m.type)) { this.stopCall(false); return; }
-    if (m.type === 'call-accepted') { this.state = 'connected'; this.initPC(); setTimeout(() => self.sendOffer(), 1000); return; }
+    if (m.type === 'call-accepted') { 
+        this.state = 'connected'; 
+        if(!this.pc) this.initPC(); 
+        // Даем небольшую паузу чтобы медиа-каналы прогрелись
+        setTimeout(() => { this.sendOffer(); }, 1000); 
+        return; 
+    }
     if (m.type === 'icebreaker') {
         // Получаем индекс и отображаем вопрос на своем языке
         this.displayIcebreaker(m.index);
@@ -642,22 +679,21 @@ if (m.type === 'blitz') {
 
             if (offerCollision) {
                 console.log("[WebRTC] Collision: Polite peer rolling back local offer.");
-                // Rollback возвращает состояние в 'stable', чтобы мы могли принять чужой оффер
                 await Promise.all([
                     this.pc.setLocalDescription({ type: "rollback" }),
                     this.pc.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp: this.normalizeSdp(m.sdp) }))
                 ]);
             } else {
-                // Обычная установка без коллизии
                 await this.pc.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp: this.normalizeSdp(m.sdp) }));
             }
 
-            await this.pc.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp: this.normalizeSdp(m.sdp) }));
+            // УДАЛЕНА ДУБЛИРУЮЩАЯСЯ СТРОКА, которая ломала state!
+            
             const answer = await this.pc.createAnswer();
             await this.pc.setLocalDescription(answer);
             this.signal({ type: 'answer', sdp: this.pc.localDescription.sdp });
             
-            // После установки RemoteDescription — выстреливаем накопленные ICE-кандидаты
+            // Запускаем очередь ICE-кандидатов только после успешного setRemoteDescription
             while(this.iceQueue.length) {
                 await this.pc.addIceCandidate(this.iceQueue.shift()).catch(e => {});
             }
@@ -666,7 +702,6 @@ if (m.type === 'blitz') {
         } else if (m.type === 'answer') {
             this.isProcessingSignal = true;
             
-            // Защита от ошибки "Called in wrong state: stable"
             if (this.pc.signalingState === 'have-local-offer') {
                 await this.pc.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp: this.normalizeSdp(m.sdp) }));
                 
@@ -679,8 +714,8 @@ if (m.type === 'blitz') {
         } else if (m.type === 'ice') {
             const candidate = new RTCIceCandidate(m.candidate);
             
-            // Если RemoteDescription еще не установлен — кладем в очередь (Fix ошибки №1)
-            if (!this.pc || !this.pc.remoteDescription) {
+            // ФИКС ОШИБКИ: Более жесткая проверка на наличие RemoteDescription перед добавлением ICE
+            if (!this.pc || !this.pc.remoteDescription || !this.pc.remoteDescription.type) {
                 this.iceQueue.push(candidate);
             } else {
                 await this.pc.addIceCandidate(candidate).catch(e => {
@@ -699,6 +734,7 @@ if (m.type === 'blitz') {
 async handleMatch(e) {
             if (this.callContext === 'personal') return;
             this.isPartnerProfileOpen = false;
+            this.uiShowPartnerCard = false;
             // В Laravel Echo объект события e обычно содержит public свойства класса MatchFoundEvent.
             // Если событие пришло как { partnerData: {...} }, берем его, если нет - берем e напрямую.
             const partner = e.partnerData || e || {};
@@ -720,7 +756,9 @@ async handleMatch(e) {
             // Наполняем объект данными
             this.partnerData = {
                 id: this.partnerId,
-                name: partner.name || 'Anonymous Peer',
+                name: partner.name || 'Anonymous',
+                gender: partner.gender, // Сохраняем пол
+                age: partner.age,       // Сохраняем возраст
                 level: partner.level || 1,
                 badge: partner.badge,
                 rank_name: partner.rank_name || 'Regular',
@@ -762,26 +800,53 @@ async handleMatch(e) {
                 setTimeout(() => this.sendOffer(), 1200);
             }
         },
-        async setupPersonalCall(id, isAccepted) {
-            this.callContext = 'personal';
-            this.partnerId = id;
-            this.state = 'connecting';
-            window.history.replaceState({}, '', '/chat');
-            try {
-                const res = await window.axios.get(`/chat/user-info/${id}`);
-                this.partnerData = res.data;
-                this.isFriend = this.friendsList.some(f => f.id === id);
-                if (isAccepted) {
-                    this.state = 'connected';
-                    this.initPC();
-                    setTimeout(() => { this.signal({ type: 'call-accepted' }); }, 1000);
-                } else {
-                    const r = await window.axios.post('/chat/contact/call', { contactId: id });
-                    if (r.data.status === 'busy') { this.stopCall(false); alert('User is busy'); }
-                    else { this.state = 'connected'; this.initPC(); }
-                }
-            } catch (e) { this.stopCall(false); }
-        },
+async setupPersonalCall(id, isAccepted) {
+    this.callContext = 'personal';
+    this.partnerId = id;
+    this.state = 'connecting';
+    this.uiShowPartnerCard = false; // Закрываем карту сразу
+    
+    window.history.replaceState({}, '', '/chat');
+    
+    try {
+        const res = await window.axios.get(`/chat/user-info/${id}`);
+        const p = res.data;
+        
+        // Заполняем данные партнера (для кнопки М/Ж и флага)
+        this.partnerData = {
+            id: p.id,
+            name: p.name,
+            gender: p.gender,
+            age: p.age,
+            level: p.level,
+            badge: p.badge,
+            rank_name: p.rank_name,
+            country_flag: p.country_flag
+        };
+
+        this.isFriend = this.friendsList.some(f => f.id === id);
+
+        if (isAccepted) {
+            this.state = 'connected';
+            this.initPC();
+            // Тот кто принял звонок — шлет сигнал согласия
+            setTimeout(() => { this.signal({ type: 'call-accepted' }); }, 500);
+        } else {
+            const r = await window.axios.post('/chat/contact/call', { contactId: id });
+            if (r.data.status === 'busy') { 
+                this.stopCall(false); 
+                window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'User is busy' } }));
+            } else {
+                this.state = 'connected';
+                this.initPC();
+                // Инициатор ждет call-accepted чтобы кинуть оффер
+            }
+        }
+    } catch (e) { 
+        console.error(e);
+        this.stopCall(false); 
+    }
+},
 
         unblock(blockedId) {
             window.axios.post('/chat/unblock', { blockedId: blockedId })
@@ -812,14 +877,15 @@ async handleMatch(e) {
             window.dispatchEvent(new CustomEvent('toast', {detail: {msg: 'Call Ended'}}));
         },
 
-        reset() {
-            this.ringtone.pause();
-            this.isPartnerProfileOpen = false;
-            if (this.pc) { this.pc.close(); this.pc = null; }
-            if (this.$refs.remoteVideo) this.$refs.remoteVideo.srcObject = null;
-            this.partnerId = null; this.partnerData = null; this.state = 'idle'; this.callContext = null;
-            this.partnerFilters = { beauty: false, cinema: false }; this.messages = [];
-        },
+    reset() {
+        this.ringtone.pause();
+        this.isPartnerProfileOpen = false;
+        this.uiShowPartnerCard = false; // <-- Эта строка гарантирует, что карточка партнера всегда скрыта при старте!
+        if (this.pc) { this.pc.close(); this.pc = null; }
+        if (this.$refs.remoteVideo) this.$refs.remoteVideo.srcObject = null;
+        this.partnerId = null; this.partnerData = null; this.state = 'idle'; this.callContext = null;
+        this.partnerFilters = { beauty: false, cinema: false }; this.messages = [];
+    },
 
         // --- MESSENGER & DATA ---
 
@@ -970,7 +1036,7 @@ handleVisibilityChange() {
         this.signal({ type: 'status-sync', state: 'away' });
     }
 },
-        async startSearch() { this.reset(); this.state = 'searching'; this.callContext = 'roulette'; await window.axios.post('/chat/search'); },
+        async startSearch() { this.reset(); this.isPartnerProfileOpen = false;  this.state = 'searching'; this.callContext = 'roulette'; await window.axios.post('/chat/search'); },
         loadFriends() {
             window.axios.get('/chat/contacts').then(r => {
                 this.friendsList = r.data.contacts.sort((a, b) => {

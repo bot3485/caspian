@@ -44,14 +44,14 @@
             <!-- HEADER -->
             <div class="flex flex-col md:flex-row justify-between items-start md:items-end mb-16 gap-6">
                 <div>
-                    <h1 class="text-4xl sm:text-6xl font-black uppercase italic tracking-tighter leading-none bg-gradient-to-r from-white via-white to-white/40 bg-clip-text text-transparent">Live Spaces</h1>
-                    <p class="text-brand-indigo font-black text-[9px] uppercase tracking-[0.5em] mt-4 ml-1">Multiverse Video Hubs</p>
+                    <h1 class="text-4xl sm:text-6xl font-black uppercase italic tracking-tighter leading-none bg-gradient-to-r from-white via-white to-white/40 bg-clip-text text-transparent">{{ __('rooms.Live_Rooms') }}</h1>
+                    <p class="text-brand-indigo font-black text-[9px] uppercase tracking-[0.5em] mt-4 ml-1">{{ __('rooms.Multiroom_Video_Hub') }}</p>
                 </div>
                 
                 <button @click="userHasRoom ? window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'Delete your current space first' } })) : showModal = true" 
                         :class="userHasRoom ? 'opacity-30 grayscale cursor-not-allowed' : 'hover:scale-[1.02] active:scale-95 shadow-brand-indigo/10 hover:shadow-brand-indigo/20'"
                         class="w-full md:w-auto bg-brand-indigo px-8 py-4.5 rounded-2xl font-black text-[9px] uppercase tracking-[0.25em] transition-all duration-300 shadow-2xl flex items-center justify-center gap-3 border border-white/10">
-                    <span x-text="userHasRoom ? 'Space Active' : '+ Create New Space'"></span>
+                    <span x-text="userHasRoom ? '{{ __('rooms.Room_Active') }}' : '+ {{ __('rooms.Create_New_Room') }}'"></span>
                 </button>
             </div>
 
@@ -79,7 +79,7 @@
                                 <div class="flex flex-col items-end gap-1.5">
                                     @if($isMine)
                                         <div class="bg-brand-indigo/20 text-brand-indigo text-[7px] font-black px-2.5 py-1 rounded-full uppercase tracking-widest border border-brand-indigo/20 animate-pulse">
-                                            Your Space
+                                            {{ __('rooms.Your_Room') }}
                                         </div>
                                     @endif
 
@@ -88,7 +88,7 @@
                                              :class="(occupancy['{{ $room->uuid }}'] || 0) > 0 ? 'bg-green-500 shadow-[0_0_8px_#22c55e]' : 'bg-gray-700'"></div>
                                         <span class="text-[8px] font-black uppercase tracking-widest flex items-center leading-none mt-[1px]">
                                             <span x-text="(occupancy['{{ $room->uuid }}'] || 0) + '/6'"></span> 
-                                            <span class="text-gray-500 ml-1">Live</span>
+                                            <span class="text-gray-500 ml-1">{{ __('rooms.Live') }}</span>
                                         </span>
                                     </div>
                                 </div>
@@ -99,18 +99,18 @@
                             </h3>
                             
                             <p class="text-[8px] text-gray-500 font-bold uppercase tracking-[0.25em] mt-3 italic">
-                                {{ $isMine ? 'Authorized Host: You' : 'Initiated by: ' . $room->creator->name }}
+                               {{ __('rooms.Created_By') }} {{$room->creator->name }}
                             </p>
                             
                             @if(!$room->is_public)
-                                <span class="inline-block mt-4 text-[7px] font-black uppercase tracking-widest text-amber-500 bg-amber-500/5 px-2.5 py-1 rounded-lg border border-amber-500/10">Private Enclave</span>
+                                <span class="inline-block mt-4 text-[7px] font-black uppercase tracking-widest text-amber-500 bg-amber-500/5 px-2.5 py-1 rounded-lg border border-amber-500/10">{{ __('rooms.Private_Room') }}</span>
                             @endif
                         </div>
 
                         <div class="flex gap-3 mt-8 relative z-10">
                             <a href="{{ route('rooms.show', $room->uuid) }}" 
                                class="flex-1 {{ $isMine ? 'bg-white text-black hover:bg-white/90' : 'bg-white/[0.03] border border-white/[0.05] text-white hover:bg-white hover:text-black hover:border-white' }} py-4 rounded-[1.25rem] font-black text-[9px] uppercase tracking-[0.25em] text-center transition-all duration-300 active:scale-95 shadow-lg">
-                               Enter Core ➔
+                               {{ __('rooms.Enter_Room') }} ➔
                             </a>
                             
                             @if($isMine)
@@ -128,7 +128,7 @@
             @if($rooms->isEmpty())
                 <div class="flex flex-col items-center justify-center py-24 bg-[#050505]/40 backdrop-blur-sm rounded-[3rem] border border-dashed border-white/5 max-w-xl mx-auto mt-12">
                     <span class="text-5xl mb-4 grayscale opacity-20 animate-bounce">🪐</span>
-                    <p class="text-[9px] font-black uppercase tracking-[0.4em] text-gray-500">No Active Spaces Found</p>
+                    <p class="text-[9px] font-black uppercase tracking-[0.4em] text-gray-500">{{ __('rooms.No_Active_Room_Found') }}</p>
                 </div>
             @endif
         </div>
@@ -137,19 +137,19 @@
         <div x-show="showModal" class="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/95 backdrop-blur-2xl" x-cloak x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100" x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100 scale-100" x-transition:leave-end="opacity-0 scale-95">
             <div class="bg-[#050505] border border-white/10 w-full max-w-md rounded-[2.5rem] p-8 md:p-10 shadow-[0_0_80px_rgba(0,0,0,0.8)]" @click.away="showModal = false">
                 <div class="flex justify-between items-center mb-8">
-                    <h2 class="text-3xl font-black uppercase tracking-tighter italic">Init Space</h2>
+                    <h2 class="text-3xl font-black uppercase tracking-tighter italic">{{ __('rooms.Init_Room') }}</h2>
                     <div class="w-10 h-10 bg-brand-indigo/10 rounded-xl flex items-center justify-center text-lg">🛸</div>
                 </div>
                 
                 <div class="space-y-6">
                     <div class="space-y-2">
-                        <label class="text-[8px] font-black uppercase text-gray-500 tracking-[0.25em] ml-1">Deployment Title</label>
+                        <label class="text-[8px] font-black uppercase text-gray-500 tracking-[0.25em] ml-1">{{ __('rooms.Room_Name') }}</label>
                         <input type="text" x-model="newRoom.title" placeholder="Sector 7..." 
                                class="w-full bg-white/[0.03] border border-white/10 rounded-xl py-4 px-6 text-white focus:ring-1 focus:ring-brand-indigo focus:border-brand-indigo outline-none font-bold text-sm transition-all">
                     </div>
                     
                     <div class="space-y-2">
-                        <label class="text-[8px] font-black uppercase text-gray-500 tracking-[0.25em] ml-1">Access Key (Optional)</label>
+                        <label class="text-[8px] font-black uppercase text-gray-500 tracking-[0.25em] ml-1">{{ __('rooms.Access_Key') }}</label>
                         <input type="password" x-model="newRoom.password" placeholder="••••" 
                                class="w-full bg-white/[0.03] border border-white/10 rounded-xl py-4 px-6 text-white focus:ring-1 focus:ring-brand-indigo focus:border-brand-indigo outline-none text-sm transition-all">
                     </div>
@@ -157,15 +157,15 @@
                     <label class="flex items-center gap-4 cursor-pointer group p-4 bg-white/[0.02] rounded-2xl border border-white/[0.04] hover:border-brand-indigo/30 transition-all duration-300">
                         <input type="checkbox" x-model="newRoom.is_public" class="w-5 h-5 rounded-lg bg-black border-white/10 text-brand-indigo focus:ring-0">
                         <div>
-                            <span class="text-xs font-black uppercase tracking-wider block">Public Visibility</span>
-                            <span class="text-[8px] text-gray-500 font-bold uppercase mt-0.5 block">Visible in global directory</span>
+                            <span class="text-xs font-black uppercase tracking-wider block">{{ __('rooms.Public_Visibility') }}</span>
+                            <span class="text-[8px] text-gray-500 font-bold uppercase mt-0.5 block">{{ __('rooms.Visibility_desc') }}</span>
                         </div>
                     </label>
                 </div>
 
                 <div class="grid grid-cols-2 gap-3 mt-10">
-                    <button @click="showModal = false" class="py-4 rounded-xl font-black text-[9px] uppercase tracking-widest text-gray-400 hover:bg-white/5 transition-all">Cancel</button>
-                    <button @click="createRoom()" class="bg-brand-indigo py-4 rounded-xl font-black text-[9px] uppercase tracking-widest hover:scale-[1.02] transition-all shadow-lg shadow-brand-indigo/10">Launch Space</button>
+                    <button @click="showModal = false" class="py-4 rounded-xl font-black text-[9px] uppercase tracking-widest text-gray-400 hover:bg-white/5 transition-all">{{ __('rooms.Cancel') }}</button>
+                    <button @click="createRoom()" class="bg-brand-indigo py-4 rounded-xl font-black text-[9px] uppercase tracking-widest hover:scale-[1.02] transition-all shadow-lg shadow-brand-indigo/10">{{ __('rooms.Create_Room') }}</button>
                 </div>
             </div>
         </div>

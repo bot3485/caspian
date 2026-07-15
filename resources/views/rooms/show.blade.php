@@ -28,7 +28,7 @@
                     <button @click="copyLink()" 
                             class="bg-black/50 backdrop-blur-md p-3 md:px-5 md:py-2.5 rounded-2xl hover:bg-brand-indigo hover:text-white transition-all duration-300 group flex items-center gap-2 shadow-2xl border border-white/[0.04]">
                         <span class="text-sm">🔗</span>
-                        <span class="hidden md:block text-[8px] font-black uppercase tracking-[0.2em] mt-[1px]">Share Hub</span>
+                        <span class="hidden md:block text-[8px] font-black uppercase tracking-[0.2em] mt-[1px]">{{ __('rooms.Copy_Link') }}</span>
                     </button>
                 </div>
             </div>
@@ -54,7 +54,7 @@
                     
                     <div class="absolute bottom-4 left-5 flex items-center gap-2">
                         <div class="px-2.5 py-1 bg-brand-indigo/10 backdrop-blur-md rounded-lg border border-brand-indigo/20 flex items-center">
-                            <span class="text-[8px] font-black uppercase tracking-widest text-white mt-[1px]">Host (You)</span>
+                            <span class="text-[8px] font-black uppercase tracking-widest text-white mt-[1px]">{{ auth()->user()->name }}</span>
                         </div>
                     </div>
                 </div>
@@ -98,7 +98,7 @@
                         <span>📺</span>
                     </button>
                     <div class="w-px h-6 bg-white/10 mx-1"></div>
-                    <a href="{{ route('rooms.index') }}" class="bg-red-600/10 border border-red-600/20 hover:bg-red-600 text-red-500 hover:text-white px-5 py-2.5 rounded-xl font-black text-[8px] uppercase tracking-wider transition-all">Exit Hub</a>
+                    <a href="{{ route('rooms.index') }}" class="bg-red-600/10 border border-red-600/20 hover:bg-red-600 text-red-500 hover:text-white px-5 py-2.5 rounded-xl font-black text-[8px] uppercase tracking-wider transition-all">{{ __('rooms.Exit_Room') }}</a>
                 </div>
             </div>
         </div>
@@ -175,7 +175,7 @@
                     }).joining(u => {
                         this.currentCount = channel.subscription.members.count;
                         this.syncOccupancy(this.currentCount);
-                        window.dispatchEvent(new CustomEvent('toast', {detail:{msg: u.name + ' joined'}}));
+                        window.dispatchEvent(new CustomEvent('toast', {detail:{msg: u.name + ' {{ __('rooms.Joined') }}'}}));
                         
                         // Когда заходит новый участник, МЫ (кто уже внутри) инициируем с ним связь
                         self.initiateConnection(u.id, u.name, true);
@@ -369,7 +369,7 @@
 
                 copyLink() { 
                     navigator.clipboard.writeText(window.location.href); 
-                    window.dispatchEvent(new CustomEvent('toast', {detail:{msg:'Link Captured'}})); 
+                    window.dispatchEvent(new CustomEvent('toast', {detail:{msg:'{{ __('rooms.Link_Captured') }}'}})); 
                 }
             }
         }

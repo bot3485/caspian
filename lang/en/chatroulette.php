@@ -25,5 +25,7 @@ return [
 'You'=>                                  'You',                     
 'Global_Match'=>                         'Global Match',            
 'Update_Failed'=>                        'Update Failed',           
-'Target_Country_Updated'=>               'Target Country_Updated',  
+'Target_Country_Updated'=>               'Target Country_Updated',
+'Searching'=>                            'Searching',
+'Ready_To_Start'=>                       'Ready To Start'
 ];

@@ -8,8 +8,8 @@
             
             <!-- HEADER (Полностью на английском) -->
             <div class="text-center mb-16">
-                <h1 class="text-4xl sm:text-6xl font-black tracking-tighter uppercase italic bg-gradient-to-r from-white via-white to-white/40 bg-clip-text text-transparent">Hall of Fame</h1>
-                <p class="text-brand-indigo font-black uppercase text-[9px] tracking-[0.45em] mt-3">Elite Members of Caspian Ecosystem</p>
+                <h1 class="text-4xl sm:text-6xl font-black tracking-tighter uppercase italic bg-gradient-to-r from-white via-white to-white/40 bg-clip-text text-transparent">{{ __('leaderboard.Hall_Of_Fame') }}</h1>
+                <p class="text-brand-indigo font-black uppercase text-[9px] tracking-[0.45em] mt-3">{{ __('leaderboard.Elite_Members') }}m</p>
             </div>
             
             <!-- LEADERBOARD LIST -->
@@ -49,7 +49,7 @@
                                 <h3 class="font-black text-sm uppercase tracking-tight truncate group-hover:text-brand-indigo transition-colors duration-300">{{ $u->name }}</h3>
                                 <div class="flex gap-3 mt-0.5">
                                     <span class="text-[7.5px] font-bold text-gray-500 uppercase tracking-widest">Level {{ $u->level }}</span>
-                                    <span class="text-[7.5px] font-black text-brand-indigo uppercase tracking-widest">{{ $u->karma }} Karma</span>
+                                    <span class="text-[7.5px] font-black text-brand-indigo uppercase tracking-widest">{{ $u->karma }} {{ __('leaderboard.Karma') }}</span>
                                 </div>
                             </div>
                         </div>
@@ -58,10 +58,10 @@
                         <div class="flex sm:flex-col justify-between items-center sm:items-end w-full sm:w-auto pt-3 sm:pt-0 border-t border-white/[0.03] sm:border-none shrink-0">
                             <div class="text-right w-full sm:w-auto flex sm:flex-col justify-between items-center sm:items-end">
                                 <div class="text-lg sm:text-xl font-black tracking-tight leading-none">
-                                    {{ number_format($u->xp) }} <span class="text-[8px] text-brand-indigo uppercase ml-1">XP</span>
+                                    {{ number_format($u->xp) }} <span class="text-[8px] text-brand-indigo uppercase ml-1">{{ __('leaderboard.XP') }}</span>
                                 </div>
                                 <div class="text-[7.5px] font-bold text-gray-600 uppercase tracking-widest mt-1">
-                                    {{ $u->total_minutes }} mins on-air
+                                    {{ $u->total_minutes }} {{ __('leaderboard.Minutes_On_Videochat') }}
                                 </div>
                             </div>
                         </div>
@@ -72,7 +72,7 @@
             <!-- EMPTY STATE (Английская локализация) -->
             @if($topUsers->isEmpty())
                 <div class="text-center py-20 bg-[#050505]/40 backdrop-blur-sm rounded-[2.5rem] border border-dashed border-white/5">
-                    <p class="text-gray-500 font-black uppercase text-[9px] tracking-[0.3em]">The rankings are currently empty. Be the first to claim your spot!</p>
+                    <p class="text-gray-500 font-black uppercase text-[9px] tracking-[0.3em]">{{ __('leaderboard.Ranking_Is_Empty') }}</p>
                 </div>
             @endif
         </div>

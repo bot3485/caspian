@@ -26,4 +26,6 @@ return [
 'Global_Match'=>                         'Все страны',  
 'Update_Failed'=>                        'Обновление неудачно',  
 'Target_Country_Updated'=>               'Целевая страна обновлена',  
+'Searching'=>                            'Поиск',
+'Ready_To_Start'=>                       'Готовы Начать'
 ];

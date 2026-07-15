@@ -119,7 +119,7 @@
                         <div class="absolute inset-0 flex items-center justify-center text-5xl">🛰️</div>
                     </div>
                     <p class="text-[10px] font-black uppercase tracking-[0.5em] text-brand-indigo animate-pulse italic" 
-                       x-text="state === 'searching' ? 'Syncing Universe...' : 'Caspian 3.2 Ready'"></p>
+                       x-text="state === 'searching' ? '{{ __('chatroulette.Searching') }}...' : '{{ __('chatroulette.Ready_To_Start') }}'"></p>
                 </div>
 
                 <!-- PARTNER INFO TAG (Теперь выводит Флаг Собеседника) -->

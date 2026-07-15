@@ -1,6 +1,6 @@
 <?php
 return [
-    'Personal Messenger'=>                   'Personal Messenger',
+    'Personal_Messenger'=>                   'Personal Messenger',
     'Monochrome_Filter_On'=>                   'Monochrome Filter On',           
     'Monochrome_Filter_Off'=>                  'Monochrome Filter Off',                  
     'Contrast_Filter_On'=>                      'Contrast Filter On',         

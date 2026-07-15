@@ -26,4 +26,6 @@ return [
 'Global_Match'=>                         'Tüm Ülkeler',
 'Update_Failed'=>                        'Güncelleme Başarısız',
 'Target_Country_Updated'=>               'Hedef Ülke Güncellendi',
+'Searching'=>                            'Arama',
+'Ready_To_Start'=>                       'Başlamaya Hazır'
 ];

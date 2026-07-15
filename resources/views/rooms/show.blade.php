@@ -117,6 +117,16 @@
                 isScreenSharing: false,
                 rtcConfig: { iceServers: @js(config('webrtc.ice_servers')), bundlePolicy: "balanced" },
 
+
+                startHeartbeat() {
+                    // Каждые 20 секунд отправляем текущее кол-во участников в БД
+                    this.heartbeatTimer = setInterval(() => {
+                        if (this.currentCount >= 0) {
+                            this.syncOccupancy(this.currentCount);
+                        }
+                    }, 20000);
+                },
+
                 getBoxStyle(id) {
                     const isFocused = this.focusedId === id;
                     const someoneFocused = this.focusedId !== null;
@@ -159,12 +169,25 @@
                     // 1. Ждем ГАРАНТИРОВАННОГО получения медиа-потока
                     await this.initMedia();
                     
+                    window.addEventListener('beforeunload', () => {
+                        // Если мы были последним или просто уходим, шлем сигнал "минус один" 
+                        // через Beacon API (он работает даже когда вкладка закрыта)
+                        const url = `/rooms/${this.roomUuid}/sync-occupancy`;
+                        const data = new FormData();
+                        data.append('count', Math.max(0, this.currentCount - 1));
+                        navigator.sendBeacon(url, data);
+                    });
+
                     // 2. Только после этого заходим в комнату сокетов, когда мы готовы слать/принимать потоки
                     const channel = window.Echo.join(`room.${roomUuid}`);
                     
                     channel.here(users => {
                         this.currentCount = users.length;
                         this.syncOccupancy(users.length);
+
+                        setTimeout(() => {
+                            this.syncOccupancy(this.currentCount);
+                        }, 2000);
                         
                         // Инициируем соединение с теми, кто уже в комнате
                         users.forEach(u => { 
@@ -188,6 +211,7 @@
                     window.Echo.private(`user.${myId}`).listen('.WebRTCSignalEvent', (e) => {
                         if (e.data.roomUuid === roomUuid) self.handleSignal(e.data);
                     });
+                     this.startHeartbeat();
                 },
 
                 async syncOccupancy(count) {

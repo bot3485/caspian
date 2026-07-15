@@ -9,23 +9,29 @@ use Illuminate\View\View;
 
 class RoomController extends Controller
 {
-    public function index(): View
-    {
-        $userId = Auth::id();
-        
-        // Делаем фильтрацию на уровне БД, а не коллекции
-        $rooms = Room::with('creator')
-            ->where(function($q) use ($userId) {
-                $q->where('is_public', true)
-                ->orWhere('creator_id', $userId);
-            })
-            ->latest()
-            ->get();
+public function index(): View
+{
+    $userId = Auth::id();
+    $staleThreshold = now()->subSeconds(45); // Порог "мертвой" комнаты
 
-        $userHasRoom = Room::where('creator_id', $userId)->exists();
+    // 1. Находим комнаты, которые должны быть пустыми, но в БД числятся занятыми
+    Room::where('current_occupancy', '>', 0)
+        ->where('updated_at', '<', $staleThreshold)
+        ->update(['current_occupancy' => 0]);
 
-        return view('rooms.index', compact('rooms', 'userHasRoom'));
-    }
+    // 2. Теперь загружаем актуальный список
+    $rooms = Room::with('creator')
+        ->where(function($q) use ($userId) {
+            $q->where('is_public', true)
+            ->orWhere('creator_id', $userId);
+        })
+        ->latest()
+        ->get();
+
+    $userHasRoom = Room::where('creator_id', $userId)->exists();
+
+    return view('rooms.index', compact('rooms', 'userHasRoom'));
+}
 
     public function store(Request $request): JsonResponse
     {
@@ -96,21 +102,19 @@ class RoomController extends Controller
         return response()->json(['status' => 'success']);
     }
 
-public function syncOccupancy(Request $request, string $uuid): JsonResponse
-{
-    // Beacon присылает данные в виде строки, поэтому приводим к int
-    $count = (int) $request->input('count', 0);
-    
-    $room = Room::where('uuid', $uuid)->firstOrFail();
+    public function syncOccupancy(Request $request, string $uuid): JsonResponse
+    {
+        $count = (int) $request->input('count', 0);
+        $room = Room::where('uuid', $uuid)->firstOrFail();
 
-    // Обновляем количество участников
-    $room->current_occupancy = $count < 0 ? 0 : $count;
-    $room->touch(); // Обновляем updated_at, чтобы Schedule не считал комнату мертвой
-    $room->save();
-    
-    // Оповещаем всех в лобби (на главной странице)
-    broadcast(new \App\Events\RoomOccupancyUpdated($uuid, $room->current_occupancy))->toOthers();
+        // Обновляем количество и метку времени
+        $room->current_occupancy = $count < 0 ? 0 : $count;
+        $room->touch(); // Это обновит updated_at
+        $room->save();
+        
+        // Оповещаем лобби
+        broadcast(new \App\Events\RoomOccupancyUpdated($uuid, $room->current_occupancy))->toOthers();
 
-    return response()->json(['status' => 'ok', 'count' => $room->current_occupancy]);
-}
+        return response()->json(['status' => 'ok', 'count' => $room->current_occupancy]);
+    }
 }

@@ -23,7 +23,7 @@ return [
 'Common_Universe_Found'=>                'Общая вселенная найдена',  
 'Stream_Paused'=>                        'Поток приостановлен',  
 'You'=>                                  'Вы',  
-'Global_Match'=>                         'Все страны',  
+'Global_Match'=>                         'ВСЕ',  
 'Update_Failed'=>                        'Обновление неудачно',  
 'Target_Country_Updated'=>               'Целевая страна обновлена',  
 'Searching'=>                            'Поиск',

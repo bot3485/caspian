@@ -23,7 +23,7 @@ return [
 'Common_Universe_Found'=>                'Ortak Evren Bulundu',
 'Stream_Paused'=>                        'Akış Duraklatıldı',
 'You'=>                                  'Siz',
-'Global_Match'=>                         'Tüm Ülkeler',
+'Global_Match'=>                         'Tüm',
 'Update_Failed'=>                        'Güncelleme Başarısız',
 'Target_Country_Updated'=>               'Hedef Ülke Güncellendi',
 'Searching'=>                            'Arama',

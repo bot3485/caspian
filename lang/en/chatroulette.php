@@ -23,7 +23,7 @@ return [
 'Common_Universe_Found'=>                'Common Universe Found',   
 'Stream_Paused'=>                        'Stream Paused',           
 'You'=>                                  'You',                     
-'Global_Match'=>                         'Global Match',            
+'Global_Match'=>                         'ALL',            
 'Update_Failed'=>                        'Update Failed',           
 'Target_Country_Updated'=>               'Target Country_Updated',
 'Searching'=>                            'Searching',

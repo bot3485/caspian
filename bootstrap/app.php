@@ -6,6 +6,7 @@ use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
 use App\Http\Middleware\UpdateLastSeen;
 use App\Http\Middleware\SetLocaleMiddleware;
+use  App\Http\Middleware\CheckBanned;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -22,6 +23,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->web(append: [
             UpdateLastSeen::class,
             SetLocaleMiddleware::class,
+            CheckBanned::class, 
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

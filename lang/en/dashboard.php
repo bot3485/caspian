@@ -1,5 +1,6 @@
 <?php
 return [
+    'Video'=>                       'Видео',
     'Roulette'=>                    'Roulette',
     'Rooms'=>                       'Rooms',
     'Roulette_Desc'=>               'Experience high-speed P2P connections and intelligent interest-based matching.',
@@ -15,4 +16,5 @@ return [
     'Progress'=>                    'Progress',
     'Conference_Enclaves'=>         'Conference Enclaves',
     'Good_Luck'=>                   'Good_Luck',
+    'Total_Online'=>                'Time In System',
 ];

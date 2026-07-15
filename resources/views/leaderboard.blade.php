@@ -14,10 +14,6 @@
             
             <!-- LEADERBOARD LIST -->
             <div class="space-y-3">
-                @php 
-                    $topUsers = \App\Models\User::orderBy('xp', 'desc')->take(20)->get();
-                @endphp
-                
                 @foreach($topUsers as $index => $u)
                     <div class="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6 p-5 md:p-6 bg-[#050505]/40 backdrop-blur-sm border rounded-[1.75rem] transition-all duration-300 group
                         {{ $index === 0 ? 'border-amber-500/20 bg-gradient-to-r from-amber-500/[0.03] to-transparent shadow-[0_0_30px_rgba(245,158,11,0.02)]' : '' }}

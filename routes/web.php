@@ -55,9 +55,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         return view('dashboard');
     })->name('dashboard');
 
-    Route::get('/leaderboard', function () { 
-        return view('leaderboard'); 
-    })->name('leaderboard');
+    Route::get('/leaderboard', [App\Http\Controllers\ChatController::class, 'leaderboard'])->name('leaderboard');
 
     // --- Система активности (Ping) ---
     Route::post('/ping', function () {

@@ -27,7 +27,12 @@
       @visibilitychange.window="handleVisibilityChange()"
       @pagehide.window="handleVisibilityChange()"
       @blur.window="handleVisibilityChange()"
-      @focus.window="handleVisibilityChange()">
+      @focus.window="handleVisibilityChange()"
+      makingOffer: false,
+      ignoreOffer: false,
+      isSettingRemoteAnswerPending: false,
+      >
+      
     <!-- SMART TOAST NOTIFICATIONS (ANTI-SPAM) -->
     <div x-data="{ 
             toasts: [], 
@@ -108,6 +113,7 @@ window.caspianApp = function(myId, myInterests, iceServers) {
         audioUnlocked: false,
         layoutFocus: 'split', // может быть 'split', 'remote', 'local'
         actionsOpen: false,
+        isPartnerProfileOpen: false,
 
         // --- PARTNER DATA ---
         partnerId: null, partnerData: null, isFriend: false, partnerState: 'active',
@@ -137,6 +143,50 @@ window.caspianApp = function(myId, myInterests, iceServers) {
         isProcessingSignal: false, makingOffer: false, processedEvents: new Set(), iceQueue: [],
         rtcConfig: { iceServers: iceServers, bundlePolicy: "balanced", iceCandidatePoolSize: 10 },
 
+
+
+async rebootMobileCamera() {
+    if (!this.localStream || !this.pc) return;
+    
+    console.log("[Android Fix] Инициирована аппаратная перезагрузка камеры...");
+    
+    try {
+        // 1. Получаем ID текущей камеры
+        const videoTrack = this.localStream.getVideoTracks()[0];
+        const currentDeviceId = videoTrack ? videoTrack.getSettings().deviceId : null;
+
+        // 2. Запрашиваем НОВЫЙ поток от той же камеры
+        const freshStream = await navigator.mediaDevices.getUserMedia({
+            video: { 
+                deviceId: currentDeviceId ? { exact: currentDeviceId } : undefined,
+                width: { ideal: 640 }, 
+                height: { ideal: 480 } 
+            },
+            audio: false // Аудио не трогаем, чтобы не было щелчка
+        });
+
+        const newTrack = freshStream.getVideoTracks()[0];
+
+        // 3. Заменяем трек в PeerConnection БЕЗ пересогласования (replaceTrack)
+        const sender = this.pc.getSenders().find(s => s.track && s.track.kind === 'video');
+        if (sender) {
+            await sender.replaceTrack(newTrack);
+        }
+
+        // 4. Обновляем локальный поток и видео-тег
+        this.localStream.removeTrack(videoTrack);
+        videoTrack.stop(); // Останавливаем старый "зависший" трек
+        this.localStream.addTrack(newTrack);
+        
+        if (this.$refs.localVideo) {
+            this.$refs.localVideo.srcObject = this.localStream;
+        }
+
+        console.log("[Android Fix] Камера успешно перезапущена.");
+    } catch (e) {
+        console.error("[Android Fix] Ошибка при перезагрузке камеры:", e);
+    }
+},
 
 async openDeviceSettings() {
     const devices = await navigator.mediaDevices.enumerateDevices();
@@ -335,99 +385,218 @@ async initMedia() {
             const self = this;
             this.iceQueue = [];
             this.pc = new RTCPeerConnection(this.rtcConfig);
+            this.pc.onnegotiationneeded = async () => {
+                try {
+                        console.log("[WebRTC] Negotiation needed...");
+                        await self.sendOffer();
+                    } catch (err) {
+                        console.error("[WebRTC] Negotiation Error:", err);
+                    }
+                };
             
             this.pc.onicecandidate = (e) => { if (e.candidate) self.signal({ type: 'ice', candidate: e.candidate }); };
-            this.pc.ontrack = (e) => { 
-                const remoteStream = e.streams[0];
-                
-                let videoEl = self.$refs.remoteVideo;
-                if (!videoEl) {
-                    videoEl = document.getElementById('remoteVideo');
-                }
-
-                if (videoEl) {
-                    // Анти-прерывание: Если этот поток уже привязан к видеотегу, не перезаписываем его!
-                    if (videoEl.srcObject === remoteStream) {
-                        return;
-                    }
-
-                    videoEl.srcObject = remoteStream;
-                    
-                    // Безопасный запуск воспроизведения через промис
-                    const playPromise = videoEl.play();
-                    if (playPromise !== undefined) {
-                        playPromise.then(() => {
-                        }).catch(err => {
-                            if (err.name === 'AbortError') {
-                                console.warn("[Caspian WebRTC] Play was aborted by browser loading cycle, retrying in 100ms...");
-                                setTimeout(() => videoEl.play().catch(() => {}), 100);
-                            } else {
-                                console.warn("[Caspian WebRTC] Play blocked, trying muted...", err);
-                                videoEl.muted = true;
-                                videoEl.play().catch(e => console.error("[Caspian WebRTC] Double block play failed:", e));
-                            }
-                        });
-                    }
-                } else {
-                    console.error("[Caspian WebRTC] CRITICAL: Video element (#remoteVideo / x-ref) not found in DOM!");
+            this.pc.onconnectionstatechange = () => {
+                if (this.pc.connectionState === 'connected') {
+                    console.log("[WebRTC] Fully Connected. Checking tracks...");
+                    // Если через 2 секунды после коннекта видео всё еще черное (readyState 0)
+                    // пробуем сделать renegotiation
+                    setTimeout(() => {
+                        const remoteVid = document.getElementById('remoteVideo') || this.$refs.remoteVideo;
+                        if (remoteVid && remoteVid.readyState < 2) {
+                            console.warn("[WebRTC] Video stuck at black screen. Nudging...");
+                            this.sendOffer({ iceRestart: true });
+                        }
+                    }, 2000);
                 }
             };
+this.pc.ontrack = (e) => {
+    const remoteStream = e.streams[0];
+    const videoEl = document.getElementById('remoteVideo') || this.$refs.remoteVideo;
+    
+    if (videoEl && remoteStream) {
+        if (videoEl.srcObject !== remoteStream) {
+            videoEl.srcObject = remoteStream;
+        }
+
+        // Системный обработчик: когда приходят первые пакеты после паузы
+        e.track.onunmute = () => {
+            console.log("[WebRTC] Remote track UNMUTED. Playing...");
+            videoEl.play().catch(() => {
+                videoEl.muted = true;
+                videoEl.play();
+            });
+        };
+
+        videoEl.play().catch(() => {
+            videoEl.muted = true;
+            videoEl.play();
+        });
+    }
+};
             
-            this.pc.oniceconnectionstatechange = () => {
-                if (self.pc.iceConnectionState === 'failed') self.sendOffer({ iceRestart: true });
-                if (['disconnected', 'failed'].includes(self.pc.iceConnectionState)) self.partnerState = 'problem';
-                else if (self.pc.iceConnectionState === 'connected') self.partnerState = 'active';
-            };
+this.pc.oniceconnectionstatechange = () => {
+    const iceState = self.pc.iceConnectionState;
+    console.log("[WebRTC] ICE State:", iceState);
+
+    if (['disconnected', 'failed', 'closed'].includes(iceState)) {
+        this.partnerState = 'problem';
+    } 
+    else if (['connected', 'completed'].includes(iceState)) {
+        this.partnerState = 'active';
+
+        // КРИТИЧЕСКИЙ ФИКС: Принудительно заставляем видео играть при восстановлении
+        this.$nextTick(() => {
+            const remoteVid = self.$refs.remoteVideo || document.getElementById('remoteVideo');
+            if (remoteVid && (remoteVid.paused || remoteVid.readyState < 2)) {
+                console.log("[WebRTC] Connection restored. Forcing video playback...");
+                remoteVid.play().catch(err => {
+                    console.warn("[WebRTC] Play failed, retrying muted...", err);
+                    remoteVid.muted = true; // Иногда браузер требует mute для автоплея после дисконнекта
+                    remoteVid.play();
+                });
+            }
+        });
+    }
+};
 
             if (this.localStream) this.localStream.getTracks().forEach(t => this.pc.addTrack(t, this.localStream));
         },
 
-        async handleSignal(e) {
-            const m = e.data;
-            const self = this;
-            if (m.type === 'you-are-blocked') {
-                this.stopCall(false); // Обрываем звонок
-                window.dispatchEvent(new CustomEvent('toast', {
-                    detail: { msg: '{{ __('app.Blacklisted') }}' }
-                }));
-                // Можно даже сделать редирект, чтобы он не видел пустой экран
-                setTimeout(() => window.location.href = '/dashboard', 3000);
-                return;
-            }
-            if (m.type === 'incoming-call') { this.incomingCall = m; if(this.audioUnlocked) this.ringtone.play().catch(()=>{}); return; }
-            if (m.type === 'status-sync') { this.partnerState = m.state; return; }
-            if (m.type === 'filter-sync') { this.partnerFilters = m.filters; return; }
-            if (['peer-disconnected', 'hang-up', 'peer-skipped'].includes(m.type)) { this.stopCall(false); return; }
-            if (m.type === 'call-accepted') { this.state = 'connected'; this.initPC(); setTimeout(() => self.sendOffer(), 1000); return; }
+        isPolite() {
+            return Number(myId) < Number(this.partnerId);
+        },
 
-            if (this.isProcessingSignal) return;
+async handleSignal(e) {
+    const m = e.data;
+    const self = this;
+    
+    // 1. Обработка системных сигналов (оставляем как есть)
+    if (m.type === 'you-are-blocked') { 
+        this.stopCall(false); 
+        window.dispatchEvent(new CustomEvent('toast', { detail: { msg: '{{ __('app.Blacklisted') }}' } }));
+        setTimeout(() => window.location.href = '/dashboard', 3000);
+        return; 
+    }
+    if (m.type === 'incoming-call') { this.incomingCall = m; if(this.audioUnlocked) this.ringtone.play().catch(()=>{}); return; }
+if (m.type === 'status-sync') {
+    this.partnerState = m.state;
+    
+    if (m.state === 'active') {
+        console.log("[WebRTC] Partner is back. Checking stream health...");
+        
+        // Если через 2.5 секунды видео так и не "отмерзло"
+        setTimeout(() => {
+            const videoEl = document.getElementById('remoteVideo');
+            if (videoEl && videoEl.readyState < 2 && this.state === 'connected') {
+                console.warn("[WebRTC] Stream is still frozen. Initiating ICE Restart...");
+                // Тот, кто "вежливый", инициирует рестарт
+                if (this.isPolite && this.isPolite()) {
+                    this.sendOffer({ iceRestart: true });
+                }
+            }
+        }, 2500);
+    }
+    return;
+}
+    if (m.type === 'filter-sync') { this.partnerFilters = m.filters; return; }
+    if (['peer-disconnected', 'hang-up', 'peer-skipped'].includes(m.type)) { this.stopCall(false); return; }
+    if (m.type === 'call-accepted') { this.state = 'connected'; this.initPC(); setTimeout(() => self.sendOffer(), 1000); return; }
+
+    // 2. Блокировка параллельной обработки описаний (Offer/Answer)
+    if (this.isProcessingSignal) return;
+    
+    try {
+
+        if (m.type === 'request-keyframe') {
+            console.log("[WebRTC] Partner requested keyframe.");
+            if (this.pc) {
+                this.pc.getSenders().forEach(sender => {
+                    if (sender.track && sender.track.kind === 'video') {
+                        // Вместо выключения трека, мы просто "шевелим" его
+                        // Этого достаточно, чтобы браузер понял: нужно слать ключевой кадр
+                        const track = sender.track;
+                        if (track.readyState === 'live') {
+                            // Простое передергивание без задержек
+                            track.enabled = false;
+                            track.enabled = true;
+                        }
+                    }
+                });
+            }
+            return;
+        }
+
+        if (m.type === 'offer') {
             this.isProcessingSignal = true;
 
-            try {
-                if (m.type === 'offer') {
-                    if (!this.pc || this.pc.signalingState !== 'stable') this.initPC();
-                    await this.pc.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp: this.normalizeSdp(m.sdp) }));
-                    const answer = await this.pc.createAnswer();
-                    await this.pc.setLocalDescription(answer);
-                    this.signal({ type: 'answer', sdp: this.pc.localDescription.sdp });
-                    this.syncFilters();
-                    while(this.iceQueue.length) await this.pc.addIceCandidate(this.iceQueue.shift()).catch(()=>{});
-                } else if (m.type === 'answer' && this.pc && this.pc.signalingState === 'have-local-offer') {
-                    await this.pc.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp: this.normalizeSdp(m.sdp) }));
-                    this.syncFilters();
-                } else if (m.type === 'ice') {
-                    const cand = new RTCIceCandidate(m.candidate);
-                    if (this.pc && this.pc.remoteDescription) await this.pc.addIceCandidate(cand).catch(()=>{});
-                    else this.iceQueue.push(cand);
+            const offerCollision = (this.makingOffer || this.pc.signalingState !== 'stable');
+            this.ignoreOffer = !this.isPolite() && offerCollision;
+            
+            if (this.ignoreOffer) {
+                console.warn("[WebRTC] Collision: Ignoring offer");
+                this.isProcessingSignal = false;
+                return;
+            }
+
+            if (offerCollision) {
+                console.log("[WebRTC] Collision: Polite peer rolling back local offer.");
+                // Rollback возвращает состояние в 'stable', чтобы мы могли принять чужой оффер
+                await Promise.all([
+                    this.pc.setLocalDescription({ type: "rollback" }),
+                    this.pc.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp: this.normalizeSdp(m.sdp) }))
+                ]);
+            } else {
+                // Обычная установка без коллизии
+                await this.pc.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp: this.normalizeSdp(m.sdp) }));
+            }
+
+            await this.pc.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp: this.normalizeSdp(m.sdp) }));
+            const answer = await this.pc.createAnswer();
+            await this.pc.setLocalDescription(answer);
+            this.signal({ type: 'answer', sdp: this.pc.localDescription.sdp });
+            
+            // После установки RemoteDescription — выстреливаем накопленные ICE-кандидаты
+            while(this.iceQueue.length) {
+                await this.pc.addIceCandidate(this.iceQueue.shift()).catch(e => {});
+            }
+            this.isProcessingSignal = false;
+
+        } else if (m.type === 'answer') {
+            this.isProcessingSignal = true;
+            
+            // Защита от ошибки "Called in wrong state: stable"
+            if (this.pc.signalingState === 'have-local-offer') {
+                await this.pc.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp: this.normalizeSdp(m.sdp) }));
+                
+                while(this.iceQueue.length) {
+                    await this.pc.addIceCandidate(this.iceQueue.shift()).catch(e => {});
                 }
-            } finally { this.isProcessingSignal = false; }
-        },
+            }
+            this.isProcessingSignal = false;
+
+        } else if (m.type === 'ice') {
+            const candidate = new RTCIceCandidate(m.candidate);
+            
+            // Если RemoteDescription еще не установлен — кладем в очередь (Fix ошибки №1)
+            if (!this.pc || !this.pc.remoteDescription) {
+                this.iceQueue.push(candidate);
+            } else {
+                await this.pc.addIceCandidate(candidate).catch(e => {
+                    if (!this.ignoreOffer) console.warn("[WebRTC] ICE Error", e);
+                });
+            }
+        }
+    } catch (err) {
+        console.error("[WebRTC] Signal Handling Critical Error:", err);
+        this.isProcessingSignal = false;
+    }
+},
 
         // --- CALLS LOGIC ---
 
 async handleMatch(e) {
             if (this.callContext === 'personal') return;
-            
+            this.isPartnerProfileOpen = false;
             // В Laravel Echo объект события e обычно содержит public свойства класса MatchFoundEvent.
             // Если событие пришло как { partnerData: {...} }, берем его, если нет - берем e напрямую.
             const partner = e.partnerData || e || {};
@@ -451,6 +620,7 @@ async handleMatch(e) {
                 id: this.partnerId,
                 name: partner.name || 'Anonymous Peer',
                 level: partner.level || 1,
+                badge: partner.badge,
                 rank_name: partner.rank_name || 'Regular',
                 karma: partner.karma || 0,
                 country_code: partner.country_code || 'us',
@@ -542,6 +712,7 @@ async handleMatch(e) {
 
         reset() {
             this.ringtone.pause();
+            this.isPartnerProfileOpen = false;
             if (this.pc) { this.pc.close(); this.pc = null; }
             if (this.$refs.remoteVideo) this.$refs.remoteVideo.srcObject = null;
             this.partnerId = null; this.partnerData = null; this.state = 'idle'; this.callContext = null;
@@ -636,37 +807,33 @@ handleIncomingMsg(e) {
         },
 
 async sendOffer(options = {}) { 
-            if (!this.pc) {
-                console.warn("[Caspian WebRTC] sendOffer aborted: RTCPeerConnection (this.pc) is null.");
-                return;
-            }
-            if (this.makingOffer) {
-                console.warn("[Caspian WebRTC] sendOffer aborted: already making offer.");
-                return;
-            }
-            if (this.pc.signalingState !== 'stable') {
-                console.warn(`[Caspian WebRTC] sendOffer aborted: signalingState is not stable (current: ${this.pc.signalingState})`);
-                return;
-            }
+    if (!this.pc) return;
+    
+    // Если мы уже что-то обрабатываем или состояние не стабильно — выходим сразу
+    if (this.makingOffer || this.pc.signalingState !== 'stable') return;
 
-            // Проверяем, есть ли вообще треки в PeerConnection
-            const senders = this.pc.getSenders();
-            if (senders.length === 0 && this.localStream) {
-                this.localStream.getTracks().forEach(t => this.pc.addTrack(t, this.localStream));
-            }
-
-            this.makingOffer = true; 
-            
-            try { 
-                const offer = await this.pc.createOffer(options); 
-                await this.pc.setLocalDescription(offer); 
-                this.signal({ type: 'offer', sdp: this.pc.localDescription.sdp }); 
-            } catch (error) {
-                console.error("[Caspian WebRTC] CRITICAL ERROR inside sendOffer:", error);
-            } finally { 
-                this.makingOffer = false; 
-            } 
-        },
+    try {
+        this.makingOffer = true;
+        const offer = await this.pc.createOffer(options);
+        
+        // КРИТИЧЕСКАЯ ПРОВЕРКА: Пока мы генерировали Offer (async), 
+        // мог прилететь чужой Offer и изменить состояние на 'have-remote-offer'
+        if (this.pc.signalingState !== 'stable') {
+            console.warn("[WebRTC] Signaling state changed while creating offer. Aborting.");
+            return;
+        }
+        
+        await this.pc.setLocalDescription(offer);
+        this.signal({ 
+            type: 'offer', 
+            sdp: this.pc.localDescription.sdp 
+        });
+    } catch (err) {
+        console.error("[WebRTC] Offer Error:", err);
+    } finally {
+        this.makingOffer = false;
+    }
+},
 
         reportPartner() { if (!this.partnerId || !confirm('Report and block?')) return; window.axios.post('/report', { reported_id: this.partnerId, reason: 'general' }).then(() => this.startSearch()); },
         signal(data) { if (this.partnerId) window.axios.post('/chat/signal', { partnerId: this.partnerId, data: { ...data, from: myId } }); },
@@ -675,22 +842,32 @@ async sendOffer(options = {}) {
         unlockAudio() { if(!this.audioUnlocked) { this.ringtone.muted=true; this.ringtone.play().then(()=>{this.ringtone.pause(); this.ringtone.muted=false;}); this.audioUnlocked=true; } },
         startHeartbeat() { setInterval(() => window.axios.post('/ping'), 15000); },
         startStats() { setInterval(async () => { if (this.pc?.iceConnectionState === 'connected') { const s = await this.pc.getStats(); s.forEach(r => { if (r.type === 'candidate-pair' && r.state === 'succeeded') this.ping = Math.round(r.currentRoundTripTime * 1000); }); } }, 3000); },
-        handleVisibilityChange() {
-            if (!this.partnerId) return;
+handleVisibilityChange() {
+    if (!this.partnerId) return;
 
-            // Считаем пользователя away, ТОЛЬКО если вкладка реально свернута или скрыта.
-            // Игнорируем focus/blur (hasFocus), чтобы не ломать тесты в соседних окнах и мобилках.
-            const isAway = document.hidden || document.visibilityState === 'hidden';
-            const newState = isAway ? 'away' : 'active';
+    if (document.visibilityState === 'visible') {
+        console.log("[Caspian] Пользователь вернулся. Пробуждаем железо...");
+        
+        this.signal({ type: 'status-sync', state: 'active' });
+        this.signal({ type: 'request-keyframe' });
 
-            if (this.myLastStatus !== newState) {
-                this.myLastStatus = newState;
-                this.signal({ 
-                    type: 'status-sync', 
-                    state: newState 
-                });
-            }
-        },
+        // Если это мобильное устройство (Android/iOS)
+        const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+        
+        if (isMobile) {
+            // Даем системе 300мс "проснуться" и вызываем магическую перезагрузку
+            setTimeout(() => {
+                this.rebootMobileCamera();
+            }, 300);
+        }
+
+        // Пытаемся запустить удаленное видео (если оно стояло на паузе)
+        const remoteVid = document.getElementById('remoteVideo');
+        if (remoteVid) remoteVid.play().catch(() => {});
+    } else {
+        this.signal({ type: 'status-sync', state: 'away' });
+    }
+},
         async startSearch() { this.reset(); this.state = 'searching'; this.callContext = 'roulette'; await window.axios.post('/chat/search'); },
         loadFriends() {
             window.axios.get('/chat/contacts').then(r => {

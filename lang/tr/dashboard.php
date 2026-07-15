@@ -1,5 +1,6 @@
 <?php
 return [
+    'Video'=>                       'Video',
     'Roulette'=>                    'Rulet',
     'Rooms'=>                       'Odalar',
     'Roulette_Desc'=>               'Yüksek hızlı P2P bağlantılarını ve akıllı ilgi tabanlı eşleştirmeyi deneyimleyin.',
@@ -15,4 +16,5 @@ return [
     'Progress'=>                    'İlerleme',
     'Conference_Enclaves'=>         'Konferans Alanları',
     'Good_Luck'=>                   'İyi şanlar',
+    'Total_Online'=>                'Sistemde geçirilen süre',
 ];

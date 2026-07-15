@@ -6,8 +6,28 @@
             // Инициализируем выбранную страну пользователя из БД
             targetCountry = '{{ Auth::user()->target_country }}';
          "
-         x-data="{
-            targetCountry: 'global',
+        x-data="{
+            targetCountry: '{{ Auth::user()->target_country }}',
+            // Добавляем словарь названий и флагов
+            countryNames: {
+                'global': '🌍 {{__('chatroulette.Global_Match')}}',
+                'az': '🇦🇿 Azerbaijan',
+                'ge': '🇬🇪 Georgia',
+                'am': '🇦🇲 Armenia',
+                'ru': '🇷🇺 Russia',
+                'kz': '🇰🇿 Kazakhstan',
+                'uz': '🇺🇿 Uzbekistan',
+                'ua': '🇺🇦 Ukraine',
+                'tr': '🇹🇷 Turkey',
+                'de': '🇩🇪 Germany',
+                'es': '🇪🇸 Spain',
+                'pl': '🇵🇱 Poland',
+                'us': '🇺🇸 USA',
+                'ca': '🇨🇦 Canada',
+                'fr': '🇫🇷 France',
+                'it': '🇮🇹 Italy',
+                'gb': '🇬🇧 UK'
+            },
             async updateTargetCountry(country) {
                 this.targetCountry = country;
                 try {
@@ -15,7 +35,7 @@
                         _method: 'PATCH',
                         target_country: country 
                     });
-                window.dispatchEvent(new CustomEvent('toast', { 
+                    window.dispatchEvent(new CustomEvent('toast', { 
                         detail: { msg: '{{ __('chatroulette.Target_Country_Updated') }}' } 
                     }));
                 } catch (e) {
@@ -24,7 +44,7 @@
                     }));
                 }
             }
-         }">
+        }">
         
         <!-- 1. VIDEO ECOSYSTEM (Dual-Engine Split Screen) -->
         <div class="flex flex-col md:flex-row w-full h-full gap-2 md:gap-4 transition-all duration-700 ease-in-out">
@@ -45,7 +65,12 @@
                     webkit-playsinline 
                     @loadedmetadata="$el.play().catch(e => console.log('Remote play blocked', e))"
                     class="w-full h-full object-cover transition-all duration-1000 bg-black" 
-                    :class="[isRemoteBlurred ? 'blur-[100px] opacity-40' : 'opacity-100', getFilterClass('remote')]">
+                    :class="{
+                        'blur-[100px] opacity-40': isRemoteBlurred,
+                        'grayscale contrast-125 opacity-50': partnerState === 'problem',
+                        'opacity-80 brightness-50': partnerState === 'away',
+                        'opacity-100': partnerState === 'active' && !isRemoteBlurred
+                    }">
                 </video>
 
                 <!-- NEW: COUNTRY TARGET SELECTOR (Элегантный переключатель стран в рулетке) -->
@@ -54,18 +79,7 @@
                      x-data="{ countryDropdown: false }">
                     <button @click.stop="countryDropdown = !countryDropdown" 
                             class="px-4 py-2.5 bg-black/60 backdrop-blur-xl border border-white/10 rounded-2xl flex items-center gap-2 text-[10px] font-black uppercase tracking-wider hover:border-brand-indigo/40 transition-all shadow-2xl">
-                        <span x-text="
-                            targetCountry === 'global' ? '🌍 {{__('chatroulette.Global_Match')}}' : 
-                            (targetCountry === 'az' ? '🇦🇿 Azerbaijan' : 
-                            (targetCountry === 'ge' ? '🇬🇪 Georgia' : 
-                            (targetCountry === 'ru' ? '🇷🇺 Russia' : 
-                            (targetCountry === 'tr' ? '🇹🇷 Turkey' : 
-                            (targetCountry === 'kz' ? '🇰🇿 Kazakhstan' : 
-                            (targetCountry === 'uz' ? '🇺🇿 Uzbekistan' : 
-                            (targetCountry === 'ua' ? '🇺🇦 Ukraine' : 
-                            (targetCountry === 'de' ? '🇩🇪 Germany' : 
-                            (targetCountry === 'us' ? '🇺🇸 USA' : '🌍 {{__('chatroulette.Global_Match')}} ')))))))))
-                        "></span>
+                    <span x-text="countryNames[targetCountry] || '🌍 {{__('chatroulette.Global_Match')}}'"></span>
                         <span class="text-[7px] opacity-40">▼</span>
                     </button>
                     
@@ -73,7 +87,7 @@
                     <div x-show="countryDropdown" 
                          @click.away="countryDropdown = false"
                          x-transition
-                         class="absolute right-0 mt-2 w-52 bg-[#0a0a0a]/95 backdrop-blur-3xl border border-white/10 rounded-2xl p-2 space-y-1 shadow-2xl z-50 max-h-64 overflow-y-auto custom-scrollbar">
+                         class="absolute right-0 mt-2  bg-[#0a0a0a]/95 backdrop-blur-3xl border border-white/10 rounded-2xl p-2 space-y-1 shadow-2xl z-50 max-h-64 overflow-y-auto custom-scrollbar">
                         
                         <button @click.stop="updateTargetCountry('global'); countryDropdown = false;" class="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-brand-indigo text-[9px] font-black uppercase tracking-widest transition-all text-gray-400 hover:text-white">
                             <img src="https://cdnjs.cloudflare.com/ajax/libs/twemoji/14.0.2/svg/1f30e.svg" class="w-4 h-3.5 object-cover" crossorigin="anonymous" loading="lazy" alt="global"> {{__('chatroulette.Global_Match')}}
@@ -81,33 +95,15 @@
                         <div class="h-px bg-white/5 mx-2"></div>
                         
                         <!-- Региональные приоритеты -->
-                        <button @click.stop="updateTargetCountry('az'); countryDropdown = false;" class="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-brand-indigo text-[9px] font-black uppercase tracking-widest transition-all text-gray-400 hover:text-white">
-                            <img src="https://cdnjs.cloudflare.com/ajax/libs/flag-icon-css/3.5.0/flags/4x3/az.svg" class="w-4 h-3 object-cover rounded-sm" crossorigin="anonymous" loading="lazy" alt="az"> Azerbaijan
-                        </button>
-                        <button @click.stop="updateTargetCountry('ge'); countryDropdown = false;" class="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-brand-indigo text-[9px] font-black uppercase tracking-widest transition-all text-gray-400 hover:text-white">
-                            <img src="https://cdnjs.cloudflare.com/ajax/libs/flag-icon-css/3.5.0/flags/4x3/ge.svg" class="w-4 h-3 object-cover rounded-sm" crossorigin="anonymous" loading="lazy" alt="ge"> Georgia
-                        </button>
-                        <button @click.stop="updateTargetCountry('tr'); countryDropdown = false;" class="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-brand-indigo text-[9px] font-black uppercase tracking-widest transition-all text-gray-400 hover:text-white">
-                            <img src="https://cdnjs.cloudflare.com/ajax/libs/flag-icon-css/3.5.0/flags/4x3/tr.svg" class="w-4 h-3 object-cover rounded-sm" crossorigin="anonymous" loading="lazy" alt="tr"> Turkey
-                        </button>
-                        <button @click.stop="updateTargetCountry('ru'); countryDropdown = false;" class="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-brand-indigo text-[9px] font-black uppercase tracking-widest transition-all text-gray-400 hover:text-white">
-                            <img src="https://cdnjs.cloudflare.com/ajax/libs/flag-icon-css/3.5.0/flags/4x3/ru.svg" class="w-4 h-3 object-cover rounded-sm" crossorigin="anonymous" loading="lazy" alt="ru"> Russia
-                        </button>
-                        <button @click.stop="updateTargetCountry('kz'); countryDropdown = false;" class="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-brand-indigo text-[9px] font-black uppercase tracking-widest transition-all text-gray-400 hover:text-white">
-                            <img src="https://cdnjs.cloudflare.com/ajax/libs/flag-icon-css/3.5.0/flags/4x3/kz.svg" class="w-4 h-3 object-cover rounded-sm" crossorigin="anonymous" loading="lazy" alt="kz"> Kazakhstan
-                        </button>
-                        <button @click.stop="updateTargetCountry('uz'); countryDropdown = false;" class="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-brand-indigo text-[9px] font-black uppercase tracking-widest transition-all text-gray-400 hover:text-white">
-                            <img src="https://cdnjs.cloudflare.com/ajax/libs/flag-icon-css/3.5.0/flags/4x3/uz.svg" class="w-4 h-3 object-cover rounded-sm" crossorigin="anonymous" loading="lazy" alt="uz"> Uzbekistan
-                        </button>
-                        <button @click.stop="updateTargetCountry('ua'); countryDropdown = false;" class="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-brand-indigo text-[9px] font-black uppercase tracking-widest transition-all text-gray-400 hover:text-white">
-                            <img src="https://cdnjs.cloudflare.com/ajax/libs/flag-icon-css/3.5.0/flags/4x3/ua.svg" class="w-4 h-3 object-cover rounded-sm" crossorigin="anonymous" loading="lazy" alt="ua"> Ukraine
-                        </button>
-                        <button @click.stop="updateTargetCountry('de'); countryDropdown = false;" class="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-brand-indigo text-[9px] font-black uppercase tracking-widest transition-all text-gray-400 hover:text-white">
-                            <img src="https://cdnjs.cloudflare.com/ajax/libs/flag-icon-css/3.5.0/flags/4x3/de.svg" class="w-4 h-3 object-cover rounded-sm" crossorigin="anonymous" loading="lazy" alt="de"> Germany
-                        </button>
-                        <button @click.stop="updateTargetCountry('us'); countryDropdown = false;" class="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-brand-indigo text-[9px] font-black uppercase tracking-widest transition-all text-gray-400 hover:text-white">
-                            <img src="https://cdnjs.cloudflare.com/ajax/libs/flag-icon-css/3.5.0/flags/4x3/us.svg" class="w-4 h-3 object-cover rounded-sm" crossorigin="anonymous" loading="lazy" alt="us"> USA
-                        </button>
+                        <!-- Используем сетку или просто список для всех стран из Enum -->
+                        @foreach(['az', 'ge', 'am', 'ru', 'kz', 'uz', 'ua', 'tr', 'de', 'gb', 'fr', 'it', 'es', 'pl', 'us', 'ca'] as $code)
+                            <button @click.stop="updateTargetCountry('{{$code}}'); countryDropdown = false;" 
+                                    class="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-brand-indigo text-[9px] font-black uppercase tracking-widest transition-all text-gray-400 hover:text-white">
+                                <img src="https://cdnjs.cloudflare.com/ajax/libs/flag-icon-css/3.5.0/flags/4x3/{{$code}}.svg" 
+                                    class="w-4 h-3 object-cover rounded-sm" crossorigin="anonymous" loading="lazy">
+                                {{ strtoupper($code) }}
+                            </button>
+                        @endforeach
                     </div>
                 </div>
 
@@ -122,34 +118,97 @@
                        x-text="state === 'searching' ? '{{ __('chatroulette.Searching') }}...' : '{{ __('chatroulette.Ready_To_Start') }}'"></p>
                 </div>
 
-                <!-- PARTNER INFO TAG (Теперь выводит Флаг Собеседника) -->
-                <div x-show="state === 'connected' && partnerData" 
-                     class="absolute top-6 left-6 bg-[#0a0a0a] p-2.5 pr-6 rounded-3xl flex items-center gap-3 border border-white/10 shadow-2xl transition-all"
-                     x-transition:enter="translate-x-[-20px] opacity-0" x-transition:enter-end="translate-x-0 opacity-100">
-                    
-                    <div class="relative">
-                        <div class="w-10 h-10 bg-brand-indigo rounded-2xl flex items-center justify-center font-black text-sm shadow-lg border border-white/20" x-text="partnerData?.name?.[0]"></div>
-                        <!-- Микро-флаг поверх аватара партнера -->
-                        <div class="absolute -bottom-1 -right-1 bg-black/80 rounded-full w-5 h-5 flex items-center justify-center shadow-md border border-white/10 overflow-hidden">
-                            <img :src="partnerData?.country_flag || 'https://cdnjs.cloudflare.com/ajax/libs/twemoji/14.0.2/svg/1f30e.svg'" 
-                                class="w-full h-full object-cover rounded-full" 
-                                crossorigin="anonymous"
-                                alt="flag">
-                        </div>
-                    </div>
+<!-- PARTNER INFO WIDGET (Cyber-Minimalist Edition) -->
+<div x-show="state === 'connected' && partnerData" 
+     class="absolute top-6 left-6 z-[100] flex items-center gap-2 pointer-events-auto"
+     x-cloak>
+    
+    <!-- TRIGGER BUTTON (Smart Status Indicator) -->
+<button @click.stop="isPartnerProfileOpen = !isPartnerProfileOpen"
+        class="relative w-12 h-12 flex-shrink-0 transition-all duration-500 active:scale-90 group"
+        :class="{ 
+            'scale-90 opacity-50': partnerState === 'away',
+            'animate-[pulse_1s_infinite]': partnerState === 'problem'
+        }">
+    
+    <!-- 1. Динамическая обводка (Glow) -->
+    <div class="absolute inset-0 rounded-full border-2 transition-all duration-500"
+         :style="{ 
+            'border-color': partnerState === 'problem' ? '#ef4444' : (partnerState === 'away' ? '#f59e0b' : (partnerData?.badge?.color || '#6366f1')),
+            'box-shadow': partnerState === 'problem' ? '0 0 15px #ef4444' : 'none'
+         }">
+    </div>
 
-                    <div>
-                        <div class="flex items-center gap-2">
-                            <span class="text-[11px] font-black uppercase italic tracking-tighter" x-text="partnerData?.name"></span>
-                            <span class="bg-brand-indigo/20 text-brand-indigo text-[7px] font-black px-1.5 py-0.5 rounded" x-text="'LVL ' + (partnerData?.level || 1)"></span>
-                        </div>
-                        <div class="flex items-center gap-1.5 mt-0.5">
-                            <div class="w-1.5 h-1.5 rounded-full" :class="partnerState === 'active' ? 'bg-green-500 shadow-[0_0_8px_#22c55e]' : 'bg-amber-500 animate-pulse'"></div>
-                            <span class="text-[8px] font-black uppercase tracking-widest text-gray-400" 
-                                  x-text="partnerState === 'active' ? (partnerData?.rank_name || 'Regular') : 'Away'"></span>
-                        </div>
-                    </div>
+    <!-- 2. Основное тело аватара -->
+    <div class="relative w-full h-full bg-black/40 backdrop-blur-xl rounded-full flex items-center justify-center border border-white/10 shadow-2xl overflow-hidden transition-all duration-500"
+         :class="{ 'grayscale sepia': partnerState === 'problem', 'opacity-40': partnerState === 'away' }">
+        
+        <span class="text-white text-xs font-black" x-text="partnerData?.name?.[0]"></span>
+        
+        <!-- Мини-флаг -->
+        <div class="absolute bottom-0 w-full h-1/3 bg-black/60 flex items-center justify-center border-t border-white/5">
+             <img :src="partnerData?.country_flag" class="w-3 h-2 object-cover opacity-80" crossorigin="anonymous">
+        </div>
+    </div>
+
+    <!-- 3. Оверлей иконок состояния -->
+    <!-- Иконка Потери связи -->
+    <div x-show="partnerState === 'problem'" 
+         class="absolute inset-0 flex items-center justify-center bg-red-600/20 rounded-full">
+        <span class="text-[10px] animate-bounce">⚠️</span>
+    </div>
+
+    <!-- Иконка AFK (Away) -->
+    <div x-show="partnerState === 'away'" 
+         class="absolute -top-1 -right-1 w-5 h-5 bg-amber-500 rounded-full border-2 border-[#020202] flex items-center justify-center shadow-lg">
+        <span class="text-[8px]">🌙</span>
+    </div>
+</button>
+
+    <!-- EXPANDABLE HUD CARD -->
+    <div x-show="isPartnerProfileOpen"
+         @click.away="isPartnerProfileOpen = false"
+         @click.stop=""
+         x-transition:enter="transition ease-out duration-400"
+         x-transition:enter-start="opacity-0 -translate-x-4 blur-md"
+         x-transition:enter-end="opacity-100 translate-x-0 blur-0"
+         x-transition:leave="transition ease-in duration-300"
+         x-transition:leave-end="opacity-0 -translate-x-4 blur-md"
+         class="bg-black/40 backdrop-blur-2xl px-5 py-3 rounded-2xl border border-white/5 shadow-[0_15px_40px_rgba(0,0,0,0.4)] flex items-center gap-6">
+        
+        <div class="flex flex-col gap-1.5">
+            <!-- Имя и Ранг -->
+            <div class="flex items-center gap-3">
+                <span class="text-[13px] font-black uppercase tracking-tight text-white/90 italic" x-text="partnerData?.name"></span>
+                <span class="text-[7px] font-black uppercase px-2 py-0.5 rounded bg-white/5 text-gray-400 border border-white/5 tracking-[0.2em]" 
+                      x-text="partnerData?.rank_name"></span>
+            </div>
+
+            <!-- Доп. инфо: Уровень и Медаль -->
+            <div class="flex items-center gap-3">
+                <div class="flex items-center gap-1.5">
+                    <div class="w-1 h-1 rounded-full bg-green-500 shadow-[0_0_8px_#22c55e]"></div>
+                    <span class="text-[8px] font-black text-brand-indigo uppercase tracking-widest" x-text="'LVL ' + (partnerData?.level || 1)"></span>
                 </div>
+
+                <!-- Элегантная плашка медали -->
+                <template x-if="partnerData?.badge">
+                    <div class="flex items-center gap-1 px-2 py-0.5 rounded border border-white/5 bg-white/[0.03]">
+                        <span class="text-[10px]" x-text="partnerData.badge.icon"></span>
+                        <span class="text-[7px] font-black uppercase tracking-wider" 
+                              :style="'color:' + partnerData.badge.color" 
+                              x-text="partnerData.badge.name"></span>
+                    </div>
+                </template>
+            </div>
+        </div>
+
+        <!-- Кнопка "Закрыть профиль" -->
+        <button @click.stop="isPartnerProfileOpen = false" class="text-gray-600 hover:text-white transition-colors p-1">
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+    </div>
+</div>
 
                 <!-- PING TAG -->
                 <div x-show="state === 'connected' && ping > 0" 

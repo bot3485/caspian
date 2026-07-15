@@ -15,71 +15,78 @@ class FindPartner
     private string $queueHigh = 'matchmaking_high';
     private string $queueLow  = 'matchmaking_low';
 
-    public function execute(int $userId): ?int
-    {
-        $user = User::find($userId);
-        if (!$user) return null;
+public function execute(int $userId): ?int
+{
+    $user = User::find($userId);
+    if (!$user) return null;
 
-        // Определяем приоритетность очереди по карме
-        $baseQueue = ($user->karma < 50) ? $this->queueLow : $this->queueHigh;
+    $baseQueue = ($user->karma < 50) ? $this->queueLow : $this->queueHigh;
+    $targetFilter = $user->target_country ?: 'global';
+    $partnerQueue = "{$baseQueue}_{$targetFilter}";
+    
+    $partnerId = null;
+    $maxAttempts = 15; // Уменьшим лимит попыток для скорости
+    $skippedIds = []; // Сюда сохраним тех, кто не подошел по фильтру
+
+    while ($maxAttempts-- > 0 && ($tempId = Redis::lpop($partnerQueue))) {
+        $tempId = (int)$tempId;
         
-        // 1. Формируем название очереди, в которую мы заглянем в поисках партнера.
-        // Если у нас стоит конкретный фильтр (target_country), мы ищем людей ТОЛЬКО в этой очереди.
-        // Если стоит 'global', мы проверяем очередь 'global'.
-        $targetFilter = $user->target_country ?: 'global';
-        $partnerQueue = "{$baseQueue}_{$targetFilter}";
-        
-        $partnerId = null;
-        $maxAttempts = 20;
+        // Пропускаем себя или тех, кого уже видели в этом цикле
+        if ($tempId === $userId || in_array($tempId, $skippedIds)) continue;
 
-        while ($maxAttempts-- > 0 && ($tempId = Redis::lpop($partnerQueue))) {
-            $tempId = (int)$tempId;
-            if ($tempId === $userId) continue;
+        $partnerUser = User::find($tempId);
+        if (!$partnerUser) continue;
 
-            // Проверка валидности партнера в БД
-            $matchEntry = Matchmaking::where('user_id', $tempId)
-                ->where('status', MatchmakingStatus::Searching)
-                ->where('updated_at', '>=', now()->subSeconds(10)) 
-                ->first();
+        // Проверка: Жив ли еще партнер в очереди (обновлялся ли за 10 сек)
+        $matchEntry = Matchmaking::where('user_id', $tempId)
+            ->where('status', MatchmakingStatus::Searching)
+            ->where('updated_at', '>=', now()->subSeconds(10)) 
+            ->first();
 
-            if (!$matchEntry) {
-                continue;
-            }
+        if (!$matchEntry) continue;
 
-            // Дополнительная перекрестная проверка фильтра стран:
-            // Подходит ли НАША страна под фильтр партнера (если у него не global)
-            $partnerUser = User::find($tempId);
-            if ($partnerUser && $partnerUser->target_country !== 'global' && $partnerUser->target_country !== $user->country_code) {
-                // Возвращаем его обратно в его очередь, так как мы ему не подходим по гео-фильтру
-                Redis::rpush("{$baseQueue}_{$partnerUser->target_country}", $tempId);
-                continue;
-            }
-
-            // Проверка черного списка
-            $isBlocked = DB::table('blocks')
-                ->where(fn($q) => $q->where('blocker_id', $userId)->where('blocked_id', $tempId))
-                ->orWhere(fn($q) => $q->where('blocker_id', $tempId)->where('blocked_id', $userId))
-                ->exists();
-
-            if ($isBlocked) continue;
-
-            $partnerId = $tempId;
-            break;
+        // КРОСС-ЧЕК ФИЛЬТРА: Подходим ли мы партнеру?
+        // Если партнер ищет конкретную страну, и это не МЫ.
+        if ($partnerUser->target_country !== 'global' && $partnerUser->target_country !== $user->country_code) {
+            $skippedIds[] = $tempId; // Запоминаем, чтобы не брать его снова в этом цикле
+            continue;
         }
 
-        if (!$partnerId) {
-            // Если никого не нашли, добавляем СЕБЯ в очередь, соответствующую НАШЕЙ стране.
-            // Теперь другие пользователи, ищущие нашу страну (или 'global'), смогут нас найти.
-            $myQueueName = "{$baseQueue}_" . ($user->country_code ?: 'us');
-            Redis::rpush($myQueueName, $userId);
-            
-            // Также дублируем себя в глобальную очередь, чтобы нас могли найти те, кто ищет 'global'
-            Redis::rpush("{$baseQueue}_global", $userId);
-            return null;
+        // Проверка черного списка
+        $isBlocked = DB::table('blocks')
+            ->where(fn($q) => $q->where('blocker_id', $userId)->where('blocked_id', $tempId))
+            ->orWhere(fn($q) => $q->where('blocker_id', $tempId)->where('blocked_id', $userId))
+            ->exists();
+
+        if ($isBlocked) {
+            $skippedIds[] = $tempId;
+            continue;
         }
 
-        return $this->finalizeMatch($userId, $partnerId, $user);
+        // Если дошли сюда — партнер идеален
+        $partnerId = $tempId;
+        break;
     }
+
+    // ВОЗВРАЩАЕМ неподходящих обратно в их очереди, чтобы их нашел кто-то другой
+    foreach ($skippedIds as $sid) {
+        $sUser = User::find($sid);
+        if ($sUser) {
+            $sQueue = "{$baseQueue}_" . ($sUser->target_country ?: 'global');
+            Redis::rpush($sQueue, $sid);
+        }
+    }
+
+    if (!$partnerId) {
+        // Добавляем себя в очереди: в свою страну и в глобал
+        $myCountryQueue = "{$baseQueue}_" . ($user->country_code ?: 'us');
+        Redis::rpush($myCountryQueue, $userId);
+        Redis::rpush("{$baseQueue}_global", $userId);
+        return null;
+    }
+
+    return $this->finalizeMatch($userId, $partnerId, $user);
+}
 
     private function finalizeMatch(int $myId, int $partnerId, User $me): int
     {
@@ -109,6 +116,7 @@ class FindPartner
             'id' => $partner->id, 
             'name' => $partner->name, 
             'level' => $partner->level,
+            'badge' => $partner->prestige_badge,
             'rank_name' => $partner->rank_name, 
             'karma' => $partner->karma,
             'country_code' => $partner->country_code,
@@ -120,6 +128,7 @@ class FindPartner
             'id' => $me->id, 
             'name' => $me->name, 
             'level' => $me->level,
+            'badge' => $me->prestige_badge,
             'rank_name' => $me->rank_name, 
             'karma' => $me->karma,
             'country_code' => $me->country_code,

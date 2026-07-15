@@ -15,11 +15,12 @@ Schedule::call(function () {
     // 1. Очистка пустых комнат (Spaces)
     // Если в комнате есть "онлайн", но никто не слал Heartbeat больше 60 секунд
     Room::where('current_occupancy', '>', 0)
-        ->where('updated_at', '<', now()->subSeconds(60))
-        ->each(function($room) {
-            $room->update(['current_occupancy' => 0]);
-            broadcast(new \App\Events\RoomOccupancyUpdated($room->uuid, 0));
-        });
+            ->where('updated_at', '<', now()->subSeconds(45))
+            ->each(function($room) {
+                $room->update(['current_occupancy' => 0]);
+                // Оповещаем тех, кто в лобби, что комната освободилась
+                broadcast(new \App\Events\RoomOccupancyUpdated($room->uuid, 0));
+            });
 
     // 2. Очистка зависших матчей в рулетке (и персональных звонков)
     $staleMatches = Matchmaking::where('updated_at', '<', now()->subSeconds(30))->get();

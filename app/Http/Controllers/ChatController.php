@@ -117,6 +117,7 @@ public function callContact(Request $request): JsonResponse
             'id' => $user->id,
             'name' => $user->name,
             'level' => $user->level,
+            'badge' => $user->prestige_badge, 
             'rank_name' => $user->rank_name,
             'is_online' => $user->isOnline(),
             'last_seen_human' => $user->getLastSeenForHumans()
@@ -374,5 +375,19 @@ public function unblockUser(Request $request): JsonResponse
     ], ['created_at' => now(), 'updated_at' => now()]);
 
     return response()->json(['status' => 'blocked']);
+}
+
+public function leaderboard(): \Illuminate\View\View
+{
+    // Кэшируем результат на 10 минут
+    $topUsers = \Illuminate\Support\Facades\Cache::remember('leaderboard_top_50', 600, function () {
+        return User::whereNull('banned_until')
+            ->orWhere('banned_until', '<', now())
+            ->orderBy('xp', 'desc')
+            ->take(50)
+            ->get();
+    });
+
+    return view('leaderboard', compact('topUsers'));
 }
 }

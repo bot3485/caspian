@@ -18,7 +18,7 @@
                         <div class="flex items-center gap-4 mb-6">
                             <span class="px-4 py-1.5 rounded-full bg-white/15 backdrop-blur-md text-[8px] font-black uppercase tracking-widest border border-white/10 animate-pulse">{{ __('dashboard.Good_Luck') }}</span>
                         </div>
-                        <h2 class="text-4xl sm:text-6xl font-black tracking-tighter uppercase italic leading-[0.85] text-white">Video<br>{{ __('dashboard.Roulette') }}</h2>
+                        <h2 class="text-4xl sm:text-6xl font-black tracking-tighter uppercase italic leading-[0.85] text-white">{{ __('dashboard.Video') }}<br>{{ __('dashboard.Roulette') }}</h2>
                     </div>
                     
                     <div class="relative z-10 flex items-end justify-between gap-6">
@@ -49,11 +49,41 @@
                         <div class="w-20 h-20 bg-gradient-to-br from-brand-indigo to-purple-600 rounded-3xl flex items-center justify-center text-3xl font-black shadow-2xl border border-white/25">
                             {{ substr(Auth::user()->name, 0, 1) }}
                         </div>
+
                         <div class="absolute -bottom-1 -right-1 bg-green-500 w-5 h-5 rounded-full border-4 border-[#020202] shadow-[0_0_12px_#22c55e]"></div>
                     </div>
                     
                     <h3 class="text-lg font-black uppercase tracking-tight italic">{{ Auth::user()->name }}</h3>
-                    <div class="mt-1 text-brand-indigo text-[8px] font-black uppercase tracking-[0.35em]">{{ Auth::user()->rank_name }}</div>
+                        @php 
+                            $badge = Auth::user()->prestige_badge; 
+                            $m = Auth::user()->site_minutes;
+                            
+                            // Логика следующего порога
+                            $thresholds = [100, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000];
+                            $nextThreshold = collect($thresholds)->first(fn($t) => $t > $m) ?? 100000;
+                            $progress = min(100, ($m / $nextThreshold) * 100);
+                        @endphp
+
+                        <div class="mt-6 w-full max-w-[280px]">
+                            <!-- Badge Label -->
+                            <div class="flex justify-between items-end mb-2 px-1">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-xl">{{ $badge['icon'] }}</span>
+                                    <span class="text-[10px] font-black uppercase tracking-widest" style="color: {{ $badge['color'] }}">
+                                        {{ $badge['name'] }}
+                                    </span>
+                                </div>
+                                <span class="text-[8px] font-bold text-gray-500 uppercase">{{ $m }} / {{ $nextThreshold }} min</span>
+                            </div>
+                            
+                            <!-- Prestige Progress Bar -->
+                            <div class="h-1 w-full bg-white/5 rounded-full overflow-hidden border border-white/[0.03]">
+                                <div class="h-full transition-all duration-1000" 
+                                    style="width: {{ $progress }}%; background-color: {{ $badge['color'] }}; box-shadow: 0 0 10px {{ $badge['color'] }}50">
+                                </div>
+                            </div>
+                        </div>
+
                     
                     <!-- Progress Level Matrix -->
                     <div class="w-full max-w-md mt-6 space-y-2">

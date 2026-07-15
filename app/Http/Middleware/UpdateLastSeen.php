@@ -5,52 +5,41 @@ namespace App\Http\Middleware;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Redis;
 use Stevebauman\Location\Facades\Location;
 
 class UpdateLastSeen
 {
     public function handle(Request $request, Closure $next)
     {
-        if (Auth::check()) {
-            $user = Auth::user();
-            $ip = $request->ip();
+        try {
+            if (Auth::check()) {
+                $user = Auth::user();
+                $ip = $request->ip();
 
-            // 1. Обновляем время последнего визита
-            $user->last_seen = now();
+                // 1. Быстрое обновление статуса онлайн в Redis (Единый источник истины для онлайна)
+                // Команда SyncLastSeen заберет эти данные и положит в БД по расписанию.
+                Redis::hset('users_last_seen', $user->id, now()->timestamp);
 
-            // 2. Логика динамического определения страны по IP
-            if ($ip) {
-                if ($ip === '127.0.0.1' || $ip === 'localhost') {
-                    // Если мы на локалке, эмулируем, что зашли под VPN Турции (или любой другой для локального теста)
-                    if ($user->last_ip !== '127.0.0.1') {
-                        $user->country_code = 'tr';
-                        $user->last_ip = '127.0.0.1';
-                    }
-                } else {
-                    // Если реальный IP-адрес пользователя изменился (включил VPN / сменил сеть)
-                    if ($user->last_ip !== $ip) {
-                        $position = Location::get($ip);
-                        
-                        if ($position) {
-                            $countryCode = strtolower($position->countryCode);
-                            
-                            // Проверяем, поддерживает ли наш Enum эту страну
-                            if (\App\Enums\UserCountry::tryFrom($countryCode)) {
-                                $user->country_code = $countryCode;
-                            } else {
-                                // Если страны нет в Enum, пишем дефолтный 'us'
-                                $user->country_code = 'us';
-                            }
-                        }
-                        
-                        // Запоминаем новый IP, чтобы не дергать GeoIP на каждый клик
-                        $user->last_ip = $ip;
-                    }
+                // 2. Обновляем GeoIP и пишем в БД ТОЛЬКО если IP реально изменился
+                if ($user->last_ip !== $ip) {
+                    $position = Location::get($ip);
+                    
+                    $countryCode = ($position && \App\Enums\UserCountry::tryFrom(strtolower($position->countryCode))) 
+                                    ? strtolower($position->countryCode) 
+                                    : 'us';
+
+                    // Сохраняем новую локацию в БД (выполняется редко, не грузит систему)
+                    $user->update([
+                        'country_code' => $countryCode,
+                        'last_ip' => $ip
+                    ]);
                 }
             }
-
-            // Сохраняем изменения в базе данных за один раз
-            $user->save();
+        } catch (\Exception $e) {
+            // Логируем ошибку, чтобы ничего не падало
+            Log::error('Middleware UpdateLastSeen error: ' . $e->getMessage());
         }
 
         return $next($request);

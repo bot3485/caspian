@@ -1,5 +1,7 @@
 <x-app-layout>
-    <div class="relative w-full h-[calc(100svh-80px)] bg-[#020202] overflow-hidden p-2 md:p-4"
+
+<div class="fixed top-[120px] bottom-0 left-0 right-0 w-full bg-[#020202] overflow-hidden px-3 pt-4 pb-28 md:p-4 overscroll-none" 
+     style="height: calc(100vh - 120px - env(safe-area-inset-bottom));
          x-init="
             // Инициализируем выбранную страну пользователя из БД
             targetCountry = '{{ Auth::user()->target_country }}';
@@ -13,9 +15,13 @@
                         _method: 'PATCH',
                         target_country: country 
                     });
-                    window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'Target country updated!' } }));
+                window.dispatchEvent(new CustomEvent('toast', { 
+                        detail: { msg: '{{ __('chatroulette.Target_Country_Updated') }}' } 
+                    }));
                 } catch (e) {
-                    window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'Update failed' } }));
+                    window.dispatchEvent(new CustomEvent('toast', { 
+                        detail: { msg: '{{ __('chatroulette.Update_Failed') }}' } 
+                    }));
                 }
             }
          }">
@@ -49,7 +55,7 @@
                     <button @click.stop="countryDropdown = !countryDropdown" 
                             class="px-4 py-2.5 bg-black/60 backdrop-blur-xl border border-white/10 rounded-2xl flex items-center gap-2 text-[10px] font-black uppercase tracking-wider hover:border-brand-indigo/40 transition-all shadow-2xl">
                         <span x-text="
-                            targetCountry === 'global' ? '🌍 Global Match' : 
+                            targetCountry === 'global' ? '🌍 {{__('chatroulette.Global_Match')}}' : 
                             (targetCountry === 'az' ? '🇦🇿 Azerbaijan' : 
                             (targetCountry === 'ge' ? '🇬🇪 Georgia' : 
                             (targetCountry === 'ru' ? '🇷🇺 Russia' : 
@@ -58,7 +64,7 @@
                             (targetCountry === 'uz' ? '🇺🇿 Uzbekistan' : 
                             (targetCountry === 'ua' ? '🇺🇦 Ukraine' : 
                             (targetCountry === 'de' ? '🇩🇪 Germany' : 
-                            (targetCountry === 'us' ? '🇺🇸 USA' : '🌍 Global Match')))))))))
+                            (targetCountry === 'us' ? '🇺🇸 USA' : '🌍 {{__('chatroulette.Global_Match')}} ')))))))))
                         "></span>
                         <span class="text-[7px] opacity-40">▼</span>
                     </button>
@@ -70,7 +76,7 @@
                          class="absolute right-0 mt-2 w-52 bg-[#0a0a0a]/95 backdrop-blur-3xl border border-white/10 rounded-2xl p-2 space-y-1 shadow-2xl z-50 max-h-64 overflow-y-auto custom-scrollbar">
                         
                         <button @click.stop="updateTargetCountry('global'); countryDropdown = false;" class="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-brand-indigo text-[9px] font-black uppercase tracking-widest transition-all text-gray-400 hover:text-white">
-                            <img src="https://cdnjs.cloudflare.com/ajax/libs/twemoji/14.0.2/svg/1f30e.svg" class="w-4 h-3.5 object-cover" crossorigin="anonymous" loading="lazy" alt="global"> Global Match
+                            <img src="https://cdnjs.cloudflare.com/ajax/libs/twemoji/14.0.2/svg/1f30e.svg" class="w-4 h-3.5 object-cover" crossorigin="anonymous" loading="lazy" alt="global"> {{__('chatroulette.Global_Match')}}
                         </button>
                         <div class="h-px bg-white/5 mx-2"></div>
                         
@@ -182,13 +188,13 @@
                 <!-- MY INFO TAG -->
                 <div class="absolute top-6 left-6 caspian-glass px-4 py-2 rounded-xl flex items-center gap-2 border-white/10 group-hover:scale-105 transition-transform">
                     <div class="w-1.5 h-1.5 rounded-full bg-brand-indigo animate-pulse"></div>
-                    <span class="text-[9px] font-black uppercase tracking-widest italic text-white/70">Mirror (You)</span>
+                    <span class="text-[9px] font-black uppercase tracking-widest italic text-white/70">{{ __('chatroulette.You') }}</span>
                 </div>
 
                 <!-- CAMERA OFF OVERLAY -->
                 <div x-show="!camEnabled" class="absolute inset-0 bg-[#020202]/95 flex flex-col items-center justify-center z-10">
                     <span class="text-2xl mb-2">🚫</span>
-                    <span class="text-[9px] font-black uppercase text-red-500 tracking-[0.3em] italic">Stream Paused</span>
+                    <span class="text-[9px] font-black uppercase text-red-500 tracking-[0.3em] italic">{{ __('chatroulette.Stream_Paused') }}</span>
                 </div>
             </div>
         </div>
@@ -225,8 +231,8 @@
                 </div>
 
                 <div class="text-center">
-                    <h4 class="text-[10px] font-black uppercase tracking-[0.4em] text-brand-indigo mb-1">Common Universe Found</h4>
-                    <p class="text-lg font-black italic uppercase tracking-tighter text-white">Matching Interests!</p>
+                    <h4 class="text-[10px] font-black uppercase tracking-[0.4em] text-brand-indigo mb-1">{{ __('chatroulette.Common_Universe_Found') }}</h4>
+                    <p class="text-lg font-black italic uppercase tracking-tighter text-white">{{ __('chatroulette.Matching_Interests') }}!</p>
                 </div>
 
                 <div class="flex flex-wrap justify-center gap-2 mt-2">
@@ -237,14 +243,15 @@
                 </div>
                 
                 <div class="mt-2 text-[8px] font-bold text-gray-500 uppercase tracking-widest animate-pulse">
-                    Start conversation about this
+                    <!--Start conversation about this-->
+                    {{ __('chatroulette.Start_Conversation') }}
                 </div>
             </div>
         </div>
 
         <!-- 3. FLOATING CONTROL ISLAND -->
-        <div class="fixed bottom-8 left-0 right-0 px-6 z-[500] flex flex-col items-center gap-4 pointer-events-none"
-        :class="globalSidebarOpen ? 'max-md:opacity-0 max-md:translate-y-10 max-md:pointer-events-none' : 'opacity-100'">
+        <div class="fixed bottom-14 md:bottom-4 left-0 right-0 px-6 z-[500] flex flex-col items-center gap-4 pointer-events-none"
+            :class="globalSidebarOpen ? 'max-md:opacity-0 max-md:translate-y-10 max-md:pointer-events-none' : 'opacity-100'">
             
             <!-- TOOL GRID -->
             <div x-show="controlsOpen" 
@@ -258,29 +265,29 @@
                     <!-- Main Hardware -->
                     <button @click="openDeviceSettings()" class="flex flex-col items-center justify-center gap-1.5 h-16 rounded-2xl bg-white/5 hover:bg-white/10 transition-all">
                         <span class="text-lg">⚙️</span>
-                        <span class="text-[7px] font-black uppercase tracking-widest text-gray-500">Hardware</span>
+                        <span class="text-[7px] font-black uppercase tracking-widest text-gray-500">{{ __('chatroulette.Hardware') }}</span>
                     </button>
                     <button @click="toggleMic()" :class="micEnabled ? 'bg-white/5' : 'bg-red-600/80'" class="flex flex-col items-center justify-center gap-1.5 h-16 rounded-2xl transition-all">
                         <span class="text-lg" x-text="micEnabled ? '🎤' : '🔇'"></span>
-                        <span class="text-[7px] font-black uppercase tracking-widest opacity-60">Audio</span>
+                        <span class="text-[7px] font-black uppercase tracking-widest opacity-60">{{ __('chatroulette.Mute') }}</span>
                     </button>
                     <button @click="toggleCam()" :class="camEnabled ? 'bg-white/5' : 'bg-red-600/80'" class="flex flex-col items-center justify-center gap-1.5 h-16 rounded-2xl transition-all">
                         <span class="text-lg" x-text="camEnabled ? '📷' : '🚫'"></span>
-                        <span class="text-[7px] font-black uppercase tracking-widest opacity-60">Visual</span>
+                        <span class="text-[7px] font-black uppercase tracking-widest opacity-60">{{ __('chatroulette.Hide_Yourself') }}</span>
                     </button>
 
                     <!-- FX Row -->
                     <button @click="toggleBeauty()" :class="beautyFilter ? 'bg-pink-600 shadow-[0_0_15px_rgba(219,39,119,0.3)]' : 'bg-white/5'" class="flex flex-col items-center justify-center gap-1.5 h-16 rounded-2xl transition-all">
                         <span class="text-lg">✨</span>
-                        <span class="text-[7px] font-black uppercase tracking-widest opacity-60">Beauty</span>
+                        <span class="text-[7px] font-black uppercase tracking-widest opacity-60">{{ __('chatroulette.Contrast') }}</span>
                     </button>
                     <button @click="toggleCinema()" :class="cinemaFilter ? 'bg-amber-600 shadow-[0_0_15px_rgba(217,119,6,0.3)]' : 'bg-white/5'" class="flex flex-col items-center justify-center gap-1.5 h-16 rounded-2xl transition-all">
                         <span class="text-lg">🎬</span>
-                        <span class="text-[7px] font-black uppercase tracking-widest opacity-60">Cinema</span>
+                        <span class="text-[7px] font-black uppercase tracking-widest opacity-60">{{ __('chatroulette.Monochrome') }}</span>
                     </button>
                     <button @click="isRemoteBlurred = !isRemoteBlurred" :class="isRemoteBlurred ? 'bg-brand-indigo shadow-[0_0_15px_rgba(99,102,241,0.3)]' : 'bg-white/5'" class="flex flex-col items-center justify-center gap-1.5 h-16 rounded-2xl transition-all">
                         <span class="text-lg">🙈</span>
-                        <span class="text-[7px] font-black uppercase tracking-widest opacity-60">Privacy</span>
+                        <span class="text-[7px] font-black uppercase tracking-widest opacity-60">{{ __('chatroulette.Hide_Interlocutor') }}</span>
                     </button>
 
                     <!-- Social Row -->
@@ -291,7 +298,7 @@
                                         ? 'bg-red-600/10 text-red-500 border border-red-500/20 hover:bg-red-600 hover:text-white' 
                                         : 'bg-brand-indigo/20 text-brand-indigo hover:bg-brand-indigo hover:text-white'" 
                                     class="col-span-3 h-12 rounded-xl font-black text-[9px] uppercase tracking-[0.2em] transition-all">
-                                <span x-text="isFriend ? '✕ Remove Friend' : '+ Add Friend'"></span>
+                                <span x-text="isFriend ? '✕  {{__('chatroulette.Remove_Friend')}} ' : '+  {{__('chatroulette.Add_Friend')}} '"></span>
                             </button>
                             <button @click="reportPartner()" class="col-span-1 h-12 bg-red-600/10 text-red-500 rounded-xl flex items-center justify-center hover:bg-red-600 hover:text-white transition-all">
                                 🚩
@@ -324,18 +331,18 @@
                     
                     <template x-if="callContext !== 'personal'">
                         <div class="w-full flex gap-2">
-                            <button x-show="state === 'idle'" @click="startSearch()" class="btn-primary w-full !py-3.5 !rounded-full">Start Connect</button>
-                            <button x-show="state === 'searching'" @click="stopCall()" class="w-full py-3.5 bg-red-600/20 text-red-500 rounded-full font-black text-[9px] uppercase border border-red-500/20">Abort</button>
+                            <button x-show="state === 'idle'" @click="startSearch()" class="btn-primary w-full !py-3.5 !rounded-full">{{ __('chatroulette.Start_Connect') }}</button>
+                            <button x-show="state === 'searching'" @click="stopCall()" class="w-full py-3.5 bg-red-600/20 text-red-500 rounded-full font-black text-[9px] uppercase border border-red-500/20">{{ __('chatroulette.Abort') }}</button>
                             
                             <div x-show="state === 'connected'" class="flex items-center gap-2 w-full">
-                                <button @click="stopCall()" class="bg-white/5 text-gray-400 px-5 py-3.5 rounded-full font-black text-[9px] uppercase hover:bg-red-600/20 hover:text-red-500 transition-all">stop</button>
-                                <button @click="startSearch()" class="btn-primary flex-1 !py-3.5 !rounded-full italic shadow-lg shadow-brand-indigo/30">Next ➔</button>
+                                <button @click="stopCall()" class="bg-white/5 text-gray-400 px-5 py-3.5 rounded-full font-black text-[9px] uppercase hover:bg-red-600/20 hover:text-red-500 transition-all">{{ __('chatroulette.Stop') }}</button>
+                                <button @click="startSearch()" class="btn-primary flex-1 !py-3.5 !rounded-full italic shadow-lg shadow-brand-indigo/30">{{ __('chatroulette.Next') }} ➔</button>
                             </div>
                         </div>
                     </template>
                     
                     <template x-if="callContext === 'personal'">
-                        <button @click="stopCall()" class="bg-red-600 text-white w-full py-3.5 rounded-full font-black text-[9px] uppercase tracking-[0.2em] shadow-lg">End Call</button>
+                        <button @click="stopCall()" class="bg-red-600 text-white w-full py-3.5 rounded-full font-black text-[9px] uppercase tracking-[0.2em] shadow-lg">{{ __('chatroulette.End_Call') }}</button>
                     </template>
                 </div>
 
@@ -375,13 +382,13 @@
                 
                 <div class="flex items-center gap-4 mb-10">
                     <div class="w-12 h-12 bg-brand-indigo/10 rounded-2xl flex items-center justify-center text-xl">⚙️</div>
-                    <h3 class="text-xl font-black uppercase italic tracking-tighter text-white">Hardware</h3>
+                    <h3 class="text-xl font-black uppercase italic tracking-tighter text-white">{{ __('chatroulette.Hardware') }}</h3>
                 </div>
 
                 <div class="space-y-8">
                     <!-- Video Select -->
                     <div class="space-y-3">
-                        <label class="text-[9px] font-black uppercase text-gray-500 tracking-[0.3em] ml-2">Video Interface</label>
+                        <label class="text-[9px] font-black uppercase text-gray-500 tracking-[0.3em] ml-2">{{ __('chatroulette.Video_Interface') }}</label>
                         <select x-model="selectedVideoId" 
                                 class="w-full bg-white/5 border border-white/10 rounded-2xl py-5 px-6 text-xs font-bold text-white focus:ring-2 focus:ring-brand-indigo outline-none transition-all appearance-none cursor-pointer">
                             <template x-for="dev in videoDevices" :key="dev.deviceId">
@@ -392,7 +399,7 @@
 
                     <!-- Audio Select -->
                     <div class="space-y-3">
-                        <label class="text-[9px] font-black uppercase text-gray-500 tracking-[0.3em] ml-2">Audio Interface</label>
+                        <label class="text-[9px] font-black uppercase text-gray-500 tracking-[0.3em] ml-2">{{ __('chatroulette.Audio_Interface') }}</label>
                         <select x-model="selectedAudioId" 
                                 class="w-full bg-white/5 border border-white/10 rounded-2xl py-5 px-6 text-xs font-bold text-white focus:ring-2 focus:ring-brand-indigo outline-none transition-all appearance-none cursor-pointer">
                             <template x-for="dev in audioDevices" :key="dev.deviceId">
@@ -405,14 +412,39 @@
                 <div class="grid grid-cols-2 gap-4 mt-12">
                     <button @click="deviceModalOpen = false" 
                             class="py-5 rounded-2xl font-black text-[10px] uppercase tracking-widest text-gray-500 hover:text-white transition-all">
-                        Cancel
+                        {{ __('chatroulette.Cancel') }}
                     </button>
                     <button @click="changeVideoDevice()" 
                             class="bg-brand-indigo py-5 rounded-2xl font-black text-[10px] uppercase tracking-widest text-white shadow-xl shadow-brand-indigo/30 hover:scale-105 active:scale-95 transition-all">
-                        Apply Changes
+                        {{ __('chatroulette.Apply_Changes') }}
                     </button>
                 </div>
             </div>
         </div>
     </div>
 </x-app-layout>
+<style>
+    /* Делаем шапку полностью прозрачной с эффектом матового стекла */
+    header, nav, .bg-white, .bg-gray-800 {
+        background-color: rgba(2, 2, 2, 0.1) !important; /* почти 100% прозрачность */
+        backdrop-filter: blur(12px) !important; /* размытие заднего фона (видео) */
+        -webkit-backdrop-filter: blur(12px) !important;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important; /* тонкая грань */
+    }
+
+    /* Выделяем кнопки и ссылки в хедере, чтобы они были отличимы */
+    header a, header button, nav a, nav button {
+        background-color: rgba(255, 255, 255, 0.03) !important; /* легкая подложка */
+        border: 1px solid rgba(255, 255, 255, 0.08) !important; /* тонкий контур */
+        border-radius: 14px !important; /* скругление в стиле Caspian */
+        padding: 8px 16px !important;
+        transition: all 0.3s ease !important;
+    }
+
+    /* Эффект при наведении на кнопки */
+    header a:hover, header button:hover, nav a:hover, nav button:hover {
+        background-color: rgba(255, 255, 255, 0.08) !important;
+        border-color: rgba(99, 102, 241, 0.4) !important; /* твоя подсветка brand-indigo */
+        color: #ffffff !important;
+    }
+</style>

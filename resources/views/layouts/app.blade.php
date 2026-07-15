@@ -189,7 +189,7 @@ async changeVideoDevice() {
             if (audioSender) await audioSender.replaceTrack(audioTrack);
         }
 
-        window.dispatchEvent(new CustomEvent('toast', {detail: {msg: 'Hardware Synced'}}));
+        window.dispatchEvent(new CustomEvent('toast', {detail: {msg: '{{ __('app.Hardware_Synced') }}'}}));
         this.deviceModalOpen = false;
     } catch (e) {
         console.error(e);
@@ -303,13 +303,13 @@ async initMedia() {
         toggleBeauty() {
             this.beautyFilter = !this.beautyFilter;
             this.syncFilters();
-            window.dispatchEvent(new CustomEvent('toast', {detail: {msg: this.beautyFilter ? 'Beauty Filter On' : 'Beauty Filter Off'}}));
+            window.dispatchEvent(new CustomEvent('toast', {detail: {msg: this.beautyFilter ? '{{ __('app.Contrast_Filter_On') }}' : '{{ __('app.Contrast_Filter_Off') }}'}}));
         },
 
         toggleCinema() {
             this.cinemaFilter = !this.cinemaFilter;
             this.syncFilters();
-            window.dispatchEvent(new CustomEvent('toast', {detail: {msg: this.cinemaFilter ? 'Cinema Mode On' : 'Cinema Mode Off'}}));
+            window.dispatchEvent(new CustomEvent('toast', {detail: {msg: this.cinemaFilter ? '{{ __('app.Monochrome_Filter_On') }}' : '{{ __('app.Monochrome_Filter_Off') }}'}}));
         },
 
         syncFilters() {
@@ -388,7 +388,7 @@ async initMedia() {
             if (m.type === 'you-are-blocked') {
                 this.stopCall(false); // Обрываем звонок
                 window.dispatchEvent(new CustomEvent('toast', {
-                    detail: { msg: 'YOU HAVE BEEN BLACKLISTED BY THIS USER' }
+                    detail: { msg: '{{ __('app.Blacklisted') }}' }
                 }));
                 // Можно даже сделать редирект, чтобы он не видел пустой экран
                 setTimeout(() => window.location.href = '/dashboard', 3000);
@@ -514,7 +514,7 @@ async handleMatch(e) {
         unblock(blockedId) {
             window.axios.post('/chat/unblock', { blockedId: blockedId })
                 .then(() => {
-                    window.dispatchEvent(new CustomEvent('toast', {detail: {msg: 'Protocol Restored'}}));
+                    window.dispatchEvent(new CustomEvent('toast', {detail: {msg: '{{ __('app.Interlocutor_Unblocked') }}'}}));
                     this.loadBlocked(); // Обновить список ЧС
                     this.loadFriends(); // <--- ЭТОТ ВЫЗОВ ВЕРНЕТ ДРУГА В ИНТЕРФЕЙС
                     this.loadHistory(); // <--- ЭТОТ ВЫЗОВ ВЕРНЕТ В ИСТОРИЮ

@@ -1,7 +1,7 @@
 <section class="space-y-6">
     <header>
-        <h2 class="text-xl font-black tracking-tight text-white">Личные данные</h2>
-        <p class="mt-1 text-sm font-medium text-gray-500">Обновите имя профиля и адрес электронной почты.</p>
+        <h2 class="text-xl font-black tracking-tight text-white">{{ __('settings.Pesronal_Information') }}</h2>
+        <p class="mt-1 text-sm font-medium text-gray-500">{{ __('settings.Update_name_and_email') }}</p>
     </header>
 
     <form method="post" action="{{ route('profile.update') }}" class="space-y-6">
@@ -12,7 +12,7 @@
             <!-- Interests Field (Moved Inside) -->
 <div>
     <label class="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-4 block ml-1">
-        Select Your Interests
+        {{ __('settings.Select_Your_Interests') }}
     </label>
     
     <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
@@ -32,13 +32,13 @@
 </div>
 
             <div>
-                <x-input-label for="name" :value="__('Имя')" class="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2 ml-1" />
+                <x-input-label for="name" :value="__('settings.Name')" class="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2 ml-1" />
                 <x-text-input id="name" name="name" type="text" class="w-full !bg-white/5 !border-white/10 !rounded-2xl !py-4 !px-6 !text-white focus:!ring-indigo-500" :value="old('name', $user->name)" required autofocus />
                 <x-input-error class="mt-2" :messages="$errors->get('name')" />
             </div>
 
             <div>
-                <x-input-label for="email" :value="__('Email')" class="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2 ml-1" />
+                <x-input-label for="email" :value="__('settings.Email')" class="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2 ml-1" />
                 <x-text-input id="email" name="email" type="email" class="w-full !bg-white/5 !border-white/10 !rounded-2xl !py-4 !px-6 !text-white focus:!ring-indigo-500" :value="old('email', $user->email)" required />
                 <x-input-error class="mt-2" :messages="$errors->get('email')" />
             </div>
@@ -46,11 +46,11 @@
 
         <div class="flex items-center gap-4 pt-2">
             <x-primary-button class="!bg-indigo-600 hover:!bg-indigo-500 !rounded-xl !py-4 !px-8 !text-[10px] !font-black !uppercase !tracking-widest transition-all">
-                {{ __('Сохранить изменения') }}
+                {{ __('settings.Save_Changes') }}
             </x-primary-button>
 
             @if (session('status') === 'profile-updated')
-                <p x-data="{ show: true }" x-show="show" x-transition x-init="setTimeout(() => show = false, 2000)" class="text-sm text-indigo-400 font-bold">✓ Обновлено</p>
+                <p x-data="{ show: true }" x-show="show" x-transition x-init="setTimeout(() => show = false, 2000)" class="text-sm text-indigo-400 font-bold">✓ {{ __('settings.Profile_Updated') }}</p>
             @endif
         </div>
     </form>

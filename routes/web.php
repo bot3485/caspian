@@ -15,7 +15,8 @@ use Illuminate\Http\Request;
 | Public Routes
 |--------------------------------------------------------------------------
 */
-
+Route::get('/icebreaker/random', [ChatController::class, 'getRandomIcebreakerIndex']);
+Route::get('/icebreaker/content/{index}', [ChatController::class, 'getIcebreakerContent']);
 Route::get('/', function () { 
     return view('welcome'); 
 })->name('home');

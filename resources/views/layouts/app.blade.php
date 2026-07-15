@@ -138,11 +138,91 @@ window.caspianApp = function(myId, myInterests, iceServers) {
         selectedAudioId: '',
         showInterestMatch: false,
         commonInterests: [],
+        isBlitzActive: false,
+        blitzSound: new Audio('/sounds/glitch.wav'),
 
         // --- INTERNAL LOGIC ---
         isProcessingSignal: false, makingOffer: false, processedEvents: new Set(), iceQueue: [],
         rtcConfig: { iceServers: iceServers, bundlePolicy: "balanced", iceCandidatePoolSize: 10 },
 
+filterModalOpen: false,
+targetGender: '{{ Auth::user()->target_gender }}',
+targetAgeMin: {{ Auth::user()->target_age_min }},
+targetAgeMax: {{ Auth::user()->target_age_max }},
+
+async applyFilters() {
+    try {
+        await window.axios.post('/profile', { 
+            _method: 'PATCH',
+            target_gender: this.targetGender,
+            target_age_min: this.targetAgeMin,
+            target_age_max: this.targetAgeMax
+        });
+        this.filterModalOpen = false;
+        window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'Targeting Updated 🎯' } }));
+        
+        // Если мы уже в поиске, перезапускаем его с новыми фильтрами
+        if(this.state === 'searching') this.startSearch(); 
+    } catch (e) {
+        console.error("Filter Save Error:", e);
+        window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'Save Failed' } }));
+    }
+},
+
+async sendIcebreaker() {
+    if (this.state !== 'connected') return;
+
+    try {
+        // 1. Получаем случайный индекс от сервера
+        const res = await window.axios.get('/icebreaker/random');
+        const index = res.data.index;
+
+        // 2. Отправляем этот индекс партнеру
+        this.signal({ type: 'icebreaker', index: index });
+
+        // 3. Показываем вопрос у себя (на своем языке)
+        await this.displayIcebreaker(index);
+    } catch (e) {
+        console.error("Icebreaker failed", e);
+    }
+},
+async displayIcebreaker(index) {
+    try {
+        const res = await window.axios.get(`/icebreaker/content/${index}`);
+        window.dispatchEvent(new CustomEvent('toast', { 
+            detail: { msg: '🎲 ' + res.data.question } 
+        }));
+    } catch (e) {
+        console.error("Icebreaker content fetch failed", e);
+    }
+},
+
+    unlockAudio() {
+        if(!this.audioUnlocked) {
+            // Проигрываем тишину, чтобы "легализовать" звук в браузере
+            this.blitzSound.volume = 0;
+            this.blitzSound.play().then(() => {
+                this.blitzSound.pause();
+                this.blitzSound.volume = 1;
+                this.audioUnlocked = true;
+                console.log("Audio Context Unlocked 🔊");
+            }).catch(e => console.log("Audio still locked"));
+        }
+    },
+        triggerBlitz() {
+            if (this.state !== 'connected' || this.isBlitzActive) return;
+
+            this.isBlitzActive = true;
+            this.signal({ type: 'blitz' });
+
+            // Безопасный запуск звука
+            if (this.blitzSound) {
+                this.blitzSound.currentTime = 0;
+                this.blitzSound.play().catch(e => console.warn("Audio blocked by browser"));
+            }
+
+            setTimeout(() => { this.isBlitzActive = false; }, 6000);
+        },
 
 
 async rebootMobileCamera() {
@@ -501,7 +581,29 @@ if (m.type === 'status-sync') {
     if (m.type === 'filter-sync') { this.partnerFilters = m.filters; return; }
     if (['peer-disconnected', 'hang-up', 'peer-skipped'].includes(m.type)) { this.stopCall(false); return; }
     if (m.type === 'call-accepted') { this.state = 'connected'; this.initPC(); setTimeout(() => self.sendOffer(), 1000); return; }
+    if (m.type === 'icebreaker') {
+        // Получаем индекс и отображаем вопрос на своем языке
+        this.displayIcebreaker(m.index);
+        return;
+    }
+if (m.type === 'blitz') {
+    this.isBlitzActive = true;
+    
+    // Используем тот же объект blitzSound
+    if (this.blitzSound) {
+        this.blitzSound.currentTime = 0;
+        this.blitzSound.play().catch(e => console.warn("Audio blocked for partner"));
+    }
 
+    window.dispatchEvent(new CustomEvent('toast', { 
+        detail: { msg: '⚡️ SYSTEM OVERLOAD' } 
+    }));
+
+    setTimeout(() => { 
+        this.isBlitzActive = false; 
+    }, 6000);
+    return;
+}
     // 2. Блокировка параллельной обработки описаний (Offer/Answer)
     if (this.isProcessingSignal) return;
     

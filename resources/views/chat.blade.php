@@ -51,26 +51,23 @@
             
             <!-- PARTNER CONTAINER (REMOTE) -->
             <div @click="toggleFocus('remote')"
-                 class="relative overflow-hidden rounded-[2.5rem] bg-[#050505] border border-white/5 transition-all duration-700 ease-in-out cursor-pointer group"
-                 :class="{
+                :class="{
+                    'blitz-shaking-logic': isBlitzActive, /* Тряска всего окна */
                     'h-1/2 md:h-full md:w-1/2': layoutFocus === 'split',
                     'h-[70%] md:h-full md:w-[75%] shadow-[0_0_50px_rgba(0,0,0,0.5)] z-10': layoutFocus === 'remote',
-                    'h-[30%] md:h-full md:w-[25%] opacity-40 hover:opacity-100 scale-[0.98]': layoutFocus === 'local'
-                 }">
+                    'h-[30%] md:h-full md:w-[25%] opacity-40': layoutFocus === 'local'
+                }"
+                class="relative overflow-hidden rounded-[2.5rem] bg-[#050505] border border-white/5 transition-all duration-700 ease-in-out cursor-pointer group">
                 
+                <!-- Само видео внутри -->
                 <video x-ref="remoteVideo" 
                     id="remoteVideo"
-                    autoplay 
-                    playsinline 
-                    webkit-playsinline 
-                    @loadedmetadata="$el.play().catch(e => console.log('Remote play blocked', e))"
-                    class="w-full h-full object-cover transition-all duration-1000 bg-black" 
-                    :class="{
-                        'blur-[100px] opacity-40': isRemoteBlurred,
-                        'grayscale contrast-125 opacity-50': partnerState === 'problem',
-                        'opacity-80 brightness-50': partnerState === 'away',
-                        'opacity-100': partnerState === 'active' && !isRemoteBlurred
-                    }">
+                    autoplay playsinline webkit-playsinline 
+                    :class="{ 
+                        'blitz-visual-logic': isBlitzActive, /* Глитч-эффект на картинку */
+                        'blur-[100px] opacity-40': isRemoteBlurred && !isBlitzActive /* Не блюрим, если идет Блиц */
+                    }"
+                    class="w-full h-full object-cover transition-all duration-1000 bg-black">
                 </video>
 
                 <!-- NEW: COUNTRY TARGET SELECTOR (Элегантный переключатель стран в рулетке) -->
@@ -226,23 +223,24 @@
 
             <!-- MY CONTAINER (LOCAL) -->
             <div @click="toggleFocus('local')"
-                 class="relative overflow-hidden rounded-[2.5rem] bg-[#050505] border border-white/5 transition-all duration-700 ease-in-out cursor-pointer group"
-                 :class="{
+                :class="{
+                    'blitz-shaking-logic': isBlitzActive, /* Тряска и у тебя тоже */
                     'h-1/2 md:h-full md:w-1/2': layoutFocus === 'split',
                     'h-[70%] md:h-full md:w-[75%] shadow-[0_0_50px_rgba(0,0,0,0.5)] z-10': layoutFocus === 'local',
-                    'h-[30%] md:h-full md:w-[25%] opacity-40 hover:opacity-100 scale-[0.98]': layoutFocus === 'remote'
-                 }">
+                    'h-[30%] md:h-full md:w-[25%] opacity-40': layoutFocus === 'remote'
+                }"
+                class="relative overflow-hidden rounded-[2.5rem] bg-[#050505] border border-white/5 transition-all duration-700 ease-in-out cursor-pointer group">
                 
                 <video x-ref="localVideo" 
                     id="localVideo" 
-                    autoplay 
-                    muted 
-                    playsinline 
-                    webkit-playsinline
-                    @loadedmetadata="$el.play()"
-                    class="w-full h-full object-cover scale-x-[-1] transition-all duration-1000 bg-black"
-                    :class="getFilterClass('local')">
+                    autoplay muted playsinline webkit-playsinline
+                    :class="{ 
+                        'blitz-visual-logic': isBlitzActive, /* Глитч на свою камеру */
+                        'scale-x-[-1]': true 
+                    }"
+                    class="w-full h-full object-cover transition-all duration-1000 bg-black">
                 </video>
+
 
                 <!-- MY INFO TAG -->
                 <div class="absolute top-6 left-6 caspian-glass px-4 py-2 rounded-xl flex items-center gap-2 border-white/10 group-hover:scale-105 transition-transform">
@@ -334,7 +332,11 @@
                         <span class="text-lg" x-text="camEnabled ? '📷' : '🚫'"></span>
                         <span class="text-[7px] font-black uppercase tracking-widest opacity-60">{{ __('chatroulette.Hide_Yourself') }}</span>
                     </button>
-
+                    <!-- Search Filters Toggle -->
+                    <button @click="filterModalOpen = true" class="flex flex-col items-center justify-center gap-1.5 h-16 rounded-2xl bg-white/5 hover:bg-brand-indigo/20 transition-all group">
+                        <span class="text-lg group-hover:scale-110 transition-transform">🎯</span>
+                        <span class="text-[7px] font-black uppercase tracking-widest text-gray-500 group-hover:text-brand-indigo">Target</span>
+                    </button>
                     <!-- FX Row -->
                     <button @click="toggleBeauty()" :class="beautyFilter ? 'bg-pink-600 shadow-[0_0_15px_rgba(219,39,119,0.3)]' : 'bg-white/5'" class="flex flex-col items-center justify-center gap-1.5 h-16 rounded-2xl transition-all">
                         <span class="text-lg">✨</span>
@@ -348,7 +350,17 @@
                         <span class="text-lg">🙈</span>
                         <span class="text-[7px] font-black uppercase tracking-widest opacity-60">{{ __('chatroulette.Hide_Interlocutor') }}</span>
                     </button>
+                    <!-- 1. Icebreaker -->
+                    <button @click="sendIcebreaker()" class="flex flex-col items-center justify-center gap-1.5 h-16 rounded-2xl bg-white/5 hover:bg-brand-indigo/20 transition-all group">
+                        <span class="text-lg group-hover:animate-spin">🎲</span>
+                        <span class="text-[7px] font-black uppercase tracking-widest text-gray-500 group-hover:text-brand-indigo">Icebreaker</span>
+                    </button>
 
+                    <!-- 2. Blitz Mode -->
+                    <button @click="triggerBlitz()" :disabled="isBlitzActive" class="flex flex-col items-center justify-center gap-1.5 h-16 rounded-2xl bg-white/5 hover:bg-yellow-500/20 transition-all group">
+                        <span class="text-lg group-hover:scale-150 transition-transform">⚡</span>
+                        <span class="text-[7px] font-black uppercase tracking-widest text-gray-500 group-hover:text-yellow-500">Blitz FX</span>
+                    </button>
                     <!-- Social Row -->
                     <template x-if="callContext !== 'personal'">
                         <div class="col-span-3 grid grid-cols-4 gap-2 mt-1 pt-2 border-t border-white/5">
@@ -480,6 +492,76 @@
                 </div>
             </div>
         </div>
+        <div x-show="filterModalOpen" 
+     class="fixed inset-0 z-[2000] flex items-center justify-center p-6 bg-black/95 backdrop-blur-3xl" 
+     x-cloak 
+     x-transition:enter="transition ease-out duration-300"
+     x-transition:enter-start="opacity-0 scale-95"
+     x-transition:enter-end="opacity-100 scale-100"
+     x-transition:leave="transition ease-in duration-200"
+     x-transition:leave-end="opacity-0 scale-95">
+    
+    <div class="bg-[#080808] border border-white/10 w-full max-w-sm rounded-[3rem] p-10 shadow-[0_0_100px_rgba(99,102,241,0.1)]" 
+         @click.away="filterModalOpen = false">
+        
+        <div class="flex items-center gap-4 mb-10">
+            <div class="w-12 h-12 bg-brand-indigo/10 rounded-2xl flex items-center justify-center text-xl border border-brand-indigo/20">🎯</div>
+            <h3 class="text-xl font-black uppercase italic tracking-tighter text-white">Match Filter</h3>
+        </div>
+
+        <div class="space-y-10">
+            <!-- Gender Selector -->
+            <div class="space-y-4">
+                <label class="text-[9px] font-black uppercase text-gray-500 tracking-[0.3em] ml-2">I am looking for</label>
+                <div class="grid grid-cols-3 gap-2">
+                    <template x-for="g in ['male', 'female', 'all']">
+                        <button @click="targetGender = g" 
+                                :class="targetGender === g ? 'bg-brand-indigo text-white border-brand-indigo shadow-[0_0_15px_rgba(99,102,241,0.4)]' : 'bg-white/5 text-gray-500 border-white/5'"
+                                class="py-3 rounded-xl border font-black text-[9px] uppercase tracking-widest transition-all"
+                                x-text="g"></button>
+                    </template>
+                </div>
+            </div>
+
+            <!-- Age Range -->
+            <div class="space-y-6">
+                <div class="flex justify-between items-center ml-2">
+                    <label class="text-[9px] font-black uppercase text-gray-500 tracking-[0.3em]">Partner Age</label>
+                    <div class="flex items-center gap-2">
+                        <span class="text-[10px] font-black text-brand-indigo" x-text="targetAgeMin"></span>
+                        <span class="text-gray-700">—</span>
+                        <span class="text-[10px] font-black text-brand-indigo" x-text="targetAgeMax"></span>
+                    </div>
+                </div>
+                
+                <div class="px-2 space-y-8">
+                    <!-- Min Age Slider -->
+                    <div class="relative">
+                        <input type="range" min="18" max="99" x-model="targetAgeMin" 
+                               class="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-brand-indigo">
+                        <p class="text-[7px] font-black uppercase mt-3 text-gray-600 tracking-widest">Minimum Age</p>
+                    </div>
+                    <!-- Max Age Slider -->
+                    <div class="relative">
+                        <input type="range" min="18" max="99" x-model="targetAgeMax" 
+                               class="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-brand-indigo">
+                        <p class="text-[7px] font-black uppercase mt-3 text-gray-600 tracking-widest">Maximum Age</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="grid grid-cols-2 gap-4 mt-12">
+            <button @click="filterModalOpen = false" class="py-5 rounded-2xl font-black text-[10px] uppercase tracking-widest text-gray-500 hover:text-white transition-all">
+                Cancel
+            </button>
+            <button @click="applyFilters()" class="bg-brand-indigo py-5 rounded-2xl font-black text-[10px] uppercase tracking-widest text-white shadow-xl shadow-brand-indigo/20 hover:scale-105 active:scale-95 transition-all">
+                Apply 🎯
+            </button>
+        </div>
+    </div>
+</div>
     </div>
 </x-app-layout>
 <style>
@@ -506,4 +588,32 @@
         border-color: rgba(99, 102, 241, 0.4) !important; /* твоя подсветка brand-indigo */
         color: #ffffff !important;
     }
+
+    /* Эффект тряски всего контейнера */
+@keyframes blitz-shake {
+    0% { transform: translate(0,0) scale(1); }
+    10% { transform: translate(-5px, -5px) scale(1.02); }
+    20% { transform: translate(5px, 5px) rotate(1deg); }
+    30% { transform: translate(-5px, 5px) scale(1.05); }
+    40% { transform: translate(5px, -5px) rotate(-1deg); }
+    50% { transform: translate(-5px, -5px) scale(1.02); }
+    100% { transform: translate(0,0) scale(1); }
+}
+@keyframes intense-flash {
+    0% { opacity: 1; }
+    50% { opacity: 0.7; }
+    100% { opacity: 1; }
+}
+/* Эффект визуальных помех (Glitch) */
+.blitz-visual-logic {
+    filter: invert(1) hue-rotate(180deg) contrast(3) brightness(1.2) !important;
+    mix-blend-mode: exclusion;
+    animation: intense-flash 0.05s infinite !important;
+}
+
+.blitz-shaking-logic {
+    animation: blitz-shake 0.1s infinite !important;
+    border: 4px solid #f59e0b !important; /* Оранжевая рамка при тревоге */
+    z-index: 1000 !important;
+}
 </style>

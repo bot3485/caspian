@@ -28,39 +28,57 @@ class ProfileController extends Controller
 public function update(ProfileUpdateRequest $request): RedirectResponse|\Illuminate\Http\JsonResponse
 {
     $user = $request->user();
+    
+    // 1. Обработка базовых данных (Имя, Email)
     $data = $request->safe()->only(['name', 'email']);
-
-    // Обновляем имя и email только если они пришли в запросе
     if (!empty($data)) {
         $user->fill($data);
-        
         if ($user->isDirty('email')) {
             $user->email_verified_at = null;
         }
     }
 
+    // 2. Локаль
     if ($request->has('locale')) {
-    $user->locale = $request->input('locale');
-    $user->save();
+        $user->locale = $request->input('locale');
     }
     
-    // Сохраняем массив интересов, только если они были переданы
+    // 3. Интересы
     if ($request->has('interests')) {
         $user->interests = $request->input('interests', []);
     }
 
-    // Сохраняем target_country, только если оно передано
+    // 4. ГЕО-фильтр (Страна поиска)
     if ($request->has('target_country')) {
         $user->target_country = $request->input('target_country');
     }
 
+    // 5. НОВОЕ: Личные данные (Пол и Возраст)
+    if ($request->has('gender')) {
+        $user->gender = $request->input('gender');
+    }
+    if ($request->has('age')) {
+        $user->age = $request->input('age');
+    }
+
+    // 6. НОВОЕ: Фильтры поиска (Таргетинг в рулетке)
+    if ($request->has('target_gender')) {
+        $user->target_gender = $request->input('target_gender');
+    }
+    if ($request->has('target_age_min')) {
+        $user->target_age_min = (int) $request->input('target_age_min');
+    }
+    if ($request->has('target_age_max')) {
+        $user->target_age_max = (int) $request->input('target_age_max');
+    }
+
     $user->save();
 
-    // Если это AJAX-запрос из рулетки, возвращаем чистый JSON 200 OK
+    // Возврат ответа
     if ($request->expectsJson() || $request->wantsJson()) {
         return response()->json([
             'status' => 'success',
-            'user' => $user
+            'user' => $user->fresh() // fresh() подтянет актуальные данные из БД
         ]);
     }
 

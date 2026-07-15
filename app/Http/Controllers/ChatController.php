@@ -390,4 +390,33 @@ public function leaderboard(): \Illuminate\View\View
 
     return view('leaderboard', compact('topUsers'));
 }
+
+public function getRandomIcebreakerIndex(): \Illuminate\Http\JsonResponse
+{
+    $path = storage_path('app/icebreakers.json');
+    if (!file_exists($path)) return response()->json(['index' => 0]);
+
+    $data = json_decode(file_get_contents($path), true);
+    // Берем количество вопросов из английской секции (они должны быть синхронизированы)
+    $count = count($data['en']);
+    
+    return response()->json([
+        'index' => rand(0, $count - 1)
+    ]);
+}
+
+public function getIcebreakerContent(int $index): \Illuminate\Http\JsonResponse
+{
+    $path = storage_path('app/icebreakers.json');
+    $data = json_decode(file_get_contents($path), true);
+    $locale = app()->getLocale();
+
+    // Получаем список вопросов для языка пользователя, если нет - берем 'en'
+    $questions = $data[$locale] ?? $data['en'];
+    
+    // Если индекс вне диапазона (вдруг добавили/удалили вопросы), берем первый
+    $question = $questions[$index] ?? $questions[0];
+
+    return response()->json(['question' => $question]);
+}
 }

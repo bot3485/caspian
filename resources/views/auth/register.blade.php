@@ -16,6 +16,29 @@
             <x-input-error :messages="$errors->get('email')" class="mt-2" />
         </div>
 
+        
+        <!-- Поле Возраст -->
+        <div class="mt-4">
+            <x-input-label for="age" value="Age" />
+            <x-text-input id="age" class="block mt-1 w-full" type="number" name="age" required />
+        </div>
+
+        <!-- Поле Пол -->
+        <div class="mt-4">
+            <x-input-label value="Your Gender" />
+            <div class="flex gap-4 mt-2">
+                <label class="flex-1">
+                    <input type="radio" name="gender" value="male" class="sr-only peer" checked>
+                    <div class="p-3 text-center rounded-xl bg-white/5 border border-white/10 peer-checked:bg-brand-indigo transition-all cursor-pointer text-[10px] font-black uppercase">Male</div>
+                </label>
+                <label class="flex-1">
+                    <input type="radio" name="gender" value="female" class="sr-only peer">
+                    <div class="p-3 text-center rounded-xl bg-white/5 border border-white/10 peer-checked:bg-brand-indigo transition-all cursor-pointer text-[10px] font-black uppercase">Female</div>
+                </label>
+            </div>
+        </div>
+
+
         <!-- Password -->
         <div class="mt-4">
             <x-input-label for="password" :value="__('register.Password')" />

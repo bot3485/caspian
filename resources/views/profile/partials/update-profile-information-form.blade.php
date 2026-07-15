@@ -9,7 +9,32 @@
         @method('patch')
 
         <div class="grid grid-cols-1 gap-6">
-            <!-- Interests Field (Moved Inside) -->
+                <div>
+        <label class="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3 block ml-1">Your Gender</label>
+        <div class="flex gap-2">
+            <label class="flex-1 cursor-pointer group">
+                <input type="radio" name="gender" value="male" class="sr-only peer" {{ $user->gender === 'male' ? 'checked' : '' }}>
+                <div class="p-4 text-center rounded-2xl bg-white/5 border border-white/10 text-[10px] font-black uppercase tracking-widest transition-all peer-checked:bg-brand-indigo peer-checked:text-white group-hover:border-white/20">
+                    Male
+                </div>
+            </label>
+            <label class="flex-1 cursor-pointer group">
+                <input type="radio" name="gender" value="female" class="sr-only peer" {{ $user->gender === 'female' ? 'checked' : '' }}>
+                <div class="p-4 text-center rounded-2xl bg-white/5 border border-white/10 text-[10px] font-black uppercase tracking-widest transition-all peer-checked:bg-brand-indigo peer-checked:text-white group-hover:border-white/20">
+                    Female
+                </div>
+            </label>
+        </div>
+        <x-input-error class="mt-2" :messages="$errors->get('gender')" />
+    </div>
+
+    <!-- Ввод Возраста -->
+    <div>
+        <label class="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3 block ml-1">Your Age</label>
+        <input type="number" name="age" value="{{ old('age', $user->age) }}" min="18" max="99"
+               class="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-white focus:ring-2 focus:ring-brand-indigo outline-none font-bold text-sm transition-all">
+        <x-input-error class="mt-2" :messages="$errors->get('age')" />
+    </div>
 <div>
     <label class="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-4 block ml-1">
         {{ __('settings.Select_Your_Interests') }}

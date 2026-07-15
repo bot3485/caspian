@@ -25,34 +25,53 @@ public function execute(int $userId): ?int
     $partnerQueue = "{$baseQueue}_{$targetFilter}";
     
     $partnerId = null;
-    $maxAttempts = 15; // Уменьшим лимит попыток для скорости
-    $skippedIds = []; // Сюда сохраним тех, кто не подошел по фильтру
+    $maxAttempts = 30; // Увеличим кол-во попыток
+    $skippedIds = []; 
 
     while ($maxAttempts-- > 0 && ($tempId = Redis::lpop($partnerQueue))) {
         $tempId = (int)$tempId;
         
-        // Пропускаем себя или тех, кого уже видели в этом цикле
+        // 1. Пропускаем себя
         if ($tempId === $userId || in_array($tempId, $skippedIds)) continue;
 
         $partnerUser = User::find($tempId);
         if (!$partnerUser) continue;
 
-        // Проверка: Жив ли еще партнер в очереди (обновлялся ли за 10 сек)
+        // 2. ПРОВЕРКА ФИЛЬТРОВ (Приводим к нижнему регистру для надежности)
+        $myTarget = strtolower($user->target_gender ?: 'all');
+        $myGender = strtolower($user->gender ?: 'male');
+        $pTarget  = strtolower($partnerUser->target_gender ?: 'all');
+        $pGender  = strtolower($partnerUser->gender ?: 'male');
+
+        $genderMatch = ($myTarget === 'all' || $myTarget === $pGender) &&
+                       ($pTarget === 'all' || $pTarget === $myGender);
+
+        if (!$genderMatch) {
+            $skippedIds[] = $tempId;
+            continue;
+        }
+
+        // 3. ПРОВЕРКА ВОЗРАСТА
+        $myAge = (int)$user->age;
+        $pAge  = (int)$partnerUser->age;
+        
+        $ageMatch = ($pAge >= ($user->target_age_min ?: 18) && $pAge <= ($user->target_age_max ?: 99)) &&
+                    ($myAge >= ($partnerUser->target_age_min ?: 18) && $myAge <= ($partnerUser->target_age_max ?: 99));
+
+        if (!$ageMatch) {
+            $skippedIds[] = $tempId;
+            continue;
+        }
+
+        // 4. Проверка: Жив ли партнер в БД (Окно 30 секунд)
         $matchEntry = Matchmaking::where('user_id', $tempId)
             ->where('status', MatchmakingStatus::Searching)
-            ->where('updated_at', '>=', now()->subSeconds(10)) 
+            ->where('updated_at', '>=', now()->subSeconds(30)) 
             ->first();
 
         if (!$matchEntry) continue;
 
-        // КРОСС-ЧЕК ФИЛЬТРА: Подходим ли мы партнеру?
-        // Если партнер ищет конкретную страну, и это не МЫ.
-        if ($partnerUser->target_country !== 'global' && $partnerUser->target_country !== $user->country_code) {
-            $skippedIds[] = $tempId; // Запоминаем, чтобы не брать его снова в этом цикле
-            continue;
-        }
-
-        // Проверка черного списка
+        // 5. Черный список
         $isBlocked = DB::table('blocks')
             ->where(fn($q) => $q->where('blocker_id', $userId)->where('blocked_id', $tempId))
             ->orWhere(fn($q) => $q->where('blocker_id', $tempId)->where('blocked_id', $userId))
@@ -63,12 +82,11 @@ public function execute(int $userId): ?int
             continue;
         }
 
-        // Если дошли сюда — партнер идеален
         $partnerId = $tempId;
         break;
     }
 
-    // ВОЗВРАЩАЕМ неподходящих обратно в их очереди, чтобы их нашел кто-то другой
+    // Возвращаем пропущенных
     foreach ($skippedIds as $sid) {
         $sUser = User::find($sid);
         if ($sUser) {
@@ -78,10 +96,12 @@ public function execute(int $userId): ?int
     }
 
     if (!$partnerId) {
-        // Добавляем себя в очереди: в свою страну и в глобал
-        $myCountryQueue = "{$baseQueue}_" . ($user->country_code ?: 'us');
-        Redis::rpush($myCountryQueue, $userId);
-        Redis::rpush("{$baseQueue}_global", $userId);
+        // Добавляем себя в очереди
+        $myTargetQ = "{$baseQueue}_" . ($user->target_country ?: 'global');
+        Redis::rpush($myTargetQ, $userId);
+        
+        // Обязательно обновляем время в БД, чтобы нас видели другие
+        Matchmaking::updateOrCreate(['user_id' => $userId], ['status' => MatchmakingStatus::Searching, 'updated_at' => now()]);
         return null;
     }
 
@@ -93,7 +113,6 @@ public function execute(int $userId): ?int
         $partner = User::find($partnerId);
         if (!$partner) return 0;
 
-        // Вычисляем общие интересы
         $myInterests = $me->interests ?? [];
         $partnerInterests = $partner->interests ?? [];
         $commonInterests = array_values(array_intersect($myInterests, $partnerInterests));
@@ -111,7 +130,7 @@ public function execute(int $userId): ?int
             Redis::setex("allow_signal:{$partnerId}:{$myId}", 3600, "1");
         });
 
-        // Передаем Emoji-флаг и код страны в сокет-событие MatchFoundEvent
+        // Отправка события мне
         broadcast(new MatchFoundEvent($myId, [
             'id' => $partner->id, 
             'name' => $partner->name, 
@@ -120,10 +139,11 @@ public function execute(int $userId): ?int
             'rank_name' => $partner->rank_name, 
             'karma' => $partner->karma,
             'country_code' => $partner->country_code,
-            'country_flag' => UserCountry::getFlag($partner->country_code), // <--- Генерируем Emoji-флаг
+            'country_flag' => UserCountry::getFlag($partner->country_code),
             'common_interests' => $commonInterests 
         ], DB::table('contacts')->where('user_id', $myId)->where('contact_id', $partnerId)->exists()));
         
+        // Отправка события партнеру
         broadcast(new MatchFoundEvent($partnerId, [
             'id' => $me->id, 
             'name' => $me->name, 
@@ -132,7 +152,7 @@ public function execute(int $userId): ?int
             'rank_name' => $me->rank_name, 
             'karma' => $me->karma,
             'country_code' => $me->country_code,
-            'country_flag' => UserCountry::getFlag($me->country_code), // <--- И сюда
+            'country_flag' => UserCountry::getFlag($me->country_code),
             'common_interests' => $commonInterests 
         ], DB::table('contacts')->where('user_id', $partnerId)->where('contact_id', $myId)->exists()));
 
@@ -142,12 +162,11 @@ public function execute(int $userId): ?int
     public function removeFromQueue(int $userId): void
     {
         $user = User::find($userId);
-        $country = $user ? $user->country_code : 'us';
+        $country = $user ? ($user->target_country ?: 'global') : 'global';
 
-        // Чистим все возможные очереди Redis для этого юзера
         foreach ([$this->queueHigh, $this->queueLow] as $base) {
-            Redis::lrem("{$base}_global", 0, $userId);
             Redis::lrem("{$base}_{$country}", 0, $userId);
+            Redis::lrem("{$base}_global", 0, $userId);
         }
     }
 }

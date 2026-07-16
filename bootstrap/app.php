@@ -6,7 +6,8 @@ use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
 use App\Http\Middleware\UpdateLastSeen;
 use App\Http\Middleware\SetLocaleMiddleware;
-use  App\Http\Middleware\CheckBanned;
+use App\Http\Middleware\CheckBanned;
+use App\Http\Middleware\ClearChatState;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -16,10 +17,12 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
-        // Подключаем API с сохранением состояния (для Sanctum, если потребуется)
         $middleware->statefulApi();
 
-        // Регистрируем Middleware для обновления времени посещения и установки локали
+        $middleware->alias([
+            'clear.chat' => ClearChatState::class,
+        ]);
+
         $middleware->web(append: [
             UpdateLastSeen::class,
             SetLocaleMiddleware::class,

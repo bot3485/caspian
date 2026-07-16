@@ -24,6 +24,11 @@ public function store(Request $request)
             ['created_at' => now(), 'updated_at' => now()]
         );
 
+        DB::table('contacts')
+            ->where(fn($q) => $q->where('user_id', $reporterId)->where('contact_id', $reportedId))
+            ->orWhere(fn($q) => $q->where('user_id', $reportedId)->where('contact_id', $reporterId))
+            ->delete();
+
         // 2. Логика жалобы (статистика)
         DB::table('reports')->insert([
             'reporter_id' => $reporterId,

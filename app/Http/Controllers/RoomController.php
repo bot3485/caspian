@@ -72,6 +72,15 @@ public function index(): View
             return view('rooms.show', compact('room'));
         }
 
+            \App\Models\Matchmaking::updateOrCreate(
+                ['user_id' => Auth::id()],
+                [
+                    'status' => \App\Enums\MatchmakingStatus::Matched, 
+                    'partner_id' => null, // null означает, что он в групповой комнате, а не 1 на 1
+                    'updated_at' => now()
+                ]
+            );
+
         return view('rooms.auth', compact('room'));
     }
 

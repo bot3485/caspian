@@ -17,19 +17,31 @@
                 class="relative overflow-hidden rounded-[2.5rem] bg-[#050505] border border-white/5 transition-all duration-700 ease-in-out cursor-pointer group">
                 
                 <!-- Само видео внутри -->
-            <video x-ref="remoteVideo" 
-                id="remoteVideo"
-                autoplay 
-                playsinline 
-                webkit-playsinline 
-                @loadedmetadata="$el.play().catch(e => console.log('Remote play blocked', e))"
-                :class="[getFilterClass('remote'), { 
-                    'blitz-visual-logic': isBlitzActive,
-                    'blur-[100px] opacity-40': isRemoteBlurred && !isBlitzActive 
-                }]"
-                class="w-full h-full object-cover transition-all duration-1000 bg-black">
-            </video>
+                <video x-ref="remoteVideo" 
+                    id="remoteVideo"
+                    autoplay 
+                    playsinline 
+                    webkit-playsinline 
+                    @loadedmetadata="$el.play().catch(e => console.log('Remote play blocked', e))"
+                    :class="[getFilterClass('remote'), { 
+                        'blitz-visual-logic': isBlitzActive,
+                        'opacity-40': isRemoteBlurred && !isBlitzActive 
+                    }]"
+                    class="w-full h-full object-cover transition-all duration-1000 bg-black">
+                </video>
 
+                <!-- Оверлей размытия (Privacy Mode) -->
+                <div x-show="isRemoteBlurred" 
+                    x-transition:enter="transition opacity duration-500"
+                    x-transition:leave="transition opacity duration-500"
+                    class="absolute inset-0 z-10 bg-black/40 backdrop-blur-[100px] flex flex-col items-center justify-center"
+                    x-cloak>
+                    <div class="relative">
+                        <div class="absolute inset-0 bg-white/20 rounded-full blur-2xl animate-pulse"></div>
+                        <span class="relative text-6xl mb-6 block">🙈</span>
+                    </div>
+                    <span class="text-[10px] font-black uppercase tracking-[0.5em] text-white/40 italic animate-pulse">Privacy Mode</span>
+                </div>
                 <!-- NEW: COUNTRY TARGET SELECTOR (Элегантный переключатель стран в рулетке) -->
                     <div x-show="state === 'idle' || state === 'searching'" 
                         class="absolute top-6 right-6 z-30 pointer-events-auto"
@@ -76,7 +88,7 @@
                        x-text="state === 'searching' ? '{{ __('chatroulette.Searching') }}...' : '{{ __('chatroulette.Ready_To_Start') }}'"></p>
                 </div>
 
-<!-- PARTNER INFO WIDGET (Engine v3.5) -->
+<!-- PARTNER INFO WIDGET (Engine v3.5 - Devilish Update) -->
 <div x-show="state === 'connected' && partnerData" 
      class="absolute top-6 left-6 z-[1000] flex items-center gap-3 pointer-events-none"
      x-cloak>
@@ -86,12 +98,13 @@
             type="button"
             class="relative w-16 h-16 shrink-0 transition-all duration-500 active:scale-90 group pointer-events-auto">
         
-        <div class="relative w-full h-full rounded-2xl flex flex-col border border-white/10 shadow-2xl overflow-hidden transition-colors duration-500"
+        <div class="relative w-full h-full rounded-2xl flex flex-col border border-white/10 shadow-2xl overflow-hidden transition-all duration-500"
              :style="{ 
-                'background-color': partnerState === 'problem' ? '#ef4444' : 
+                'background-color': partnerState === 'problem' ? '#7f1d1d' : // Дьявольский красный
                                     (partnerState === 'away' ? '#f59e0b' : 
                                     (partnerData?.gender === 'female' ? '#db2777' : '#2563eb')) 
-             }">
+             }"
+             :class="{ 'animate-pulse shadow-[0_0_25px_rgba(127,29,29,0.8)] border-red-500/50': partnerState === 'problem' }">
             
             <!-- Пол и Возраст -->
             <div class="flex-[0.8] flex items-center justify-center pt-1">
@@ -103,13 +116,25 @@
             <!-- Флаг -->
             <div class="flex-1 bg-black/20 flex items-center justify-center border-t border-white/5 overflow-hidden">
                  <img :src="partnerData?.country_flag" 
-                      class="w-full h-full object-cover opacity-90 transition-transform group-hover:scale-110" 
+                      class="w-full h-full object-cover opacity-90 transition-transform group-hover:scale-110"
+                      :class="{ 'grayscale sepia contrast-150': partnerState === 'problem' }" 
                       crossorigin="anonymous">
             </div>
         </div>
 
-        <!-- AFK Dot -->
-        <div x-show="partnerState === 'away'" class="absolute -top-1 -right-1 w-6 h-6 bg-amber-500 rounded-full border-2 border-[#020202] flex items-center justify-center shadow-lg z-30"><span class="text-[9px]">🌙</span></div>
+        <!-- AFK Dot (Желтый полумесяц) -->
+        <div x-show="partnerState === 'away'" 
+             class="absolute -top-1 -right-1 w-6 h-6 bg-amber-500 rounded-full border-2 border-[#020202] flex items-center justify-center shadow-lg z-30">
+            <span class="text-[9px]">🌙</span>
+        </div>
+
+        <!-- PROBLEM Dot (Дьявольская иконка) -->
+        <div x-show="partnerState === 'problem'" 
+             x-transition:enter="transition cubic-bezier(0.68, -0.55, 0.265, 1.55) duration-500"
+             x-transition:enter-start="scale-0 rotate-180"
+             class="absolute -top-1 -right-1 w-7 h-7 bg-red-600 rounded-full border-2 border-[#020202] flex items-center justify-center shadow-[0_0_15px_#ff0000] z-30 animate-bounce">
+            <span class="text-[11px]">⚠️</span> <!-- Можно заменить на 💀 или ⚡ -->
+        </div>
     </button>
 
 <!-- EXPANDABLE PROFILE CARD -->
@@ -518,55 +543,62 @@
     </div>
 </x-app-layout>
 <style>
-    /* Делаем шапку полностью прозрачной с эффектом матового стекла */
-    header, nav, .bg-white, .bg-gray-800 {
-        background-color: rgba(2, 2, 2, 0.1) !important; /* почти 100% прозрачность */
-        backdrop-filter: blur(12px) !important; /* размытие заднего фона (видео) */
-        -webkit-backdrop-filter: blur(12px) !important;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important; /* тонкая грань */
+    @keyframes blitz-shake-intense {
+        0%, 100% { transform: translate(0, 0) scale(1) rotate(0deg); }
+        10% { transform: translate(-5px, -8px) scale(1.05) rotate(2deg); }
+        20% { transform: translate(7px, 4px) scale(0.95) rotate(-1deg); }
+        30% { transform: translate(-4px, 7px) scale(1.1) rotate(3deg); }
+        40% { transform: translate(8px, -5px) scale(0.9) rotate(-2deg); }
+        50% { transform: translate(-9px, -2px) scale(1.15) rotate(4deg); }
+        60% { transform: translate(4px, 8px) scale(0.85) rotate(-1.5deg); }
+        70% { transform: translate(-7px, -7px) scale(1.05) rotate(2.5deg); }
+        80% { transform: translate(5px, 5px) scale(0.8) rotate(-3deg); }
+        90% { transform: translate(-2px, -4px) scale(1.2) rotate(1deg); }
     }
 
-    /* Выделяем кнопки и ссылки в хедере, чтобы они были отличимы */
-    header a, header button, nav a, nav button {
-        background-color: rgba(255, 255, 255, 0.03) !important; /* легкая подложка */
-        border: 1px solid rgba(255, 255, 255, 0.08) !important; /* тонкий контур */
-        border-radius: 14px !important; /* скругление в стиле Caspian */
-        padding: 8px 16px !important;
-        transition: all 0.3s ease !important;
+    /* Жесткий глитч (инверсия, цвета, искажения) */
+    @keyframes blitz-glitch-visual {
+        0% { filter: hue-rotate(0deg) contrast(1) brightness(1); transform: scale(1); }
+        5% { filter: hue-rotate(180deg) invert(1) contrast(5); transform: scale(1.1) skewX(20deg); }
+        10% { filter: hue-rotate(90deg) invert(0) contrast(2) brightness(2); transform: scale(0.9) skewX(-15deg); }
+        15% { filter: hue-rotate(270deg) invert(1) contrast(8); transform: scale(1.3) rotate(5deg); }
+        20% { filter: none; transform: scale(1); }
+        25% { filter: brightness(5) contrast(10); transform: scale(1.05) skewY(10deg); }
+        100% { filter: none; }
     }
 
-    /* Эффект при наведении на кнопки */
-    header a:hover, header button:hover, nav a:hover, nav button:hover {
-        background-color: rgba(255, 255, 255, 0.08) !important;
-        border-color: rgba(99, 102, 241, 0.4) !important; /* твоя подсветка brand-indigo */
-        color: #ffffff !important;
+    /* Огненная пульсирующая рамка */
+    @keyframes blitz-border-fire {
+        0%, 100% { border-color: #ff0000; box-shadow: 0 0 20px #ff0000, inset 0 0 20px #ff0000; }
+        20% { border-color: #ffae00; box-shadow: 0 0 40px #ffae00, inset 0 0 30px #ffae00; }
+        40% { border-color: #ff4800; box-shadow: 0 0 60px #ff4800, inset 0 0 40px #ff4800; }
+        60% { border-color: #ffffff; box-shadow: 0 0 80px #ffffff, inset 0 0 50px #ffffff; }
+        80% { border-color: #ff0000; box-shadow: 0 0 50px #ff0000, inset 0 0 30px #ff0000; }
     }
 
-    /* Эффект тряски всего контейнера */
-@keyframes blitz-shake {
-    0% { transform: translate(0,0) scale(1); }
-    10% { transform: translate(-5px, -5px) scale(1.02); }
-    20% { transform: translate(5px, 5px) rotate(1deg); }
-    30% { transform: translate(-5px, 5px) scale(1.05); }
-    40% { transform: translate(5px, -5px) rotate(-1deg); }
-    50% { transform: translate(-5px, -5px) scale(1.02); }
-    100% { transform: translate(0,0) scale(1); }
-}
-@keyframes intense-flash {
-    0% { opacity: 1; }
-    50% { opacity: 0.7; }
-    100% { opacity: 1; }
-}
-/* Эффект визуальных помех (Glitch) */
-.blitz-visual-logic {
-    filter: invert(1) hue-rotate(180deg) contrast(3) brightness(1.2) !important;
-    mix-blend-mode: exclusion;
-    animation: intense-flash 0.05s infinite !important;
-}
+    /* Мигание экрана (вспышки) */
+    @keyframes intense-flash {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.4; background: rgba(255, 0, 0, 0.2); }
+    }
 
-.blitz-shaking-logic {
-    animation: blitz-shake 0.1s infinite !important;
-    border: 4px solid #f59e0b !important; /* Оранжевая рамка при тревоге */
-    z-index: 1000 !important;
-}
+    .blitz-visual-logic {
+        /* Применяем глитч и вспышки */
+        animation: blitz-glitch-visual 0.15s step-end infinite, intense-flash 0.05s infinite !important;
+        mix-blend-mode: exclusion;
+    }
+
+    .blitz-shaking-logic {
+        /* Применяем жесткую тряску и огонь на рамку */
+        animation: blitz-shake-intense 0.07s linear infinite !important;
+        border: 8px solid !important;
+        animation: blitz-border-fire 0.1s infinite !important;
+        z-index: 9999 !important;
+        background-color: black !important;
+    }
+
+    /* Делаем так, чтобы всё внутри видео-окна тоже дрожало и искажалось */
+    .blitz-shaking-logic video {
+        filter: contrast(2) saturate(5) !important;
+    }
 </style>

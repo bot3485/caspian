@@ -1,6 +1,6 @@
 <?php
 return [
-'Video'=>                    'Видео',
+'Video'=>                    'Video',
 'Roulette'=>                 'Roulette',
 'Rooms'=>                    'Rooms',
 'Roulette_Desc'=>            'Experience high-speed P2P connections and intelligent interest-based matching.',

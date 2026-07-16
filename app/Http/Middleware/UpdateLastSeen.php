@@ -11,37 +11,49 @@ use Stevebauman\Location\Facades\Location;
 
 class UpdateLastSeen
 {
-    public function handle(Request $request, Closure $next)
-    {
-        try {
-            if (Auth::check()) {
-                $user = Auth::user();
-                $ip = $request->ip();
+public function handle(Request $request, Closure $next)
+{
+    try {
+        if (Auth::check()) {
+            $user = Auth::user();
+            $ip = $request->ip();
 
-                // 1. Быстрое обновление статуса онлайн в Redis (Единый источник истины для онлайна)
-                // Команда SyncLastSeen заберет эти данные и положит в БД по расписанию.
-                Redis::hset('users_last_seen', $user->id, now()->timestamp);
+            // 1. Быстрое обновление статуса онлайн в Redis
+            Redis::hset('users_last_seen', $user->id, now()->timestamp);
 
-                // 2. Обновляем GeoIP и пишем в БД ТОЛЬКО если IP реально изменился
-                if ($user->last_ip !== $ip) {
-                    $position = Location::get($ip);
-                    
-                    $countryCode = ($position && \App\Enums\UserCountry::tryFrom(strtolower($position->countryCode))) 
-                                    ? strtolower($position->countryCode) 
-                                    : 'us';
-
-                    // Сохраняем новую локацию в БД (выполняется редко, не грузит систему)
-                    $user->update([
-                        'country_code' => $countryCode,
-                        'last_ip' => $ip
-                    ]);
-                }
+            // 2. Блокируем пустые IP (защита от прокси/балансировщиков)
+            if (empty($ip)) {
+                return $next($request);
             }
-        } catch (\Exception $e) {
-            // Логируем ошибку, чтобы ничего не падало
-            Log::error('Middleware UpdateLastSeen error: ' . $e->getMessage());
-        }
 
-        return $next($request);
+            // 3. Обновляем GeoIP и пишем в БД ТОЛЬКО если IP реально изменился
+            if ($user->last_ip !== $ip) {
+                $position = Location::get($ip);
+                
+                $countryCode = 'us'; // Дефолт на случай неудачи
+
+                // БЕЗОПАСНАЯ ПРОВЕРКА: убеждаемся, что position есть и код страны не null
+                if ($position && !empty($position->countryCode)) {
+                    $code = strtolower($position->countryCode);
+                    
+                    // Проверяем, поддерживает ли наш Enum этот код
+                    if (\App\Enums\UserCountry::tryFrom($code)) {
+                        $countryCode = $code;
+                    }
+                }
+
+                // Сохраняем локацию и IP
+                $user->update([
+                    'country_code' => $countryCode,
+                    'last_ip' => $ip
+                ]);
+            }
+        }
+    } catch (\Exception $e) {
+        // Логируем ошибку, чтобы ничего не падало
+        Log::error('Middleware UpdateLastSeen error: ' . $e->getMessage());
     }
+
+    return $next($request);
+}
 }

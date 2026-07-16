@@ -1,6 +1,17 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <!-- Настройка для iOS -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Caspian">
+
+    <!-- Иконка для iPhone (Apple Touch Icon) -->
+    <!-- Используем твой существующий roulette.jpg, iOS сама его подхватит -->
+    <link rel="apple-touch-icon" href="{{ asset('roulette.jpg') }}">
+
+    <!-- Подключение манифеста -->
+    <link rel="manifest" href="{{ asset('manifest.json') }}" crossorigin="use-credentials">
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0, viewport-fit=cover">
     <meta name="csrf-token" content="{{ csrf_token() }}">
@@ -23,7 +34,6 @@
 <body class="antialiased"
       x-data="window.caspianApp({{ auth()->id() }}, {{ json_encode(auth()->user()->interests ?? []) }}, @js(config('webrtc.ice_servers')))"
       x-init="init()"
-      @click="unlockAudio()"
       @visibilitychange.window="handleVisibilityChange()"
       @focus.window="handleVisibilityChange()">
       
@@ -135,6 +145,7 @@ window.caspianApp = function(myId, myInterests, iceServers) {
         commonInterests: [],
         isBlitzActive: false,
         blitzSound: new Audio('/sounds/glitch.wav'),
+        isRinging: false,
 
         // --- INTERNAL LOGIC ---
         isProcessingSignal: false, makingOffer: false, processedEvents: new Set(), iceQueue: [],
@@ -257,18 +268,6 @@ async displayIcebreaker(index) {
     }
 },
 
-    unlockAudio() {
-        if(!this.audioUnlocked) {
-            // Проигрываем тишину, чтобы "легализовать" звук в браузере
-            this.blitzSound.volume = 0;
-            this.blitzSound.play().then(() => {
-                this.blitzSound.pause();
-                this.blitzSound.volume = 1;
-                this.audioUnlocked = true;
-                console.log("Audio Context Unlocked 🔊");
-            }).catch(e => console.log("Audio still locked"));
-        }
-    },
 
 triggerBlitz() {
     // Если время еще не вышло или уже активен блиц — ничего не делаем
@@ -408,8 +407,18 @@ async changeAudioDevice() {
 
 async init() {
     const self = this; 
-    this.uiShowPartnerCard = false;
-    this.ringtone.loop = true;
+    // Настройка аудио
+        // Авто-разблокировка при ПЕРВОМ же касании любой части экрана
+    const onceUnlock = () => {
+        self.unlockAudio();
+        window.removeEventListener('touchstart', onceUnlock);
+        window.removeEventListener('mousedown', onceUnlock);
+    };
+    window.addEventListener('touchstart', onceUnlock, { passive: true });
+    window.addEventListener('mousedown', onceUnlock, { passive: true });
+        this.ringtone.load();
+    this.msgSound.load();
+    this.blitzSound.load();
 
     // Детектор восстановления интернета
         window.addEventListener('online', () => {
@@ -499,6 +508,18 @@ async initMedia() {
     } catch (e) { 
         window.dispatchEvent(new CustomEvent('toast', {detail: {msg: 'Camera Permission Denied'}})); 
     }
+    if (this.$refs.localVideo) {
+        this.$refs.localVideo.srcObject = this.localStream;
+        
+        // Специфичный фикс для iPhone: принудительный вызов play()
+        // Safari блокирует видео, если не было взаимодействия, 
+        // поэтому мы вызываем это внутри асинхронного потока
+        try {
+            await this.$refs.localVideo.play();
+        } catch (e) {
+            console.log("iOS Autoplay prevented, waiting for user click");
+        }
+    }
 },
 
         toggleFocus(target) {
@@ -580,31 +601,32 @@ async initMedia() {
     };
 
     // 4. Обработка входящих медиа-треков
-    this.pc.ontrack = (e) => {
-        console.log("[WebRTC] Incoming remote track:", e.track.kind);
-        const remoteStream = e.streams[0];
-        const videoEl = document.getElementById('remoteVideo') || this.$refs.remoteVideo;
-        
-        if (videoEl && remoteStream) {
-            if (videoEl.srcObject !== remoteStream) {
-                videoEl.srcObject = remoteStream;
-            }
-
-            // Когда трек "оживает" после паузы/обрыва
-            e.track.onunmute = () => {
-                console.log("[WebRTC] Remote track UNMUTED (data flowing).");
-                videoEl.play().catch(() => {
-                    videoEl.muted = true;
-                    videoEl.play();
-                });
-            };
-
-            videoEl.play().catch(() => {
-                videoEl.muted = true;
-                videoEl.play();
-            });
+this.pc.ontrack = (e) => {
+    const remoteStream = e.streams[0];
+    const videoEl = document.getElementById('remoteVideo');
+    
+    if (videoEl && remoteStream) {
+        if (videoEl.srcObject !== remoteStream) {
+            videoEl.srcObject = remoteStream;
         }
-    };
+
+        setTimeout(() => {
+            const playPromise = videoEl.play();
+            if (playPromise !== undefined) {
+                playPromise.catch(err => {
+                    // ИГНОРИРУЕМ AbortError (прервано переключением)
+                    if (err.name === 'AbortError') return; 
+                    
+                    // Если это другая ошибка (например, блокировка автоплея iOS)
+                    videoEl.muted = true;
+                    videoEl.play().then(() => {
+                        setTimeout(() => { videoEl.muted = false; }, 100);
+                    }).catch(e => {});
+                });
+            }
+        }, 150);
+    }
+};
 
     // 5. КРИТИЧЕСКИЙ БЛОК: Мониторинг сетевых путей (ICE)
 this.pc.oniceconnectionstatechange = () => {
@@ -679,14 +701,21 @@ async handleSignal(e) {
         return; 
     }
     
+    // Входящий вызов
     if (m.type === 'incoming-call') { 
         this.incomingCall = m; 
-        if (this.audioUnlocked && this.ringtone) this.ringtone.play().catch(()=>{}); 
+        this.isRinging = true;
+        this.playSound(this.ringtone); // Используем наш фикс для звука
         return; 
+    }
+
+    // Если звонок сброшен или принят - выключаем рингтон
+    if (['hang-up', 'peer-disconnected', 'call-accepted'].includes(m.type)) {
+        this.stopRingtone();
+        if (m.type !== 'call-accepted') this.reset();
     }
     
     // 2. ЗАЩИТА: Проверка наличия PeerConnection ТОЛЬКО для строгих медиа-событий
-    // ВАЖНО: status-sync убран отсюда, чтобы восстанавливать связь до создания PC
     const strictMediaSignals = ['offer', 'answer', 'ice', 'request-keyframe', 'blitz', 'filter-sync'];
     if (strictMediaSignals.includes(m.type)) {
         if (!this.pc && m.type !== 'call-accepted') {
@@ -695,34 +724,31 @@ async handleSignal(e) {
         }
     }
     
-    // 3. ЛОГИКА ВОССТАНОВЛЕНИЯ
+    // 3. ЛОГИКА ВОССТАНОВЛЕНИЯ (Status Sync)
     if (m.type === 'status-sync') {
-            this.partnerState = m.state;
-            if (m.state === 'active') {
-                console.log("[WebRTC] Partner is back. Checking stream health...");
-                setTimeout(() => {
-                    const videoEl = document.getElementById('remoteVideo');
-                    if (videoEl && videoEl.readyState < 2 && this.state === 'connected') {
-                        console.warn("[WebRTC] Stream is still frozen. Initiating ICE Restart...");
-                        // УБРАНА ПРОВЕРКА isPolite
-                        this.sendOffer({ iceRestart: true });
-                    }
-                }, 2500);
-            }
-            return;
+        this.partnerState = m.state;
+        if (m.state === 'active') {
+            console.log("[WebRTC] Partner is back. Checking stream health...");
+            // Тот самый таймер для проверки "черного экрана"
+            setTimeout(() => {
+                const videoEl = document.getElementById('remoteVideo');
+                if (videoEl && videoEl.readyState < 2 && this.state === 'connected') {
+                    console.warn("[WebRTC] Stream is still frozen. Initiating ICE Restart...");
+                    this.sendOffer({ iceRestart: true });
+                }
+            }, 2500);
         }
+        return;
+    }
 
+    // Запрос ключевого кадра (важно для iOS после возврата из фона)
     if (m.type === 'request-keyframe') {
         console.log("[WebRTC] Partner requested keyframe.");
         if (this.pc) {
             this.pc.getSenders().forEach(sender => {
                 if (sender.track && sender.track.kind === 'video') {
-                    const track = sender.track;
-                    if (track.readyState === 'live') {
-                        // КРИТИЧЕСКИЙ ФИКС: Строго СИНХРОННОЕ передергивание без setTimeout
-                        track.enabled = false;
-                        track.enabled = true;
-                    }
+                    sender.track.enabled = false;
+                    sender.track.enabled = true;
                 }
             });
         }
@@ -733,21 +759,27 @@ async handleSignal(e) {
     if (m.type === 'filter-sync') { this.partnerFilters = m.filters; return; }
     if (['peer-disconnected', 'hang-up', 'peer-skipped'].includes(m.type)) { this.stopCall(false); return; }
     
-    if (m.type === 'call-accepted') { 
-        console.log("[WebRTC] Partner is ready. Initiating handshake...");
-        this.state = 'connected'; 
-        
-        if (!this.pc) this.initPC(); 
-        
-        // Perfect Negotiation: Оффер отправляет тот, у кого ID меньше.
-        if (Number(myId) < Number(this.partnerId)) {
-            console.log("[WebRTC] I am the leader, sending offer...");
-            setTimeout(() => { this.sendOffer(); }, 1000); 
-        } else {
-            console.log("[WebRTC] I am the follower, waiting for offer...");
-        }
-        return; 
+if (m.type === 'call-accepted') { 
+    console.log("[WebRTC] Partner is ready. Initiating handshake...");
+    this.state = 'connected'; 
+    if (!this.pc) this.initPC(); 
+    
+    // Принудительно загоняем треки перед созданием оффера
+    if (this.localStream) {
+        const senders = this.pc.getSenders();
+        this.localStream.getTracks().forEach(track => {
+            if (!senders.some(s => s.track && s.track.kind === track.kind)) {
+                this.pc.addTrack(track, this.localStream);
+            }
+        });
     }
+
+    if (Number(myId) < Number(this.partnerId)) {
+        console.log("[WebRTC] I am the leader, sending offer...");
+        setTimeout(() => { this.sendOffer(); }, 500); 
+    }
+    return; 
+}
     
     if (m.type === 'icebreaker') {
         this.displayIcebreaker(m.index);
@@ -756,12 +788,23 @@ async handleSignal(e) {
 
     if (m.type === 'blitz') {
         this.isBlitzActive = true;
-        if (this.blitzSound) {
-            this.blitzSound.currentTime = 0;
-            this.blitzSound.play().catch(e => console.warn("Audio blocked for partner"));
-        }
+        this.playSound(this.blitzSound); // Используем наш фикс для звука
         window.dispatchEvent(new CustomEvent('toast', { detail: { msg: '⚡️ SYSTEM OVERLOAD' } }));
         setTimeout(() => { this.isBlitzActive = false; }, 6000);
+        return;
+    }
+
+    if (m.type === 'roulette-chat') {
+        // Воспроизводим звук входящего сообщения
+        if (this.audioUnlocked) this.msgSound.play().catch(()=>{});
+        
+        // Добавляем текст в интерфейс рулетки
+        this.messages.push({
+            isMe: false, 
+            text: m.text, 
+            timestamp: Date.now()
+        }); 
+        this.scrollChat(); 
         return;
     }
 
@@ -771,9 +814,7 @@ async handleSignal(e) {
     try {
         if (m.type === 'offer') {
             this.isProcessingSignal = true;
-            if (m.iceRestart) {
-                this.iceQueue = []; 
-            }
+            
             const offerCollision = (this.makingOffer || this.pc.signalingState !== 'stable');
             this.ignoreOffer = !this.isPolite() && offerCollision;
             
@@ -783,7 +824,6 @@ async handleSignal(e) {
                 return;
             }
 
-            // Если партнер сделал ICE Restart — очищаем нашу очередь старых ICE-кандидатов
             if (m.iceRestart) {
                 console.log("[WebRTC] Partner initiated ICE Restart. Clearing old candidates...");
                 this.iceQueue = [];
@@ -803,7 +843,6 @@ async handleSignal(e) {
             await this.pc.setLocalDescription(answer);
             this.signal({ type: 'answer', sdp: this.pc.localDescription.sdp });
             
-            // Обработка накопившихся кандидатов
             while(this.iceQueue.length) {
                 await this.pc.addIceCandidate(this.iceQueue.shift()).catch(e => {});
             }
@@ -811,10 +850,8 @@ async handleSignal(e) {
 
         } else if (m.type === 'answer') {
             this.isProcessingSignal = true;
-            
             if (this.pc.signalingState === 'have-local-offer') {
                 await this.pc.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp: this.normalizeSdp(m.sdp) }));
-                
                 while(this.iceQueue.length) {
                     await this.pc.addIceCandidate(this.iceQueue.shift()).catch(e => {});
                 }
@@ -823,7 +860,6 @@ async handleSignal(e) {
 
         } else if (m.type === 'ice') {
             const candidate = new RTCIceCandidate(m.candidate);
-            
             if (!this.pc || !this.pc.remoteDescription || !this.pc.remoteDescription.type) {
                 this.iceQueue.push(candidate);
             } else {
@@ -861,6 +897,7 @@ async handleMatch(e) {
 
             this.reset();
             this.partnerId = newPartnerId;
+            this.callContext = 'roulette';
             
             // Наполняем объект данными
             this.partnerData = {
@@ -917,44 +954,54 @@ async setupPersonalCall(id, isAccepted) {
     this.callContext = 'personal';
     this.partnerId = id;
     this.state = 'connecting';
-    
+    this.micEnabled = true; // Принудительно включаем звук
+    this.camEnabled = true; // Принудительно включаем видео
+
     window.history.replaceState({}, '', '/chat');
-    
+
     try {
-        // 1. Сначала камера
+        // 1. КРИТИЧЕСКИЙ ФИКС: Создаем PeerConnection ДО включения камеры.
+        // Если придет offer или ice, пока мы ждем разрешения на камеру, они не потеряются!
+        if (!this.pc) this.initPC();
+
+        // 2. Включаем камеру (ждет получения потока)
         await this.initMedia();
-        
-        // 2. Инфо о партнере
+
+        // 3. Безопасно добавляем треки в уже существующий PC
+        if (this.pc && this.localStream) {
+            const senders = this.pc.getSenders();
+            this.localStream.getTracks().forEach(track => {
+                if (!senders.some(s => s.track && s.track.kind === track.kind)) {
+                    this.pc.addTrack(track, this.localStream);
+                }
+            });
+        }
+
+        // 4. Инфо о партнере
         const res = await window.axios.get(`/chat/user-info/${id}`);
         this.partnerData = res.data;
 
         if (isAccepted) {
-            // ЕСЛИ МЫ ПРИНИМАЕМ:
-            // Сначала создаем PC, потом говорим серверу "ОК"
-            this.initPC(); 
+            // МЫ ПРИНИМАЕМ ЗВОНОК
             this.state = 'connected';
-            setTimeout(() => { 
-                this.signal({ type: 'call-accepted' }); 
+            setTimeout(() => {
+                this.signal({ type: 'call-accepted' });
             }, 500);
         } else {
-            // ЕСЛИ МЫ ЗВОНИМ:
-            // Сначала регистрируем звонок на сервере!
+            // МЫ ЗВОНИМ
             const r = await window.axios.post('/chat/contact/call', { contactId: id });
-            
+
             if (r.data.status === 'busy') {
                 this.stopCall(false);
                 window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'User is busy' } }));
                 return;
             }
 
-            // ТОЛЬКО ПОСЛЕ УСПЕШНОГО ОТВЕТА сервера создаем PeerConnection
-            // Теперь сервер уже знает про allow_signal и не выдаст 403
-            this.initPC(); 
             window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'Calling...' } }));
         }
-    } catch (e) { 
+    } catch (e) {
         console.error("Call Setup Error:", e);
-        this.stopCall(false); 
+        this.stopCall(false);
     }
 },
 
@@ -968,38 +1015,115 @@ async setupPersonalCall(id, isAccepted) {
                 });
         },
 
-        acceptCall() {
-            const fromId = this.incomingCall.fromId;
-            this.incomingCall = null;
+        stopRingtone() {
+            this.isRinging = false;
             this.ringtone.pause();
+            this.ringtone.currentTime = 0;
+        },
+
+// 1. ПРАВИЛЬНАЯ БЕСШУМНАЯ РАЗБЛОКИРОВКА
+unlockAudio() {
+    if (this.audioUnlocked) return;
+    
+    // Сразу ставим флаг, чтобы больше не пытаться
+    this.audioUnlocked = true;
+
+    try {
+        // Разблокируем системный контекст через "тишину"
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (AudioContext) {
+            const ctx = new AudioContext();
+            const oscillator = ctx.createOscillator();
+            const gain = ctx.createGain();
+            gain.gain.value = 0; 
+            oscillator.connect(gain);
+            gain.connect(ctx.destination);
+            oscillator.start(0);
+            oscillator.stop(0.1);
+            if (ctx.state === 'suspended') ctx.resume();
+        }
+
+        // КРИТИЧЕСКИЙ МОМЕНТ: "Прогреваем" файлы ТИХО
+        // Мы запускаем их с громкостью 0 и сразу стопаем. 
+        // Это дает iOS понять, что эти файлы "легитимны" для будущего автоплея.
+        [this.ringtone, this.msgSound, this.blitzSound].forEach(audio => {
+            audio.muted = true; // Мьютим перед "прогревом"
+            audio.play().then(() => {
+                audio.pause();
+                audio.muted = false; // Возвращаем звук
+                audio.currentTime = 0;
+            }).catch(() => {});
+        });
+
+        console.log("Caspian Audio: Stealth Unlock Done 🔓");
+    } catch (e) {
+        console.error("Audio unlock error", e);
+    }
+},
+
+// 2. СТРОГИЙ КОНТРОЛЬ ПРОИГРЫВАНИЯ
+playSound(audioElement) {
+    if (!this.audioUnlocked || !audioElement) return;
+
+    // Сбрасываем и играем
+    audioElement.pause();
+    audioElement.currentTime = 0;
+    
+    // На iOS лучше играть после микро-паузы, чтобы не было конфликта с кликом
+    setTimeout(() => {
+        const playPromise = audioElement.play();
+        if (playPromise !== undefined) {
+            playPromise.catch(err => {
+                if (err.name !== 'AbortError') console.warn("Playback prevented", err);
+            });
+        }
+    }, 20);
+},
+
+// 3. ФУНКЦИЯ ОСТАНОВКИ (обязательно вызывай её при сбросе/приеме звонка)
+stopRingtone() {
+    this.isRinging = false;
+    this.ringtone.pause();
+    this.ringtone.currentTime = 0;
+},
+        acceptCall() {
+            this.stopRingtone(); // Выключаем звук перед переходом
+            const fromId = this.incomingCall.fromId;
             window.location.href = `/chat?accept_call=${fromId}`;
         },
 
         rejectCall() {
+            this.stopRingtone(); // Выключаем звук
             if (this.incomingCall) this.signalTo(this.incomingCall.fromId, { type: 'hang-up' });
-            this.ringtone.pause(); this.incomingCall = null;
+            this.incomingCall = null;
         },
 
         stopCall(notify = true) {
             if (notify && this.partnerId) this.signal({ type: 'hang-up' });
+            this.stopRingtone();
             this.reset();
             window.axios.post('/chat/leave');
             window.dispatchEvent(new CustomEvent('toast', {detail: {msg: 'Call Ended'}}));
         },
 
-    reset() {
-        this.ringtone.pause();
-        this.isPartnerProfileOpen = false;
-        this.uiShowPartnerCard = false; // <-- Эта строка гарантирует, что карточка партнера всегда скрыта при старте!
-        if (this.pc) { this.pc.close(); this.pc = null; }
-        if (this.$refs.remoteVideo) this.$refs.remoteVideo.srcObject = null;
-        this.partnerId = null; this.partnerData = null; this.state = 'idle'; this.callContext = null;
-        this.partnerFilters = { beauty: false, cinema: false }; this.messages = [];
-        clearInterval(this.iceTimer);
-        clearInterval(this.blitzTimer);
-        this.icebreakerCooldown = 0;
-        this.blitzCooldown = 0;
-    },
+reset() {
+    this.ringtone.pause();
+    this.isPartnerProfileOpen = false;
+    this.uiShowPartnerCard = false;
+    if (this.pc) { this.pc.close(); this.pc = null; }
+    if (this.$refs.remoteVideo) {
+        this.$refs.remoteVideo.pause();
+        this.$refs.remoteVideo.srcObject = null;
+    }
+    this.partnerId = null; this.partnerData = null; this.state = 'idle'; this.callContext = null;
+    this.partnerFilters = { beauty: false, cinema: false }; this.messages = [];
+    
+    // Правильная очистка таймеров
+    if (this.iceTimer) { clearInterval(this.iceTimer); this.iceTimer = null; }
+    if (this.blitzTimer) { clearInterval(this.blitzTimer); this.blitzTimer = null; }
+    this.icebreakerCooldown = 0;
+    this.blitzCooldown = 0;
+},
 
         // --- MESSENGER & DATA ---
 
@@ -1049,44 +1173,30 @@ handleIncomingMsg(e) {
     if (this.processedEvents.has('msg_' + m.id)) return;
     this.processedEvents.add('msg_' + m.id);
     
-    if (this.audioUnlocked) this.msgSound.play().catch(()=>{});
-    
-    // 1. СИСТЕМНАЯ ЛОГИКА: Если пришел запрос или подтверждение дружбы
-    // Мгновенно обновляем список, чтобы человек появился в "Contacts" или статус сменился на "accepted"
+    // Системные события дружбы
     if (m.message === 'SYSTEM_FRIEND_REQUEST' || m.message === 'SYSTEM_FRIEND_ACCEPTED') {
         this.loadFriends();
+        return; // Системные не озвучиваем обычным звуком чата
     }
+
+    if (this.audioUnlocked) this.msgSound.play().catch(()=>{});
 
     // ФОЛБЭК: Если по какой-то причине sender_id не пришел
     if (!m.sender_id) {
-        if (this.partnerId) {
-            m.sender_id = this.partnerId;
-        } else if (this.activeFriend) {
-            m.sender_id = this.activeFriend.id;
-        }
+        if (this.activeFriend) m.sender_id = this.activeFriend.id;
     }
 
     const senderIdNum = Number(m.sender_id);
-    const partnerIdNum = Number(this.partnerId);
 
-    // 2. Логика для активной РУЛЕТКИ
-    if (this.state === 'connected' && this.callContext === 'roulette' && senderIdNum === partnerIdNum) { 
-        this.messages.push({
-            isMe: false, 
-            text: m.message, 
-            timestamp: Date.now()
-        }); 
-        this.scrollChat(); 
-        return; 
-    }
-    
-    // 3. Логика для ПЕРСОНАЛЬНОГО ЧАТА (если он открыт прямо сейчас)
+    // ВНИМАНИЕ: Логика рулетки отсюда удалена! 
+    // Этот метод теперь обрабатывает только постоянные сообщения (БД).
+
+    // Логика для ПЕРСОНАЛЬНОГО ЧАТА (если он открыт прямо сейчас)
     if (this.activeFriend && senderIdNum === Number(this.activeFriend.id)) { 
         this.friendMessages.push(m); 
         this.scrollFriendChat(); 
     } else {
-        // 4. Логика для ФОНОВЫХ уведомлений (если чат с этим человеком закрыт)
-        // Даем небольшую задержку в 500мс, чтобы loadFriends успел обновить массив friendsList
+        // Логика для ФОНОВЫХ уведомлений (если чат с этим другом закрыт)
         setTimeout(() => {
             const friend = this.friendsList.find(f => Number(f.id) === senderIdNum);
             if (friend) {
@@ -1094,7 +1204,7 @@ handleIncomingMsg(e) {
                 if (!friend.unread_count) friend.unread_count = 0;
                 friend.unread_count++;
                 
-                // Перемещаем контакт в начало списка
+                // Перемещаем контакт с новым сообщением в начало списка
                 this.friendsList = [
                     friend,
                     ...this.friendsList.filter(f => Number(f.id) !== senderIdNum)
@@ -1170,35 +1280,22 @@ signalTo(toId, data) {
     return window.axios.post('/chat/signal', { partnerId: toId, data: { ...data, from: myId } }); 
 },
         normalizeSdp(sdp) { return typeof sdp === 'string' ? sdp.trim().split('\n').map(l => l.trim()).join('\r\n') + '\r\n' : sdp; },
-        unlockAudio() { if(!this.audioUnlocked) { this.ringtone.muted=true; this.ringtone.play().then(()=>{this.ringtone.pause(); this.ringtone.muted=false;}); this.audioUnlocked=true; } },
         startHeartbeat() { setInterval(() => window.axios.post('/ping'), 15000); },
         startStats() { setInterval(async () => { if (this.pc?.iceConnectionState === 'connected') { const s = await this.pc.getStats(); s.forEach(r => { if (r.type === 'candidate-pair' && r.state === 'succeeded') this.ping = Math.round(r.currentRoundTripTime * 1000); }); } }, 3000); },
-handleVisibilityChange() {
-    if (!this.partnerId) return;
-
-    if (document.visibilityState === 'visible') {
-        console.log("[Caspian] Пользователь вернулся. Пробуждаем железо...");
-        
-        this.signal({ type: 'status-sync', state: 'active' });
-        this.signal({ type: 'request-keyframe' });
-
-        // Если это мобильное устройство (Android/iOS)
-        const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-        
-        if (isMobile) {
-            // Даем системе 300мс "проснуться" и вызываем магическую перезагрузку
-            setTimeout(() => {
-                this.rebootMobileCamera();
-            }, 300);
-        }
-
-        // Пытаемся запустить удаленное видео (если оно стояло на паузе)
-        const remoteVid = document.getElementById('remoteVideo');
-        if (remoteVid) remoteVid.play().catch(() => {});
-    } else {
-        this.signal({ type: 'status-sync', state: 'away' });
-    }
-},
+        handleVisibilityChange() {
+            if (!this.partnerId) return;
+            if (document.visibilityState === 'visible') {
+                this.signal({ type: 'status-sync', state: 'active' });
+                this.signal({ type: 'request-keyframe' });
+                if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+                    setTimeout(() => this.rebootMobileCamera(), 300);
+                }
+                const remoteVid = document.getElementById('remoteVideo');
+                if (remoteVid) remoteVid.play().catch(()=>{});
+            } else {
+                this.signal({ type: 'status-sync', state: 'away' });
+            }
+        },
         async startSearch() { this.reset(); this.isPartnerProfileOpen = false;  this.state = 'searching'; this.callContext = 'roulette'; await window.axios.post('/chat/search'); },
         loadFriends() {
             window.axios.get('/chat/contacts').then(r => {
@@ -1260,11 +1357,15 @@ handleVisibilityChange() {
             if (!this.chatInput.trim() || !this.partnerId) return; 
             const t = this.chatInput; 
             this.chatInput = ''; 
-            this.messages.push({isMe: true, text: t, timestamp: Date.now()}); 
             
-            // Вот здесь отправка!
-            window.axios.post('/chat/message/send', { receiver_id: this.partnerId, message: t }); 
+            // 1. Отображаем сообщение у себя
+            this.messages.push({isMe: true, text: t, timestamp: Date.now()}); 
             this.scrollChat(); 
+            
+            // 2. Отправляем через WebRTC-сигналинг (БЕЗ сохранения в базу данных!)
+            this.signal({ type: 'roulette-chat', text: t }).catch(err => {
+                console.error("Failed to send roulette message:", err);
+            });
         },
         async sendFriendMsg() { 
             if (!this.friendChatInput.trim() || !this.activeFriend) return; 

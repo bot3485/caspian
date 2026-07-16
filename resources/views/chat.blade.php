@@ -1,7 +1,7 @@
 <x-app-layout>
 
-<div class="fixed top-[120px] bottom-0 left-0 right-0 w-full bg-[#020202] overflow-hidden px-3 pt-4 pb-28 md:p-4 overscroll-none" 
-     style="height: calc(100vh - 120px - env(safe-area-inset-bottom));">
+<div class="fixed top-[120px] bottom-0 left-0 right-0 w-full bg-[#020202] overflow-hidden px-3 pt-4 pb-40 md:p-4 overscroll-none" 
+     style="height: calc(100dvh - 120px - env(safe-area-inset-bottom));">
         
         <!-- 1. VIDEO ECOSYSTEM (Dual-Engine Split Screen) -->
         <div class="flex flex-col md:flex-row w-full h-full gap-2 md:gap-4 transition-all duration-700 ease-in-out">
@@ -20,9 +20,9 @@
                 <video x-ref="remoteVideo" 
                     id="remoteVideo"
                     autoplay 
-                    playsinline 
+                    playsinline  
                     webkit-playsinline 
-                    @loadedmetadata="$el.play().catch(e => console.log('Remote play blocked', e))"
+                    @loadedmetadata="$el.play().catch(e => { if(e.name !== 'AbortError') console.log('Remote play blocked', e) })"
                     :class="[getFilterClass('remote'), { 
                         'blitz-visual-logic': isBlitzActive,
                         'opacity-40': isRemoteBlurred && !isBlitzActive 
@@ -316,14 +316,15 @@
                     'h-[30%] md:h-full md:w-[25%] opacity-40': layoutFocus === 'remote'
                 }"
                 class="relative overflow-hidden rounded-[2.5rem] bg-[#050505] border border-white/5 transition-all duration-700 ease-in-out cursor-pointer group">
-                
-            <video x-ref="localVideo" 
+            
+                <video
+            remoteVideo x-ref="localVideo" 
                 id="localVideo" 
                 autoplay 
                 muted 
                 playsinline 
                 webkit-playsinline
-                @loadedmetadata="$el.play()"
+                @loadedmetadata="$el.play().catch(e => { if(e.name !== 'AbortError') console.log('Local play blocked', e) })"
                 :class="[getFilterClass('local'), { 
                     'blitz-visual-logic': isBlitzActive,
                     'scale-x-[-1]': true 
@@ -444,8 +445,8 @@
         </div>
 
         <!-- 3. FLOATING CONTROL ISLAND -->
-        <div class="fixed bottom-14 md:bottom-4 left-0 right-0 px-6 z-[500] flex flex-col items-center gap-4 pointer-events-none"
-            :class="globalSidebarOpen ? 'max-md:opacity-0 max-md:translate-y-10 max-md:pointer-events-none' : 'opacity-100'">
+        <div class="fixed bottom-24 md:bottom-4 left-0 right-0 px-6 z-[500] flex flex-col items-center gap-4 pointer-events-none"
+     :class="globalSidebarOpen ? 'max-md:opacity-0 max-md:translate-y-10 max-md:pointer-events-none' : 'opacity-100'">
             
             <!-- TOOL GRID -->
             <div x-show="controlsOpen" 

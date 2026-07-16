@@ -8,19 +8,32 @@
 }
 
 @layer base {
-  [x-cloak] { display: none !important; }
-  
-  body {
-    @apply bg-[#020202] text-slate-200 antialiased selection:bg-indigo-500/30 selection:text-white;
-    /*font-feature-settings: "ss01", "ss02", "cv01";*/
+  /* Оптимизация для iOS Safari */
+  @supports (-webkit-backdrop-filter: blur(1px)) {
+    .caspian-glass, 
+    .backdrop-blur-xl, 
+    .backdrop-blur-2xl, 
+    .backdrop-blur-3xl {
+      /* На айфонах отключаем тяжелый блюр для плавности, оставляем полупрозрачность */
+      backdrop-filter: none !important;
+      -webkit-backdrop-filter: none !important;
+      background-color: rgba(10, 10, 10, 0.9) !important;
+    }
+    
+    /* Оставляем блюр только для маленьких плашек (HUD, Тосты) */
+    .z-\[1000\], .z-\[110\], .fixed.top-24 {
+        -webkit-backdrop-filter: blur(15px) !important;
+        background-color: rgba(99, 102, 241, 0.8) !important;
+    }
   }
+}
 
-  /* Кастомный скроллбар в стиле Caspian */
-  ::-webkit-scrollbar { width: 5px; height: 5px; }
-  ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { 
-    @apply bg-white/10 rounded-full hover:bg-indigo-500/50 transition-colors;
-  }
+/* Принудительная GPU акселерация для видео (убирает лаги картинки) */
+video {
+    -webkit-transform: translateZ(0);
+    transform: translateZ(0);
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
 }
 
 @layer components {
@@ -51,6 +64,9 @@
 
 /* Предотвращение накладывания на челки и системные полоски */
 body {
+  min-height: 100dvh; 
   padding-top: env(safe-area-inset-top);
   padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
 }

@@ -141,49 +141,52 @@ public function callContact(Request $request): JsonResponse
     }
 
 public function sendSignal(Request $request): JsonResponse
-    {
-        $validated = $request->validate([
-            'partnerId' => 'required|integer', 
-            'data' => 'required|array'
-        ]);
+{
+    $validated = $request->validate([
+        'partnerId' => 'required|integer', 
+        'data' => 'required|array'
+    ]);
+    
+    $senderId = (int)Auth::id();
+    $receiverId = (int)$validated['partnerId'];
+    $data = $validated['data'];
+
+    // 1. Проверка: разрешен ли сигнал в Redis?
+    $isAllowed = Redis::exists("allow_signal:{$senderId}:{$receiverId}");
+
+    if (!$isAllowed) {
+        // ФОЛБЭК (ИСПРАВЛЕНО): Проверяем связь в ОБЕ стороны!
+        // Потому что один юзер мог найти другого, и запись в БД может быть перевернута.
+        $isAllowed = Matchmaking::where(function($q) use ($senderId, $receiverId) {
+            $q->where('user_id', $senderId)->where('partner_id', $receiverId);
+        })->orWhere(function($q) use ($senderId, $receiverId) {
+            $q->where('user_id', $receiverId)->where('partner_id', $senderId);
+        })->exists();
         
-        $senderId = (int)Auth::id();
-        $receiverId = (int)$validated['partnerId'];
-        $data = $validated['data'];
-
-        // 1. Проверка: это приватный чат (рулетка)?
-        $isAllowed = Redis::exists("allow_signal:{$senderId}:{$receiverId}");
-
-        if (!$isAllowed) {
-            // Фолбэк для рулетки
-            $isAllowed = Matchmaking::where('user_id', $senderId)
-                ->where('partner_id', $receiverId)
-                ->exists();
-            
-            if ($isAllowed) {
-                Redis::setex("allow_signal:{$senderId}:{$receiverId}", 3600, "1");
-            }
+        if ($isAllowed) {
+            // Разрешаем сразу в обе стороны, чтобы ускорить следующие запросы
+            Redis::setex("allow_signal:{$senderId}:{$receiverId}", 3600, "1");
+            Redis::setex("allow_signal:{$receiverId}:{$senderId}", 3600, "1");
         }
-
-        // 2. Проверка: это групповая комната (Spaces)?
-        // В объекте 'data' из JS мы передаем roomUuid
-        if (!$isAllowed && isset($data['roomUuid'])) {
-            // Здесь мы проверяем, существует ли комната. 
-            // Для максимальной безопасности можно добавить проверку участия пользователя в Presence-канале.
-            $isAllowed = Room::where('uuid', $data['roomUuid'])->exists();
-        }
-
-        if (!$isAllowed) {
-            return response()->json(['error' => 'Unauthorized'], 403);
-        }
-
-        $data['from'] = $senderId;
-        
-        // Отправляем сигнал получателю
-        broadcast(new WebRTCSignalEvent($receiverId, $data));
-
-        return response()->json(['status' => 'signal_sent']);
     }
+
+    // 2. Проверка: это групповая комната (Spaces)?
+    if (!$isAllowed && isset($data['roomUuid'])) {
+        $isAllowed = Room::where('uuid', $data['roomUuid'])->exists();
+    }
+
+    if (!$isAllowed) {
+        \Illuminate\Support\Facades\Log::warning("WebRTC 403: Signal denied from {$senderId} to {$receiverId}");
+        return response()->json(['error' => 'Unauthorized'], 403);
+    }
+
+    $data['from'] = $senderId;
+    
+    // Отправляем сигнал получателю
+    broadcast(new WebRTCSignalEvent($receiverId, $data));
+
+    return response()->json(['status' => 'signal_sent']);
+}
 
 
     public function sendMessage(Request $request): JsonResponse

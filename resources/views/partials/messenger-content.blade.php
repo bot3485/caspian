@@ -109,46 +109,41 @@
         <div class="text-[9px] font-black uppercase tracking-[0.2em] text-indigo-400">{{ __('messenger.Roulette_Chat_Disabled') }}</div>
     </div>
 
-    <!-- ДРУЗЬЯ (СПИСОК КОНТАКТОВ) -->
-    <div x-show="tab === 'friends' && !activeFriend" class="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar">
-        <template x-for="(f, index) in friendsList" :key="f.id ? 'friend_' + f.id : 'f_' + index">
-            <div @click="f && f.id ? openFriendChat(f.id) : null" 
-                 :class="f && f.has_new_message ? 'bg-white/[0.05] border-brand-indigo/30' : 'bg-white/[0.01] border-white/[0.03] hover:bg-white/[0.03]'"
-                 class="p-3.5 border rounded-[1.5rem] flex items-center justify-between cursor-pointer transition-all duration-300 group">
-                <div class="flex items-center gap-4">
-                    <div class="relative">
-                        <!-- Premium Avatar -->
-                        <div class="w-11 h-11 bg-gradient-to-br from-indigo-500/20 to-purple-600/20 border border-white/5 rounded-[1.2rem] flex items-center justify-center text-white font-black shadow-inner group-hover:border-brand-indigo/30 transition-colors" 
-                             x-text="f && f.name ? f.name.charAt(0).toUpperCase() : '?'"></div>
-                        
-                        <template x-if="f && f.has_new_message">
-                            <span class="absolute -top-1 -right-1 flex h-3.5 w-3.5">
-                                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-indigo opacity-75"></span>
-                                <span class="relative inline-flex rounded-full h-3.5 w-3.5 bg-indigo-500 border-2 border-[#050505]"></span>
-                            </span>
-                        </template>
-                    </div>
-                    <div>
-                        <div class="text-xs font-bold text-gray-200 group-hover:text-white transition-colors flex items-center gap-2">
-                            <span x-text="f ? f.name : 'Unknown'"></span>
-                            <template x-if="f && f.unread_count > 1">
-                                <span class="bg-brand-indigo text-white text-[8px] font-black px-1.5 py-0.5 rounded-full shadow-lg" x-text="f.unread_count"></span>
-                            </template>
-                        </div>
-                        <div class="text-[8px] font-black uppercase mt-1 tracking-widest flex items-center gap-1.5" 
-                             :class="f && f.is_online ? 'text-green-500' : 'text-gray-500'">
-                             <span class="w-1 h-1 rounded-full" :class="f && f.is_online ? 'bg-green-500 shadow-[0_0_5px_#22c55e]' : 'bg-gray-600'"></span>
-                             <span x-text="f ? (f.is_online ? 'online' : f.last_seen_human) : ''"></span>
-                        </div>
-                    </div>
+<!-- ДРУЗЬЯ (СПИСОК КОНТАКТОВ) -->
+<div x-show="tab === 'friends' && !activeFriend" class="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar">
+    <template x-for="(f, index) in friendsList" :key="f.id ? 'friend_' + f.id : 'f_' + index">
+        <div class="p-3.5 border rounded-[1.5rem] flex items-center justify-between transition-all duration-300 group bg-white/[0.01] border-white/[0.03] hover:bg-white/[0.03]"
+             :class="f && f.has_new_message ? 'border-brand-indigo/30 bg-white/[0.05]' : ''">
+            
+            <!-- Клик по инфо открывает чат -->
+            <div @click="f && f.id ? openFriendChat(f.id) : null" class="flex items-center gap-4 cursor-pointer flex-1">
+                <div class="relative">
+                    <div class="w-11 h-11 bg-gradient-to-br from-indigo-500/20 to-purple-600/20 border border-white/5 rounded-[1.2rem] flex items-center justify-center text-white font-black" 
+                         x-text="f && f.name ? f.name.charAt(0).toUpperCase() : '?'"></div>
+                    <template x-if="f && f.is_online">
+                        <span class="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 border-2 border-[#050505] rounded-full shadow-[0_0_8px_#22c55e]"></span>
+                    </template>
                 </div>
-                <div class="w-8 h-8 flex items-center justify-center text-gray-600 group-hover:text-white transition-colors" 
-                     :class="f && f.has_new_message ? 'text-brand-indigo' : ''">
+                <div>
+                    <div class="text-xs font-bold text-gray-200 group-hover:text-white" x-text="f ? f.name : 'Unknown'"></div>
+                    <div class="text-[8px] font-black uppercase mt-1 tracking-widest text-gray-500" x-text="f ? (f.is_online ? 'online' : f.last_seen_human) : ''"></div>
+                </div>
+            </div>
+
+            <!-- КНОПКА ВЫЗОВА (теперь вызывается здесь!) -->
+            <div class="flex items-center gap-2">
+                <button @click.stop="callFriend(f)" 
+                        x-show="f.is_online"
+                        class="w-9 h-9 flex items-center justify-center rounded-xl bg-brand-indigo/10 text-brand-indigo border border-brand-indigo/20 hover:bg-brand-indigo hover:text-white transition-all">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"></path></svg>
+                </button>
+                <div class="w-8 h-8 flex items-center justify-center text-gray-600 group-hover:text-white" @click="openFriendChat(f.id)">
                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
                 </div>
             </div>
-        </template>
-    </div>
+        </div>
+    </template>
+</div>
 
     <!-- ЧАТ С ДРУГОМ -->
     <div x-show="activeFriend" class="flex-1 flex flex-col overflow-hidden relative">

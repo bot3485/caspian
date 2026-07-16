@@ -46,18 +46,19 @@ class ChatController extends Controller
 
 public function callContact(Request $request): JsonResponse
 {
-    // 1. Сначала валидируем входные данные
+    // 1. Валидация входных данных
     $request->validate(['contactId' => 'required|integer|exists:users,id']);
     
-    // 2. ОПРЕДЕЛЯЕМ переменные ДО того, как их использовать
+    // 2. Определение участников
     $receiverId = (int)$request->contactId;
-    $senderId = Auth::id();
+    $senderId = (int)Auth::id();
 
+    // Защита от звонка самому себе
     if ($senderId === $receiverId) {
         return response()->json(['error' => 'Self-call'], 400);
     }
 
-    // 3. Теперь проверяем блокировку (теперь переменные существуют)
+    // 3. Проверка блокировок (Черный список)
     $isBlocked = DB::table('blocks')
         ->where(function($q) use ($senderId, $receiverId) {
             $q->where('blocker_id', $receiverId)->where('blocked_id', $senderId);
@@ -71,43 +72,50 @@ public function callContact(Request $request): JsonResponse
         return response()->json(['error' => 'Connection refused by security policy'], 403);
     }
 
-    // 4. ПРОВЕРКА: Занят ли собеседник
-    $receiver = User::find($receiverId);
-    $isBusy = false;
-        if ($receiver && $receiver->isOnline()) {
-            $isBusy = Matchmaking::where('user_id', $receiverId)
-                ->where('status', MatchmakingStatus::Matched)
-                ->exists();
-        }
+    // 4. ПРОВЕРКА: Занят ли собеседник (уже находится вMatched статусе)
+    $isBusy = Matchmaking::where('user_id', $receiverId)
+        ->where('status', MatchmakingStatus::Matched)
+        ->exists();
 
-        if ($isBusy) {
-            $msg = Message::create([
-                'sender_id' => $senderId,
-                'receiver_id' => $receiverId,
-                'message' => '📞 Missed call (Receiver was busy)'
-            ]);
-            broadcast(new MessageSentEvent($msg->toArray()));
-            
-            return response()->json(['status' => 'busy', 'message' => 'User is busy']);
-        }
+    if ($isBusy) {
+        // Опционально: создаем запись о пропущенном вызове в сообщениях
+        Message::create([
+            'sender_id' => $senderId,
+            'receiver_id' => $receiverId,
+            'message' => '📞 Missed call (Receiver was busy)',
+            'is_read' => false
+        ]);
+        
+        return response()->json(['status' => 'busy', 'message' => 'User is busy']);
+    }
 
-    // 5. Если свободен — готовим звонок
+    // 5. ПОДГОТОВКА: Выходим из текущих очередей рулетки, если они были
     $this->leaveChatAction->execute($senderId);
-    
-    Matchmaking::updateOrCreate(
-        ['user_id' => $senderId],
-        ['status' => MatchmakingStatus::Matched, 'partner_id' => $receiverId, 'updated_at' => now()]
-    );
-    
+
+    // 6. СИСТЕМНЫЙ ДОСТУП (Redis): Разрешаем сигналинг в ОБЕ стороны.
+    // Это критически важно сделать ДО отправки события, чтобы при получении оффера сервер уже знал, что это разрешено.
     \Illuminate\Support\Facades\Redis::setex("allow_signal:{$senderId}:{$receiverId}", 3600, "1");
     \Illuminate\Support\Facades\Redis::setex("allow_signal:{$receiverId}:{$senderId}", 3600, "1");
-    
+
+    // 7. СОСТОЯНИЕ В БД: Фиксируем статус звонка.
+    // Это служит фолбэком для метода sendSignal, если Redis по какой-то причине не сработает мгновенно.
+    Matchmaking::updateOrCreate(
+        ['user_id' => $senderId],
+        [
+            'status' => MatchmakingStatus::Matched, 
+            'partner_id' => $receiverId, 
+            'updated_at' => now()
+        ]
+    );
+
+    // 8. ОТПРАВКА СОБЫТИЯ: Уведомляем получателя о входящем вызове
     broadcast(new WebRTCSignalEvent($receiverId, [
         'type' => 'incoming-call',
         'fromName' => Auth::user()->name,
         'fromId' => $senderId
     ]));
 
+    // 9. ОТВЕТ: Клиент (инициатор) получает статус 'calling' и запускает свою камеру/initPC
     return response()->json(['status' => 'calling']);
 }
 

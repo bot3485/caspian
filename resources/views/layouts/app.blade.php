@@ -612,10 +612,19 @@ async handleSignal(e) {
     if (m.type === 'filter-sync') { this.partnerFilters = m.filters; return; }
     if (['peer-disconnected', 'hang-up', 'peer-skipped'].includes(m.type)) { this.stopCall(false); return; }
     if (m.type === 'call-accepted') { 
+        console.log("[WebRTC] Partner is ready. Initiating handshake...");
         this.state = 'connected'; 
+        
         if(!this.pc) this.initPC(); 
-        // Даем небольшую паузу чтобы медиа-каналы прогрелись
-        setTimeout(() => { this.sendOffer(); }, 1000); 
+        
+        // Согласно протоколу Perfect Negotiation:
+        // Оффер отправляет тот, у кого ID меньше.
+        if (Number(myId) < Number(this.partnerId)) {
+            console.log("[WebRTC] I am the leader, sending offer...");
+            setTimeout(() => { this.sendOffer(); }, 1000); 
+        } else {
+            console.log("[WebRTC] I am the follower, waiting for offer...");
+        }
         return; 
     }
     if (m.type === 'icebreaker') {
@@ -800,50 +809,48 @@ async handleMatch(e) {
                 setTimeout(() => this.sendOffer(), 1200);
             }
         },
+// Находим функцию setupPersonalCall и заменяем её на улучшенную версию
 async setupPersonalCall(id, isAccepted) {
     this.callContext = 'personal';
     this.partnerId = id;
     this.state = 'connecting';
-    this.uiShowPartnerCard = false; // Закрываем карту сразу
     
     window.history.replaceState({}, '', '/chat');
     
     try {
-        const res = await window.axios.get(`/chat/user-info/${id}`);
-        const p = res.data;
+        // 1. Сначала камера
+        await this.initMedia();
         
-        // Заполняем данные партнера (для кнопки М/Ж и флага)
-        this.partnerData = {
-            id: p.id,
-            name: p.name,
-            gender: p.gender,
-            age: p.age,
-            level: p.level,
-            badge: p.badge,
-            rank_name: p.rank_name,
-            country_flag: p.country_flag
-        };
-
-        this.isFriend = this.friendsList.some(f => f.id === id);
+        // 2. Инфо о партнере
+        const res = await window.axios.get(`/chat/user-info/${id}`);
+        this.partnerData = res.data;
 
         if (isAccepted) {
+            // ЕСЛИ МЫ ПРИНИМАЕМ:
+            // Сначала создаем PC, потом говорим серверу "ОК"
+            this.initPC(); 
             this.state = 'connected';
-            this.initPC();
-            // Тот кто принял звонок — шлет сигнал согласия
-            setTimeout(() => { this.signal({ type: 'call-accepted' }); }, 500);
+            setTimeout(() => { 
+                this.signal({ type: 'call-accepted' }); 
+            }, 500);
         } else {
+            // ЕСЛИ МЫ ЗВОНИМ:
+            // Сначала регистрируем звонок на сервере!
             const r = await window.axios.post('/chat/contact/call', { contactId: id });
-            if (r.data.status === 'busy') { 
-                this.stopCall(false); 
+            
+            if (r.data.status === 'busy') {
+                this.stopCall(false);
                 window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'User is busy' } }));
-            } else {
-                this.state = 'connected';
-                this.initPC();
-                // Инициатор ждет call-accepted чтобы кинуть оффер
+                return;
             }
+
+            // ТОЛЬКО ПОСЛЕ УСПЕШНОГО ОТВЕТА сервера создаем PeerConnection
+            // Теперь сервер уже знает про allow_signal и не выдаст 403
+            this.initPC(); 
+            window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'Calling...' } }));
         }
     } catch (e) { 
-        console.error(e);
+        console.error("Call Setup Error:", e);
         this.stopCall(false); 
     }
 },

@@ -144,6 +144,7 @@ private function finalizeMatch(int $myId, int $partnerId, User $me): int
             'common_interests' => $commonInterests,
             'blocked_count' => DB::table('blocks')->where('blocked_id', $partnerId)->count(),
             'ban_count' => $partner->ban_count,
+            'vpn' => (bool)$partner->is_vpn,
         ], DB::table('contacts')->where('user_id', $myId)->where('contact_id', $partnerId)->exists()));
         
         // Отправка события ПАРТНЕРУ (партнер получает МОИ данные)
@@ -161,6 +162,7 @@ private function finalizeMatch(int $myId, int $partnerId, User $me): int
             'common_interests' => $commonInterests,
             'blocked_count' => DB::table('blocks')->where('blocked_id', $me->id)->count(), 
             'ban_count' => $me->ban_count,
+            'vpn' => (bool)$me->is_vpn,
         ], DB::table('contacts')->where('user_id', $partnerId)->where('contact_id', $myId)->exists()));
 
         return $partnerId;

@@ -15,7 +15,7 @@ class User extends Authenticatable
     protected $fillable = [
         'name', 'email', 'password', 'last_seen', 'banned_until', 
         'interests', 'karma', 'xp', 'level', 'total_minutes', 'site_minutes',
-        'country_code', 'target_country', 'locale', 'last_ip',
+        'country_code', 'target_country', 'locale', 'last_ip', 'is_vpn',
         'gender', 'age', 'target_gender', 'target_age_min', 'target_age_max'
         ];
 

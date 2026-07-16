@@ -917,6 +917,7 @@ async handleMatch(e) {
                 karma: partner.karma || 0,
                 blocked_count: partner.blocked_count || 0,
                 ban_count: partner.ban_count || 0,
+                vpn: partner.vpn,
             };
             
             this.isFriend = this.friendsList.some(f => Number(f.id) === this.partnerId);

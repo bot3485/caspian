@@ -137,6 +137,7 @@ public function callContact(Request $request): JsonResponse
             'karma' => $user->karma,
             'blocked_count' => DB::table('blocks')->where('blocked_id', $user->id)->count(),
             'ban_count' => $user->ban_count,
+            'vpn' => (bool)$user->is_vpn,
         ]);
     }
 

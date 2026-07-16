@@ -96,6 +96,20 @@
     <!-- TRIGGER BUTTON (Кнопка-Флаг с LED) -->
 <div class="relative w-14 h-14 md:w-16 md:h-16 shrink-0 pointer-events-auto">
     
+<!-- НОВОЕ: ИНДИКАТОР VPN НАД ФЛАГОМ -->
+        <template x-if="partnerData?.vpn">
+            <div class="absolute -top-5 left-1/2 -translate-x-1/2 z-50 whitespace-nowrap">
+                <div class="flex items-center gap-1 px-2 py-0.5 bg-amber-500/90 backdrop-blur-md rounded-md border border-white/20 shadow-[0_0_15px_rgba(245,158,11,0.5)] animate-bounce">
+                    <!-- Иконка щита с молнией или замком -->
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-2.5 w-2.5 text-black" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zM10 5a1 1 0 011 1v3a1 1 0 11-2 0V6a1 1 0 011-1zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd" />
+                    </svg>
+                    <span class="text-[7px] font-black uppercase tracking-tighter text-black">Masked IP</span>
+                </div>
+            </div>
+        </template>
+
+
     <!-- LED ГРАДИЕНТ -->
     <div class="absolute -inset-1.5 rounded-[1.8rem] opacity-70"
          :class="partnerData?.ban_count > 0 ? 'led-toxic' : 'animate-[led-rotate_4s_linear_infinite]'"
@@ -180,6 +194,11 @@
                                 {{ __('chatroulette.Recidivist') }}
                             </span>
                         </template>
+                            <template x-if="partnerData?.vpn">
+                                <span class="px-2 py-0.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-500 text-[8px] font-black uppercase tracking-widest flex items-center gap-1 shadow-[0_0_10px_rgba(245,158,11,0.2)]">
+                                    <span class="animate-pulse">🛡️</span> Masked IP
+                                </span>
+                            </template>
                         <span class="px-2 py-0.5 rounded-lg text-[8px] md:text-[9px] font-black uppercase tracking-widest border"
                               :class="partnerData?.gender === 'female' ? 'bg-pink-500/10 text-pink-500 border-pink-500/20' : 'bg-blue-500/10 text-blue-500 border-blue-500/20'"
                               x-text="partnerData?.gender === 'female' ? '{{ __('chatroulette.Female') }}' : '{{ __('chatroulette.Male') }}'"></span>

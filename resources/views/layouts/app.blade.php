@@ -1214,6 +1214,15 @@ handleVisibilityChange() {
                     console.error("Caspian DEBUG: Ошибка при выполнении Axios-запроса:", err);
                 }); 
         },
+
+        t(key) {
+            const trans = {
+                'male': '{{ __("chatroulette.Male") }}',
+                'female': '{{ __("chatroulette.Female") }}',
+                'all': '{{ __("chatroulette.Global_Match") }}'
+            };
+            return trans[key] || key;
+        },
         async sendMsg() { 
             if (!this.chatInput.trim() || !this.partnerId) return; 
             const t = this.chatInput; 

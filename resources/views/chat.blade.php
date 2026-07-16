@@ -133,7 +133,7 @@
              x-transition:enter="transition cubic-bezier(0.68, -0.55, 0.265, 1.55) duration-500"
              x-transition:enter-start="scale-0 rotate-180"
              class="absolute -top-1 -right-1 w-7 h-7 bg-red-600 rounded-full border-2 border-[#020202] flex items-center justify-center shadow-[0_0_15px_#ff0000] z-30 animate-bounce">
-            <span class="text-[11px]">⚠️</span> <!-- Можно заменить на 💀 или ⚡ -->
+            <span class="text-[11px]">💀</span>
         </div>
     </button>
 
@@ -221,11 +221,58 @@
 
 
                 <!-- MY INFO TAG -->
-                <div class="absolute top-6 left-6 caspian-glass px-4 py-2 rounded-xl flex items-center gap-2 border-white/10 group-hover:scale-105 transition-transform">
-                    <div class="w-1.5 h-1.5 rounded-full bg-brand-indigo animate-pulse"></div>
-                    <span class="text-[9px] font-black uppercase tracking-widest italic text-white/70">{{ __('chatroulette.You') }}</span>
-                </div>
+<!-- MY INFO & ACTIVE FILTERS TAG -->
+                <div class="absolute top-6 left-6 z-40" x-data="{ expanded: false }" @click.away="expanded = false">
+                    <!-- Свернутая кнопка -->
+                    <button @click.stop="expanded = !expanded" 
+                            class="caspian-glass px-4 py-2 rounded-xl flex items-center gap-2 border border-white/10 hover:border-brand-indigo/40 hover:bg-white/5 transition-all shadow-lg group pointer-events-auto">
+                        <div class="w-1.5 h-1.5 rounded-full bg-brand-indigo animate-pulse"></div>
+                        <span class="text-[9px] font-black uppercase tracking-widest italic text-white/70">{{ __('chatroulette.Target') }}</span>
+                        <span class="text-[7px] text-gray-500 transition-transform duration-300 ml-1" 
+                              :class="expanded ? 'rotate-180 text-brand-indigo' : ''">▼</span>
+                    </button>
 
+                    <!-- Раскрывающаяся панель параметров -->
+    <div x-show="expanded" 
+     x-transition:enter="transition ease-out duration-300"
+     x-transition:enter-start="opacity-0 -translate-y-2 scale-95"
+     x-transition:enter-end="opacity-100 translate-y-0 scale-100"
+     x-transition:leave="transition ease-in duration-200"
+     x-transition:leave-start="opacity-100 translate-y-0 scale-100"
+     x-transition:leave-end="opacity-0 -translate-y-2 scale-95"
+     class="absolute top-full left-0 mt-2 p-4 bg-[#0a0a0a]/95 backdrop-blur-3xl border border-white/10 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.8)] min-w-[200px] pointer-events-auto flex flex-col gap-3"
+     @click.stop=""
+     x-cloak>
+    
+    <div class="text-[8px] font-black uppercase tracking-[0.4em] text-gray-500 mb-2 border-b border-white/5 pb-2">
+        {{ __('chatroulette.Target') }}
+    </div>
+    
+    <!-- География -->
+    <div class="flex justify-between items-center text-[9px] font-black uppercase tracking-widest">
+        <span class="text-brand-indigo drop-shadow-[0_0_8px_rgba(99,102,241,0.6)]">🌎</span>
+        <span class="text-gray-300" x-text="countryNames[targetCountry] || '{{__('chatroulette.Global_Match')}}'"></span>
+    </div>
+    
+    <!-- Пол -->
+    <div class="flex justify-between items-center text-[9px] font-black uppercase tracking-widest">
+        <span class="text-pink-500 drop-shadow-[0_0_8px_rgba(236,72,153,0.6)]">👤</span>
+        <span class="text-gray-300" x-text="t(targetGender)"></span>
+    </div>
+    
+    <!-- Возраст -->
+    <div class="flex justify-between items-center text-[9px] font-black uppercase tracking-widest">
+        <span class="text-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.6)]">⚡</span>
+        <span class="text-brand-indigo"><span x-text="targetAgeMin"></span> — <span x-text="targetAgeMax"></span></span>
+    </div>
+
+    <!-- Кнопка перехода -->
+    <button @click.stop="filterModalOpen = true; expanded = false" 
+            class="mt-2 w-full py-2 rounded-xl bg-white/[0.03] hover:bg-brand-indigo hover:text-white border border-white/5 text-gray-400 text-[8px] font-black uppercase tracking-[0.2em] transition-all flex items-center justify-center gap-2">
+        <span class="text-brand-indigo">⚙️</span> {{ __('chatroulette.Change') }}
+    </button>
+</div>
+                </div>
                 <!-- CAMERA OFF OVERLAY -->
                 <div x-show="!camEnabled" class="absolute inset-0 bg-[#020202]/95 flex flex-col items-center justify-center z-10">
                     <span class="text-2xl mb-2">🚫</span>
@@ -313,7 +360,7 @@
                     <!-- Search Filters Toggle -->
                     <button @click="filterModalOpen = true" class="flex flex-col items-center justify-center gap-1.5 h-16 rounded-2xl bg-white/5 hover:bg-brand-indigo/20 transition-all group">
                         <span class="text-lg group-hover:scale-110 transition-transform">🎯</span>
-                        <span class="text-[7px] font-black uppercase tracking-widest text-gray-500 group-hover:text-brand-indigo">Target</span>
+                        <span class="text-[7px] font-black uppercase tracking-widest text-gray-500 group-hover:text-brand-indigo">{{ __('chatroulette.Target') }}</span>
                     </button>
                     <!-- FX Row -->
                     <button @click="toggleBeauty()" :class="beautyFilter ? 'bg-pink-600 shadow-[0_0_15px_rgba(219,39,119,0.3)]' : 'bg-white/5'" class="flex flex-col items-center justify-center gap-1.5 h-16 rounded-2xl transition-all">
@@ -331,13 +378,13 @@
                     <!-- 1. Icebreaker -->
                     <button @click="sendIcebreaker()" class="flex flex-col items-center justify-center gap-1.5 h-16 rounded-2xl bg-white/5 hover:bg-brand-indigo/20 transition-all group">
                         <span class="text-lg group-hover:animate-spin">🎲</span>
-                        <span class="text-[7px] font-black uppercase tracking-widest text-gray-500 group-hover:text-brand-indigo">Icebreaker</span>
+                        <span class="text-[7px] font-black uppercase tracking-widest text-gray-500 group-hover:text-brand-indigo">{{ __('chatroulette.Cube') }}</span>
                     </button>
 
                     <!-- 2. Blitz Mode -->
                     <button @click="triggerBlitz()" :disabled="isBlitzActive" class="flex flex-col items-center justify-center gap-1.5 h-16 rounded-2xl bg-white/5 hover:bg-yellow-500/20 transition-all group">
                         <span class="text-lg group-hover:scale-150 transition-transform">⚡</span>
-                        <span class="text-[7px] font-black uppercase tracking-widest text-gray-500 group-hover:text-yellow-500">Blitz FX</span>
+                        <span class="text-[7px] font-black uppercase tracking-widest text-gray-500 group-hover:text-yellow-500">{{ __('chatroulette.Tension') }}</span>
                     </button>
                     <!-- Social Row -->
                     <template x-if="callContext !== 'personal'">
@@ -484,19 +531,25 @@
         
         <div class="flex items-center gap-4 mb-10">
             <div class="w-12 h-12 bg-brand-indigo/10 rounded-2xl flex items-center justify-center text-xl border border-brand-indigo/20">🎯</div>
-            <h3 class="text-xl font-black uppercase italic tracking-tighter text-white">Match Filter</h3>
+            <h3 class="text-xl font-black uppercase italic tracking-tighter text-white">{{ __('chatroulette.Matching') }}</h3>
         </div>
 
         <div class="space-y-10">
             <!-- Gender Selector -->
             <div class="space-y-4">
-                <label class="text-[9px] font-black uppercase text-gray-500 tracking-[0.3em] ml-2">I am looking for</label>
+                <label class="text-[9px] font-black uppercase text-gray-500 tracking-[0.3em] ml-2">
+                    {{ __('chatroulette.Looking_For') }}
+                </label>
+                
                 <div class="grid grid-cols-3 gap-2">
                     <template x-for="g in ['male', 'female', 'all']">
                         <button @click="targetGender = g" 
-                                :class="targetGender === g ? 'bg-brand-indigo text-white border-brand-indigo shadow-[0_0_15px_rgba(99,102,241,0.4)]' : 'bg-white/5 text-gray-500 border-white/5'"
+                                :class="targetGender === g 
+                                    ? 'bg-brand-indigo text-white border-brand-indigo shadow-[0_0_15px_rgba(99,102,241,0.4)]' 
+                                    : 'bg-white/5 text-gray-500 border-white/5'"
                                 class="py-3 rounded-xl border font-black text-[9px] uppercase tracking-widest transition-all"
-                                x-text="g"></button>
+                                x-text="t(g)">
+                        </button>
                     </template>
                 </div>
             </div>
@@ -504,7 +557,7 @@
             <!-- Age Range -->
             <div class="space-y-6">
                 <div class="flex justify-between items-center ml-2">
-                    <label class="text-[9px] font-black uppercase text-gray-500 tracking-[0.3em]">Partner Age</label>
+                    <label class="text-[9px] font-black uppercase text-gray-500 tracking-[0.3em]">{{ __('chatroulette.Partner_Age') }}</label>
                     <div class="flex items-center gap-2">
                         <span class="text-[10px] font-black text-brand-indigo" x-text="targetAgeMin"></span>
                         <span class="text-gray-700">—</span>
@@ -517,13 +570,13 @@
                     <div class="relative">
                         <input type="range" min="18" max="99" x-model="targetAgeMin" 
                                class="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-brand-indigo">
-                        <p class="text-[7px] font-black uppercase mt-3 text-gray-600 tracking-widest">Minimum Age</p>
+                        <p class="text-[7px] font-black uppercase mt-3 text-gray-600 tracking-widest">{{ __('chatroulette.Minimum_Age') }}</p>
                     </div>
                     <!-- Max Age Slider -->
                     <div class="relative">
                         <input type="range" min="18" max="99" x-model="targetAgeMax" 
                                class="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-brand-indigo">
-                        <p class="text-[7px] font-black uppercase mt-3 text-gray-600 tracking-widest">Maximum Age</p>
+                        <p class="text-[7px] font-black uppercase mt-3 text-gray-600 tracking-widest">{{ __('chatroulette.Maximum_Age') }}</p>
                     </div>
                 </div>
             </div>
@@ -532,10 +585,10 @@
         <!-- Action Buttons -->
         <div class="grid grid-cols-2 gap-4 mt-12">
             <button @click="filterModalOpen = false" class="py-5 rounded-2xl font-black text-[10px] uppercase tracking-widest text-gray-500 hover:text-white transition-all">
-                Cancel
+                {{ __('chatroulette.Cancel') }}
             </button>
             <button @click="applyFilters()" class="bg-brand-indigo py-5 rounded-2xl font-black text-[10px] uppercase tracking-widest text-white shadow-xl shadow-brand-indigo/20 hover:scale-105 active:scale-95 transition-all">
-                Apply 🎯
+                {{ __('chatroulette.Apply') }} 🎯
             </button>
         </div>
     </div>

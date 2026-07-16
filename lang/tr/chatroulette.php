@@ -1,6 +1,11 @@
 <?php
 return [
 'Apply_Changes'=>          'Değişiklikleri Uygula',
+'Apply'=>                  'Uygula',
+'Maximum_Age'=>            'Maksimum Yaş',
+'Minimum_Age'=>            'Minimum Yaş',
+'Partner_Age'=>            'Partnerin yaşı',
+'Looking_For'=>            'Arıyorum',
 'Cancel'=>                 'İptal',
 'Audio_Interface'=>        'Ses Arayüzü',
 'Video_Interface'=>        'Video Arayüzü',
@@ -20,12 +25,19 @@ return [
 'Hardware'=>               'Donanım',
 'Start_Conversation'=>     'Konuşmayı Başlat',
 'Matching_Interests'=>     'İlgi Alanlarının Eşleşmesi',
+'Matching'=>               'Eşleştirme',
+'Tension'=>                'Gerginlik',
+'Cube'=>                   'Küp',
 'Common_Universe_Found'=>  'Ortak Evren Bulundu',
 'Stream_Paused'=>          'Akış Duraklatıldı',
 'You'=>                    'Siz',
 'Global_Match'=>           'Tüm',
+'Male'=>                   'Erkek',
+'Female'=>                 'Kadın',
 'Update_Failed'=>          'Güncelleme Başarısız',
 'Target_Country_Updated'=> 'Hedef Ülke Güncellendi',
+'Target'=>                 'Hedef',
 'Searching'=>              'Arama',
-'Ready_To_Start'=>         'Başlamaya Hazır'
+'Ready_To_Start'=>         'Başlamaya Hazır',
+'Change'=>                 'Değiştir',
 ];

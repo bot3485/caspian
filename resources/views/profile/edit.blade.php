@@ -8,8 +8,8 @@
 
         <div class="max-w-7xl mx-auto px-4 py-8 relative z-10">
             <div class="mb-10 text-center lg:text-left">
-                <h1 class="text-4xl md:text-5xl font-black tracking-tighter uppercase italic">Settings</h1>
-                <p class="text-gray-500 font-bold text-[10px] uppercase tracking-[0.4em] mt-2">Ваш игровой профиль</p>
+                <h1 class="text-4xl md:text-5xl font-black tracking-tighter uppercase italic">{{ __('settings.Settings') }}</h1>
+                <p class="text-gray-500 font-bold text-[10px] uppercase tracking-[0.4em] mt-2">{{ __('settings.Your_Profile') }}</p>
             </div>
 
             <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">

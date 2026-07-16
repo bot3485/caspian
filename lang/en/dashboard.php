@@ -1,0 +1,20 @@
+<?php
+return [
+'Video'=>                    'Video',
+'Roulette'=>                 'Roulette',
+'Rooms'=>                    'Rooms',
+'Roulette_Desc'=>            'Experience high-speed P2P connections and intelligent interest-based matching.',
+'Rooms_Desc'=>               'Deploy or join decentralized multi-user conferences with active screen-sharing',
+'Rang'=>                     'Rang',
+'Leaderboard'=>              'Leaderboard',
+'Leaderboard_Desc'=>         'Global Rankings & Fame',
+'System_Trust'=>             'System Trust',
+'System_Trust_Desc'=>        'Trust Points',
+'Registered_Citizens'=>      'Registered Citizens',
+'Registered_Citizens_Desc'=> 'The ecosystem expands globally. Connect with peers all over the world',
+'Level'=>                    'Level',
+'Progress'=>                 'Progress',
+'Conference_Enclaves'=>      'Conference Enclaves',
+'Good_Luck'=>                'Good_Luck',
+'Total_Online'=>             'Time In System',
+];

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Roulette</string>
+    <string name="title_activity_main">Roulette</string>
+    <string name="package_name">chatroulette.linkpc.net</string>
+    <string name="custom_url_scheme">chatroulette.linkpc.net</string>
+</resources>

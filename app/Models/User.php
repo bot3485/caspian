@@ -14,8 +14,10 @@ class User extends Authenticatable
 
     protected $fillable = [
         'name', 'email', 'password', 'last_seen', 'banned_until', 
-        'interests', 'karma', 'xp', 'level', 'total_minutes', 'site_minutes'
-    ];
+        'interests', 'karma', 'xp', 'level', 'total_minutes', 'site_minutes',
+        'country_code', 'target_country', 'locale', 'last_ip',
+        'gender', 'age', 'target_gender', 'target_age_min', 'target_age_max'
+        ];
 
     protected $casts = [
         'email_verified_at' => 'datetime', 
@@ -92,6 +94,24 @@ class User extends Authenticatable
             'device' => str_contains(request()->header('User-Agent'), 'Mobile') ? 'mobile' : 'desktop'
         ];
     }
+
+public function getPrestigeBadgeAttribute(): array
+{
+    $m = $this->site_minutes;
+
+    return match (true) {
+        $m >= 100000 => ['name' => 'Celestial', 'icon' => '⚛️', 'color' => '#ffffff', 'glow' => '0 0 20px #ffffff'], 
+        $m >= 50000  => ['name' => 'Eternal',   'icon' => '🌌', 'color' => '#ef4444', 'glow' => '0 0 15px #ef4444'], 
+        $m >= 25000  => ['name' => 'Imperial',  'icon' => '💎', 'color' => '#f59e0b', 'glow' => '0 0 12px #f59e0b'],
+        $m >= 10000  => ['name' => 'Overlord',  'icon' => '🔱', 'color' => '#ec4899', 'glow' => 'none'],
+        $m >= 5000   => ['name' => 'Commander', 'icon' => '🎖️', 'color' => '#a855f7', 'glow' => 'none'],
+        $m >= 2500   => ['name' => 'Veteran',   'icon' => '🛡️', 'color' => '#6366f1', 'glow' => 'none'],
+        $m >= 1000   => ['name' => 'Resident',  'icon' => '🏠', 'color' => '#3b82f6', 'glow' => 'none'],
+        $m >= 500    => ['name' => 'Nomad',     'icon' => '🧭', 'color' => '#2dd4bf', 'glow' => 'none'],
+        $m >= 100    => ['name' => 'Explorer',  'icon' => '🛰️', 'color' => '#10b981', 'glow' => 'none'],
+        default      => ['name' => 'Guest',     'icon' => '🐚', 'color' => '#94a3b8', 'glow' => 'none'],
+    };
+}
 
 
 }

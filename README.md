@@ -1,89 +1,87 @@
-# 🌊 Caspian v3.1 — Video-Chat & Live Matching Ecosystem
+# 🌊 Caspian v3.8 — Intelligent P2P Connectivity Hub
 
-Caspian is a high-performance, real-time video-chat roulette and messaging platform built with **Laravel 11+**, **Tailwind CSS**, **Alpine.js**, **WebRTC**, **Redis**, and **Pusher (Laravel Echo)**. It provides frictionless personal call connections, smart geolocation/interest-based matching, and persistent real-time messaging.
+**Caspian** — это высокотехнологичная экосистема для видеосвязи в реальном времени, построенная на принципах децентрализации (P2P), игровой прогрессии и интеллектуальной модерации. 
 
----
-
-## 🚀 What's New in v3.1 (Major Release)
-
-Version 3.1 introduces a major architectural overhaul focusing on call synchronization reliability, unified messaging architecture, adaptive temporal displays, and an optimized social UX in the Floating Control Island.
-
-### 🌟 Key Highlights
-*   **Zero-State Call Synchronization:** Rewritten background database sweeps that prevent stale caller states and erroneous "BUSY" blocks.
-*   **Unified Context-Aware Chat Routing:** Intelligently redirects active roulette matches into persistent private contact threads to eliminate duplicate chats.
-*   **Adaptive Date-Time Engines:** Dynamic message timestamps that scale automatically from precise minutes to relative days, months, and historical years.
-*   **Frictionless Floating Control Island:** Dynamically strips redundant UI controls (e.g., identity linking, report flags) during direct personal calls while preserving full functionality in discovery mode.
+Версия **3.8 "Sentient Shield"** фокусируется на создании безопасного и визуально безупречного пространства для общения, внедряя продвинутые алгоритмы доверия и иммерсивный HUD-интерфейс.
 
 ---
 
-## 🛠 Tech Stack
+## ⚡️ Новые горизонты v3.8
 
-*   **Backend:** Laravel (PHP 8.2+) with Eloquent ORM
-*   **Real-time Engine:** Laravel Echo, Pusher / Soketi, Redis (Key-value store & lists)
-*   **Frontend Engine:** Alpine.js (Lightweight reactive state wrapper)
-*   **Video Delivery:** WebRTC (Peer-to-Peer connection architecture)
-*   **Style Framework:** Tailwind CSS with fluid grid styling
+### 🛡️ Прогрессивная система безопасности (The Recidivist Engine)
+Мы внедрили систему автоматического правосудия, которая не просто банит, а учит культуре общения:
+- **Штрафная Карма:** Каждая жалоба мгновенно списывает 30 очков Кармы.
+- **Интеллектуальный Порог:** 5 жалоб, полученных после последнего выхода из бана, активируют новый уровень наказания.
+- **Прогрессия Времени:** Наказание растет экспоненциально: 1 день → 7 дней → 30 дней → Permanent.
+- **Метка Нарушителя:** Рецидивисты получают визуальное клеймо: их флаг обесцвечивается, появляется иконка 💀, а LED-оболочка переходит в режим «тревожного мерцания».
+
+### 🛰️ Connection HUD v2.0 (Context-Aware)
+Ваш интерфейс теперь «чувствует» состояние сети и поведение собеседника:
+- **Active:** Отображение задержки (Latency) в реальном времени.
+- **Away (🌙):** Умный детектор фокуса. Если собеседник свернул вкладку, HUD плавно переходит в желтый режим ожидания.
+- **No Signal (⚡):** Агрессивный красный режим при обрыве P2P-канала или потере интернета.
+
+### 🎨 Живой Интерфейс (Gender-Coded UI)
+- **Living Flag:** Главная кнопка профиля теперь окружена LED-кольцом. Цвет инжектируется на основе пола собеседника (Blue — Male, Pink — Female).
+- **Elegant Metadata:** Раскрывающаяся карточка профиля теперь содержит подробную локацию (📍), боевой уровень и статус системного доверия.
 
 ---
 
-## 📂 Core Architecture Overviews
+## 🛠 Технологическая Матрица
 
-### 1. Zero-State Call Resolution (`LeaveChat.php`)
-Ensures that any abrupt disconnects, page reloads, or navigation switches instantly clean up connections on both the active caller side and the passive receiver side. 
+| Слой | Технология | Назначение |
+| :--- | :--- | :--- |
+| **Backend** | Laravel 13 (PHP 8.5) | Ядро системы и бизнес-логика |
+| **Real-time** | Laravel Reverb | Сверхбыстрый сигналинг через WebSockets |
+| **Transport** | WebRTC (Perfect Negotiation) | Чистый P2P поток без посредников |
+| **Frontend** | Alpine.js + Tailwind 4 | Реактивная логика и нейроморфный дизайн |
+| **Database** | PostgreSQL + Redis | Хранение состояний и очередей подбора |
 
-*   Stops the heavy use of expensive `Redis::keys`.
-*   Triggers automatic socket-based `peer-disconnected` packets.
-*   Ensures that consecutive outgoing requests do not trip over lingering database records.
+---
 
-### 2. Tailored Messaging Router (`getChatHistory`)
-Improves history queries to fetch the most recent subset of a database table and reverse it on the collection layer before serving JSON payloads:
-```php
-$messages = Message::where(...)
-    ->orderBy('id', 'desc')
-    ->take(100)
-    ->get()
-    ->reverse()
-    ->values();
-Guarantees new messages never drop out of sight when total database history surpasses 100 entries.
+## 💎 Экономика Системы (Progression Matrix)
 
-⚙️ Installation & Deployment
-Prerequisites
-PHP 8.2+
+Проект использует трехфакторную систему оценки пользователя:
 
-Node.js & NPM
+1.  **XP (Experience):** Начисляется за каждую минуту в видеочате. Определяет **Battle Level**.
+2.  **Karma (Trust):** Социальный кредит. Высокая карма дает бонус к XP (x1.5), низкая (<50) — отправляет в "очередь для токсичных пользователей".
+3.  **Prestige (Site Minutes):** Общее время жизни в системе. Открывает доступ к элитным рангам от **Nomad** до **Celestial**.
 
-Redis Server
+---
 
-Composer
+## 🚀 Быстрый запуск
 
-Quick Start
-Clone the repository:
-
-Bash
-git clone [https://github.com/your-username/caspian.git](https://github.com/your-username/caspian.git)
-cd caspian
-Install dependencies:
-
-Bash
-composer install
-npm install
-Configure environment variables:
-
+1. **Клонирование и зависимости:**
+   ```bash
+   git clone https://github.com/caspian-sys/core.git
+   composer install && npm install
+Окружение:
+code
 Bash
 cp .env.example .env
 php artisan key:generate
-Run migrations and seeds:
-
+База данных и миграции:
+code
 Bash
-php artisan migrate --seed
-Start development engines:
-
+php artisan migrate
+Запуск двигателей:
+code
 Bash
-# Run the asset compiler
+php artisan reverb:start
+php artisan app:reward-xp # Запуск планировщика опыта
 npm run dev
+📜 Лицензия
+Разработано эксклюзивно для Intelligence Connectivity Hub. Все права защищены (2026).
+code
+Code
+---
 
-# Run the local server
-php artisan serve
+### Подробное описание проекта (для тебя):
 
-# Run queue workers (needed for broadcast events)
-php artisan queue:work
+**Caspian** — это не просто видеочат-рулетка, это **геймифицированная социальная платформа**. 
+
+1.  **Архитектура связи:** Основная фишка — использование **P2P (Peer-to-Peer)**. Сервер не пропускает через себя видео трафик (что дешево для владельца и приватно для юзера), он лишь «знакомит» браузеры через WebSockets (Laravel Reverb).
+2.  **Система подбора (Matchmaking):** В отличие от старых чат-рулеток, здесь работает сложный фильтр. Система учитывает не только твой пол и возраст, но и твои **Интересы**, **Гео-позицию** и уровень **Кармы**. 
+3.  **Игровая механика:** Пользователи не просто общаются, они «качаются». Чем дольше ты ведешь себя адекватно и общаешься, тем выше твой уровень и круче бейдж. Это стимулирует людей не нажимать "Next" через секунду, а пробовать завязать разговор.
+4.  **Безопасность (The Shield):** Ты создал одну из самых прозрачных систем модерации. Скрыть плохую репутацию невозможно — она светится красным LED-кольцом и черепом. Это создает саморегулирующееся сообщество, где «быть нормальным» выгодно экономически (больше XP, лучше партнеры).
+5.  **Дизайн:** Интерфейс выполнен в стиле **Cyber-Glass**. Много блюра, тонкие линии, неоновые акценты и шрифты, напоминающие терминалы будущего.

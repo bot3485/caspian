@@ -25,22 +25,62 @@ class ProfileController extends Controller
         ]);
     }
 
-public function update(ProfileUpdateRequest $request): RedirectResponse
+public function update(ProfileUpdateRequest $request): RedirectResponse|\Illuminate\Http\JsonResponse
 {
     $user = $request->user();
     
-    // Заполняем основные поля (name, email)
-    $user->fill($request->safe()->except('interests'));
-
-    if ($user->isDirty('email')) {
-        $user->email_verified_at = null;
+    // 1. Обработка базовых данных (Имя, Email)
+    $data = $request->safe()->only(['name', 'email']);
+    if (!empty($data)) {
+        $user->fill($data);
+        if ($user->isDirty('email')) {
+            $user->email_verified_at = null;
+        }
     }
 
-    // Сохраняем массив интересов напрямую. 
-    // Если ничего не выбрано, записываем пустой массив.
-    $user->interests = $request->input('interests', []);
+    // 2. Локаль
+    if ($request->has('locale')) {
+        $user->locale = $request->input('locale');
+    }
+    
+    // 3. Интересы
+    if ($request->has('interests')) {
+        $user->interests = $request->input('interests', []);
+    }
+
+    // 4. ГЕО-фильтр (Страна поиска)
+    if ($request->has('target_country')) {
+        $user->target_country = $request->input('target_country');
+    }
+
+    // 5. НОВОЕ: Личные данные (Пол и Возраст)
+    if ($request->has('gender')) {
+        $user->gender = $request->input('gender');
+    }
+    if ($request->has('age')) {
+        $user->age = $request->input('age');
+    }
+
+    // 6. НОВОЕ: Фильтры поиска (Таргетинг в рулетке)
+    if ($request->has('target_gender')) {
+        $user->target_gender = $request->input('target_gender');
+    }
+    if ($request->has('target_age_min')) {
+        $user->target_age_min = (int) $request->input('target_age_min');
+    }
+    if ($request->has('target_age_max')) {
+        $user->target_age_max = (int) $request->input('target_age_max');
+    }
 
     $user->save();
+
+    // Возврат ответа
+    if ($request->expectsJson() || $request->wantsJson()) {
+        return response()->json([
+            'status' => 'success',
+            'user' => $user->fresh() // fresh() подтянет актуальные данные из БД
+        ]);
+    }
 
     return Redirect::route('profile.edit')->with('status', 'profile-updated');
 }

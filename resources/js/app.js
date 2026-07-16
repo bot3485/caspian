@@ -10,6 +10,10 @@ window.Alpine = Alpine;
  */
 window.axios = axios;
 window.axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
+const token = document.head.querySelector('meta[name="csrf-token"]');
+if (token) {
+    window.axios.defaults.headers.common['X-CSRF-TOKEN'] = token.content;
+}
 
 // Перехватчик ответов (Interceptors)
 window.axios.interceptors.response.use(
@@ -48,6 +52,14 @@ window.onerror = function(message, source, lineno, colno, error) {
     }
 };
 
+window.changeLanguage = async (lang) => {
+    try {
+        await window.axios.post('/lang/set', { locale: lang }); // Создай этот роут для гостей
+        window.location.reload();
+    } catch (e) {
+        console.error("Language change failed");
+    }
+};
 /**
  * Инициализация Alpine.js
  */

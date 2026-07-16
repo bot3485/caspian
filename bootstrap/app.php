@@ -5,6 +5,9 @@ use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
 use App\Http\Middleware\UpdateLastSeen;
+use App\Http\Middleware\SetLocaleMiddleware;
+use App\Http\Middleware\CheckBanned;
+use App\Http\Middleware\ClearChatState;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -14,21 +17,28 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
-        // Здесь можно добавить глобальные Middleware в новом стиле
-        $middleware->statefulApi(); // Если планируете использовать Sanctum
-        $middleware->web(append: [
-        \App\Http\Middleware\UpdateLastSeen::class,
-    ]);
-    })
-->withExceptions(function (Exceptions $exceptions) {
-    // Игнорируем это тупое уведомление PHP 8.5 про временную папку
-    $exceptions->reportable(function (\ErrorException $e) {
-        if (str_contains($e->getMessage(), 'tempnam()')) {
-            return false; 
-        }
-    });
+        $middleware->statefulApi();
 
-    $exceptions->shouldRenderJsonWhen(
-        fn (Request $request) => $request->is('api/*') || $request->expectsJson()
-    );
+        $middleware->alias([
+            'clear.chat' => ClearChatState::class,
+        ]);
+
+        $middleware->web(append: [
+            UpdateLastSeen::class,
+            SetLocaleMiddleware::class,
+            CheckBanned::class, 
+        ]);
+    })
+    ->withExceptions(function (Exceptions $exceptions) {
+        // Игнорируем специфичное для PHP 8.5 предупреждение про временную папку
+        $exceptions->reportable(function (\ErrorException $e) {
+            if (str_contains($e->getMessage(), 'tempnam()')) {
+                return false; 
+            }
+        });
+
+        // Корректно возвращаем JSON при запросах к API или при ожиданиях JSON-ответа
+        $exceptions->shouldRenderJsonWhen(
+            fn (Request $request) => $request->is('api/*') || $request->expectsJson()
+        );
     })->create();

@@ -34,12 +34,17 @@ class RegisteredUserController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:'.User::class],
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
+            'gender' => ['required', 'string', 'in:male,female'], // Обязательный выбор
+            'age' => ['required', 'integer', 'min:18', 'max:100'],
         ]);
 
         $user = User::create([
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),
+            'gender' => $request->gender,
+            'age' => $request->age,
+            'target_gender' => 'all', // По умолчанию ищем всех
         ]);
 
         event(new Registered($user));

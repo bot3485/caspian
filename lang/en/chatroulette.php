@@ -40,4 +40,15 @@ return [
 'Searching'=>               'Searching',
 'Ready_To_Start'=>          'Ready To Start',
 'Change'=>                  'Change',
+'Unknown_Location'=>        'Unknown Location',
+'Years_Old'=>               'Years Old',
+'Recidivist'=>              'Recidivist',
+'Reports'=>                 'Reports',
+'Level'=>                   'Level',
+'Karma'=>                   'Karma',
+'User_Away'=>               'User Away',
+'No_Signal'=>               'No Signal',
+'Prestige_Status'=>         'Prestige Status',
+'Past_Violations'=>         'Past Violations',
+'Latency'=>                 'Latency'
 ];

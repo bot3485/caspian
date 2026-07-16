@@ -88,110 +88,222 @@
                        x-text="state === 'searching' ? '{{ __('chatroulette.Searching') }}...' : '{{ __('chatroulette.Ready_To_Start') }}'"></p>
                 </div>
 
-<!-- PARTNER INFO WIDGET (Engine v3.5 - Devilish Update) -->
+<!-- PARTNER INFO WIDGET (Engine v3.8 - Mobile Shield Edition) -->
 <div x-show="state === 'connected' && partnerData" 
-     class="absolute top-6 left-6 z-[1000] flex items-center gap-3 pointer-events-none"
+     class="absolute top-6 left-6 z-[1000] flex items-start pointer-events-none"
      x-cloak>
     
-    <!-- TRIGGER BUTTON -->
+    <!-- TRIGGER BUTTON (Кнопка-Флаг с LED) -->
+<div class="relative w-14 h-14 md:w-16 md:h-16 shrink-0 pointer-events-auto">
+    
+    <!-- LED ГРАДИЕНТ -->
+    <div class="absolute -inset-1.5 rounded-[1.8rem] opacity-70"
+         :class="partnerData?.ban_count > 0 ? 'led-toxic' : 'animate-[led-rotate_4s_linear_infinite]'"
+         :style="partnerData?.ban_count > 0 ? '' : { 
+            background: partnerData?.gender === 'female' 
+                ? 'conic-gradient(from 0deg, transparent, #db2777, transparent, #db2777, transparent)' 
+                : 'conic-gradient(from 0deg, transparent, #2563eb, transparent, #6366f1, transparent)' 
+         }">
+    </div>
+    
+    <!-- Halo Свечение (Для нарушителей делаем красным и размытым) -->
+    <div class="absolute -inset-1.5 rounded-[1.8rem] blur-md"
+         :class="partnerData?.ban_count > 0 ? 'bg-red-600/60 animate-pulse' : 'animate-[led-pulse_2s_ease-in-out_infinite]'"
+         :style="partnerData?.ban_count > 0 ? '' : { backgroundColor: partnerData?.gender === 'female' ? '#db277740' : '#2563eb40' }">
+    </div>
+
     <button @click.stop.prevent="uiShowPartnerCard = !uiShowPartnerCard"
             type="button"
-            class="relative w-16 h-16 shrink-0 transition-all duration-500 active:scale-90 group pointer-events-auto">
+            class="relative w-full h-full rounded-[1.4rem] overflow-hidden border shadow-2xl transition-all duration-500 active:scale-90 group bg-black"
+            :class="partnerData?.ban_count > 0 ? 'border-red-500/50' : 'border-white/20'">
         
-        <div class="relative w-full h-full rounded-2xl flex flex-col border border-white/10 shadow-2xl overflow-hidden transition-all duration-500"
-             :style="{ 
-                'background-color': partnerState === 'problem' ? '#7f1d1d' : // Дьявольский красный
-                                    (partnerState === 'away' ? '#f59e0b' : 
-                                    (partnerData?.gender === 'female' ? '#db2777' : '#2563eb')) 
-             }"
-             :class="{ 'animate-pulse shadow-[0_0_25px_rgba(127,29,29,0.8)] border-red-500/50': partnerState === 'problem' }">
-            
-            <!-- Пол и Возраст -->
-            <div class="flex-[0.8] flex items-center justify-center pt-1">
-                <span class="text-white text-[10px] font-black tracking-tighter uppercase" 
-                      x-text="(partnerData?.gender === 'male' ? 'M' : 'W') + ' ' + (partnerData?.age || '??')">
-                </span>
+        <!-- ФЛАГ -->
+        <img :src="partnerData?.country_flag" 
+             class="w-full h-full object-cover transition-transform duration-1000"
+             :class="partnerData?.ban_count > 0 ? 'grayscale brightness-50 group-hover:grayscale-0 transition-all' : 'opacity-90 group-hover:scale-110'"
+             crossorigin="anonymous">
+        
+        <!-- Череп поверх флага для рецидивистов (Виден сразу!) -->
+        <template x-if="partnerData?.ban_count > 0">
+            <div class="absolute inset-0 flex items-center justify-center bg-red-950/20 backdrop-blur-[1px]">
+                <span class="text-xl filter drop-shadow-lg">💀</span>
             </div>
-            
-            <!-- Флаг -->
-            <div class="flex-1 bg-black/20 flex items-center justify-center border-t border-white/5 overflow-hidden">
-                 <img :src="partnerData?.country_flag" 
-                      class="w-full h-full object-cover opacity-90 transition-transform group-hover:scale-110"
-                      :class="{ 'grayscale sepia contrast-150': partnerState === 'problem' }" 
-                      crossorigin="anonymous">
-            </div>
-        </div>
-
-        <!-- AFK Dot (Желтый полумесяц) -->
-        <div x-show="partnerState === 'away'" 
-             class="absolute -top-1 -right-1 w-6 h-6 bg-amber-500 rounded-full border-2 border-[#020202] flex items-center justify-center shadow-lg z-30">
-            <span class="text-[9px]">🌙</span>
-        </div>
-
-        <!-- PROBLEM Dot (Дьявольская иконка) -->
-        <div x-show="partnerState === 'problem'" 
-             x-transition:enter="transition cubic-bezier(0.68, -0.55, 0.265, 1.55) duration-500"
-             x-transition:enter-start="scale-0 rotate-180"
-             class="absolute -top-1 -right-1 w-7 h-7 bg-red-600 rounded-full border-2 border-[#020202] flex items-center justify-center shadow-[0_0_15px_#ff0000] z-30 animate-bounce">
-            <span class="text-[11px]">💀</span>
-        </div>
+        </template>
     </button>
+    <!-- 1. ИНДИКАТОР: СОБЕСЕДНИК СВЕРНУЛ ОКНО (AFK) -->
+    <div x-show="partnerState === 'away'" 
+         class="absolute -top-1 -right-1 w-6 h-6 bg-amber-500 rounded-full border-2 border-[#020202] flex items-center justify-center shadow-lg z-30 animate-pulse">
+        <span class="text-[9px]">🌙</span>
+    </div>
 
-<!-- EXPANDABLE PROFILE CARD -->
-        <div x-show="uiShowPartnerCard"
-             x-cloak 
-             @click.stop=""
-             @click.away="uiShowPartnerCard = false"
-             x-transition:enter="transition ease-out duration-400"
-             x-transition:enter-start="opacity-0 -translate-x-4 blur-md"
-             x-transition:enter-end="opacity-100 translate-x-0 blur-0"
-             x-transition:leave="transition ease-in duration-300"
-             x-transition:leave-end="opacity-0 -translate-x-4 blur-md"
-             class="pointer-events-auto bg-black/60 backdrop-blur-2xl px-6 py-4 rounded-[2rem] border border-white/10 shadow-2xl flex items-center gap-6 ml-2"
-             :style="{ 'border-color': partnerData?.gender === 'female' ? '#db277740' : '#2563eb40' }">
-            
-            <div class="flex flex-col gap-1">
-                <div class="flex items-center gap-3">
-                    <span class="text-[13px] font-black uppercase tracking-tight text-white italic" x-text="partnerData?.name"></span>
-                    <span class="text-[7px] font-black uppercase px-2 py-0.5 rounded bg-white/5 text-gray-400 border border-white/5 tracking-[0.2em]" 
-                          x-text="partnerData?.rank_name"></span>
-                </div>
-                <div class="flex items-center gap-3">
-                    <div class="flex items-center gap-1.5">
-                        <div class="w-1 h-1 rounded-full bg-green-500 shadow-[0_0_8px_#22c55e]"></div>
-                        <span class="text-[8px] font-black text-brand-indigo uppercase tracking-widest" x-text="'LVL ' + (partnerData?.level || 1)"></span>
-                    </div>
-                    <template x-if="partnerData?.badge">
-                        <div class="flex items-center gap-1 px-2 py-0.5 rounded border border-white/5 bg-white/[0.03]">
-                            <span class="text-[10px]" x-text="partnerData.badge.icon"></span>
-                            <span class="text-[7px] font-black uppercase tracking-wider" :style="{ color: partnerData.badge.color }" x-text="partnerData.badge.name"></span>
-                        </div>
-                    </template>
-                </div>
-            </div>
-
-            <!-- КРЕСТИК ЗАКРЫТИЯ -->
-            <button @click.stop.prevent="uiShowPartnerCard = false" 
-                    type="button"
-                    class="p-2 hover:bg-white/10 rounded-full transition-colors group">
-                <svg class="w-4 h-4 text-gray-400 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12"></path>
-                </svg>
-            </button>
-        </div>
+    <!-- 2. ИНДИКАТОР: СЕТЬ ПРОПАЛА (DISCONNECTED) -->
+    <div x-show="partnerState === 'problem'" 
+         x-transition:enter="transition cubic-bezier(0.68, -0.55, 0.265, 1.55) duration-500"
+         x-transition:enter-start="scale-0 rotate-180"
+         class="absolute -top-1 -right-1 w-7 h-7 bg-red-600 rounded-full border-2 border-[#020202] flex items-center justify-center shadow-[0_0_20px_#ff0000] z-40 animate-bounce">
+        
+        <!-- Иконка "Разорванная вилка/питание" -->
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 6L6 18M6 6l12 12" class="text-red-200 opacity-80" />
+        </svg>
+    </div>
 </div>
 
-                <!-- PING TAG -->
-                <div x-show="state === 'connected' && ping > 0" 
-                     class="absolute top-6 right-6 px-3 py-1.5 flex items-center gap-2 rounded-full border border-white/[0.04] bg-black/40 backdrop-blur-md shadow-2xl">
-                    <span class="relative flex h-1.5 w-1.5">
-                        <span :class="ping < 150 ? 'bg-green-500' : 'bg-red-500'" class="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75"></span>
-                        <span :class="ping < 150 ? 'bg-green-500' : 'bg-red-500'" class="relative inline-flex rounded-full h-1.5 w-1.5 transition-colors duration-300"></span>
-                    </span>
-                    <span :class="ping < 150 ? 'text-green-400' : 'text-red-400'" 
-                          class="text-[8px] font-black tracking-[0.12em] uppercase transition-colors duration-300"
-                          x-text="ping + ' ms'">
-                    </span>
+    <!-- EXPANDABLE PROFILE CARD (Responsive Adaptation) -->
+    <!-- На мобильных: fixed по центру, на десктопе: absolute сбоку -->
+    <div x-show="uiShowPartnerCard"
+         x-cloak 
+         @click.stop=""
+         @click.away="uiShowPartnerCard = false"
+         x-transition:enter="transition cubic-bezier(0.34, 1.56, 0.64, 1) duration-500"
+         x-transition:enter-start="opacity-0 translate-y-8 md:translate-y-0 md:-translate-x-8 blur-xl scale-95"
+         x-transition:enter-end="opacity-100 translate-y-0 md:translate-x-0 blur-0 scale-100"
+         class="pointer-events-auto fixed md:absolute top-36 md:top-0 left-4 md:left-20 right-4 md:right-auto 
+                md:w-[320px] bg-[#0a0a0a]/95 backdrop-blur-3xl p-5 md:p-6 rounded-[2rem] md:rounded-[2.5rem] 
+                border border-white/10 shadow-[0_30px_100px_rgba(0,0,0,0.9)] overflow-hidden z-[2000]">
+        
+        <!-- Фоновое свечение -->
+        <div class="absolute -top-24 -right-24 w-48 h-48 rounded-full blur-[80px] opacity-20 pointer-events-none"
+             :style="{ backgroundColor: partnerData?.gender === 'female' ? '#db2777' : '#2563eb' }"></div>
+
+        <div class="relative z-10 flex flex-col gap-5">
+            
+            <!-- HEADER -->
+            <div class="flex justify-between items-start">
+                <div class="flex flex-col gap-1">
+                    <div class="flex items-center flex-wrap gap-2">
+                        <h3 class="text-xl md:text-2xl font-black uppercase italic tracking-tighter text-white" x-text="partnerData?.name"></h3>
+                            <!-- КРАСНЫЙ ТЭГ ДЛЯ НАРУШИТЕЛЕЙ -->
+                        <template x-if="partnerData?.ban_count > 0">
+                            <span class="px-2 py-0.5 rounded bg-red-600 text-white text-[7px] font-black uppercase tracking-tighter animate-bounce">
+                                {{ __('chatroulette.Recidivist') }}
+                            </span>
+                        </template>
+                        <span class="px-2 py-0.5 rounded-lg text-[8px] md:text-[9px] font-black uppercase tracking-widest border"
+                              :class="partnerData?.gender === 'female' ? 'bg-pink-500/10 text-pink-500 border-pink-500/20' : 'bg-blue-500/10 text-blue-500 border-blue-500/20'"
+                              x-text="partnerData?.gender === 'female' ? '{{ __('chatroulette.Female') }}' : '{{ __('chatroulette.Male') }}'"></span>
+                    </div>
+                    
+                    <div class="flex items-center gap-3">
+                        <span class="text-[8px] md:text-[9px] font-black uppercase tracking-[0.3em] text-gray-500" x-text="partnerData?.rank_name"></span>
+                        <div class="h-1 w-1 rounded-full bg-white/20"></div>
+                        <span class="text-[9px] md:text-[10px] font-bold text-gray-300" x-text="partnerData?.age + ' {{ __('chatroulette.Years_Old') }}'"></span>
+                    </div>
+                        <!-- НОВОЕ: ЭЛЕГАНТНАЯ СТРОКА ЛОКАЦИИ -->
+                        <div class="flex items-center gap-1.5 mt-0.5 opacity-60">
+                            <span class="text-[7px] text-brand-indigo">📍</span>
+                            <span class="text-[9px] font-black uppercase tracking-[0.2em] text-gray-400 italic" 
+                                x-text="countryNames[partnerData?.country_code]?.replace(/.[^\s]*\s/, '') || '{{ __('chatroulette.Unknown_Location') }}'">
+                            </span>
+                        </div>
+                </div>
+
+                <button @click="uiShowPartnerCard = false" class="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center hover:bg-white/10 transition-colors">
+                    <svg class="w-3.5 h-3.5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+
+            <!-- TRUST & STATS -->
+            <div class="grid grid-cols-3 gap-2">
+                <div class="bg-white/[0.03] border border-white/[0.06] py-3 px-1 rounded-2xl flex flex-col items-center gap-1">
+                    <span class="text-[6px] md:text-[7px] font-black uppercase text-gray-500">{{ __('chatroulette.Karma') }}</span>
+                    <span class="text-xs font-black text-amber-500" x-text="partnerData?.karma"></span>
+                </div>
+
+                <div class="bg-white/[0.03] border border-white/[0.06] py-3 px-1 rounded-2xl flex flex-col items-center gap-1">
+                    <span class="text-[6px] md:text-[7px] font-black uppercase text-gray-500">{{ __('chatroulette.Level') }}</span>
+                    <span class="text-xs font-black text-white" x-text="partnerData?.level"></span>
+                </div>
+
+                <div class="bg-white/[0.03] border border-white/[0.06] py-3 px-1 rounded-2xl flex flex-col items-center gap-1">
+                    <span class="text-[6px] md:text-[7px] font-black uppercase text-gray-500">{{ __('chatroulette.Reports') }}</span>
+                    <div class="flex items-center gap-1">
+                        <span class="text-[10px]">🚩</span>
+                        <span class="text-xs font-black text-red-500" x-text="partnerData?.blocked_count || 0"></span>
+                    </div>
+                </div>
+            </div>
+
+            <template x-if="partnerData?.ban_count > 0">
+                <div class="mt-4 px-4 py-2 bg-red-950/30 border border-red-500/20 rounded-xl flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs">⚠️</span>
+                        <span class="text-[8px] font-black uppercase tracking-widest text-red-400">{{ __('chatroulette.Past_Violations') }}</span>
+                    </div>
+                    <span class="text-[10px] font-black text-red-500" x-text="partnerData.ban_count + ' BANS'"></span>
+                </div>
+            </template>
+
+            <!-- PRESTIGE FOOTER -->
+            <template x-if="partnerData?.badge">
+                <div class="pt-4 border-t border-white/5 flex items-center justify-between">
+                    <span class="text-[7px] md:text-[8px] font-black uppercase tracking-[0.25em] text-gray-600">{{ __('chatroulette.Prestige_Status') }}</span>
+                    <div class="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/[0.02] border border-white/10 shadow-inner"
+                         :style="{ borderColor: partnerData.badge.color + '30' }">
+                        <span class="text-sm" x-text="partnerData.badge.icon"></span>
+                        <span class="text-[9px] font-black uppercase tracking-widest" 
+                              :style="{ color: partnerData.badge.color, 'text-shadow': '0 0 10px ' + partnerData.badge.color + '40' }" 
+                              x-text="partnerData.badge.name"></span>
+                    </div>
+                </div>
+            </template>
+
+        </div>
+    </div>
+</div>
+
+                <!-- DYNAMIC STATUS HUD (v3.9 - Context Aware) -->
+                <div x-show="state === 'connected'" 
+                    class="absolute top-6 right-6 px-4 py-2 flex items-center gap-3 rounded-2xl border transition-all duration-500 backdrop-blur-xl shadow-2xl z-[110]"
+                    :class="{
+                        'hud-no-network': partnerState === 'problem',
+                        'hud-away': partnerState === 'away',
+                        'bg-black/40 border-white/[0.04]': partnerState === 'active'
+                    }">
+                    
+                    <!-- Индикатор (Точка) -->
+                    <div class="relative flex h-2 w-2">
+                        <span class="absolute inline-flex h-full w-full rounded-full opacity-75"
+                            :class="{
+                                'animate-ping bg-red-500': partnerState === 'problem',
+                                'animate-pulse bg-amber-500': partnerState === 'away',
+                                'bg-green-500': partnerState === 'active'
+                            }"></span>
+                        <span class="relative inline-flex rounded-full h-2 w-2"
+                            :class="{
+                                'bg-red-600': partnerState === 'problem',
+                                'bg-amber-500': partnerState === 'away',
+                                'bg-green-500': partnerState === 'active'
+                            }"></span>
+                    </div>
+
+                    <!-- Текстовый Контент -->
+                    <div class="flex flex-col">
+                        <!-- Режим: NO NETWORK -->
+                        <template x-if="partnerState === 'problem'">
+                            <span class="text-[9px] font-black tracking-[0.2em] uppercase text-white animate-pulse">
+                                {{ __('chatroulette.No_Signal') }}
+                            </span>
+                        </template>
+
+                        <!-- Режим: AWAY -->
+                        <template x-if="partnerState === 'away'">
+                            <span class="text-[9px] font-black tracking-[0.2em] uppercase text-amber-500">
+                                {{ __('chatroulette.User_Away') }}
+                            </span>
+                        </template>
+
+                        <!-- Режим: ACTIVE (Пинг) -->
+                        <template x-if="partnerState === 'active'">
+                            <div class="flex items-center gap-1.5">
+                                <span class="text-[9px] font-black tracking-[0.12em] uppercase"
+                                    :class="ping < 150 ? 'text-green-400' : 'text-red-400'"
+                                    x-text="ping + ' ms'"></span>
+                                <span class="text-[7px] font-bold text-gray-500 uppercase tracking-tighter">{{ __('chatroulette.Latency') }}</span>
+                            </div>
+                        </template>
+                    </div>
                 </div>
             </div>
 
@@ -654,4 +766,50 @@
     .blitz-shaking-logic video {
         filter: contrast(2) saturate(5) !important;
     }
+
+    /* Анимация вращения градиента для LED эффекта */
+@keyframes led-rotate {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Пульсация свечения */
+@keyframes led-pulse {
+    0%, 100% { opacity: 0.6; filter: blur(6px); }
+    50% { opacity: 1; filter: blur(10px); }
+}
+
+.led-border {
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask-composite: exclude;
+    pointer-events: none;
+}
+
+@keyframes toxic-flicker {
+    0%, 100% { opacity: 1; filter: drop-shadow(0 0 15px #ff0000); }
+    33% { opacity: 0.4; filter: drop-shadow(0 0 5px #7f1d1d); }
+    66% { opacity: 0.8; filter: drop-shadow(0 0 20px #b91c1c); }
+}
+
+.led-toxic {
+    background: conic-gradient(from 0deg, #ff0000, #000, #ff0000, #450a0a, #ff0000) !important;
+    animation: led-rotate 2s linear infinite, toxic-flicker 0.5s ease-in-out infinite !important;
+}
+
+@keyframes devilish-pulse {
+    0% { box-shadow: 0 0 5px #ff0000, inset 0 0 5px #ff0000; opacity: 0.8; }
+    50% { box-shadow: 0 0 20px #ff0000, inset 0 0 10px #ff0000; opacity: 1; }
+    100% { box-shadow: 0 0 5px #ff0000, inset 0 0 5px #ff0000; opacity: 0.8; }
+}
+
+.hud-no-network {
+    background: rgba(127, 29, 29, 0.6) !important;
+    border-color: rgba(220, 38, 38, 0.5) !important;
+    animation: devilish-pulse 1s infinite;
+}
+
+.hud-away {
+    background: rgba(245, 158, 11, 0.1) !important;
+    border-color: rgba(245, 158, 11, 0.3) !important;
+}
 </style>

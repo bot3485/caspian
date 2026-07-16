@@ -40,4 +40,15 @@ return [
 'Searching'=>              'Arama',
 'Ready_To_Start'=>         'Başlamaya Hazır',
 'Change'=>                 'Değiştir',
+'Unknown_Location'=>       'Bilinmeyen Konum',
+'Years_Old'=>              'Yaş',
+'Recidivist'=>             'Tekrarlayan Suçlu',
+'Reports'=>                'Şikayetler',
+'Level'=>                  'Seviye',
+'Karma'=>                  'Karma',
+'User_Away'=>              'Sekme Dışında',
+'No_Signal'=>              'Sinyal Yok',
+'Prestige_Status'=>        'Prestij',
+'Past_Violations'=>        'Geçmiş İhlaller',
+'Latency'=>                'Gecikme'
 ];

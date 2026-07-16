@@ -40,4 +40,15 @@ return [
 'Searching'=>              'Поиск',
 'Ready_To_Start'=>         'Готовы Начать',
 'Change'=>                 'Поменять',
+'Unknown_Location'=>       'Неизвестное местоположение',
+'Years_Old'=>              'Лет',
+'Recidivist'=>             'Рецидивист',
+'Reports'=>                'Жалоб',
+'Level'=>                  'Уровень',
+'Karma'=>                  'Карма',
+'User_Away'=>              'Вне Вкладки',
+'No_Signal'=>              'Нет сигнала',
+'Prestige_Status'=>        'Престиж',
+'Past_Violations'=>        'Прошлые Нарушения',
+'Latency'=>                'Задержка'
 ];

@@ -133,7 +133,10 @@ public function callContact(Request $request): JsonResponse
             'badge' => $user->prestige_badge, 
             'rank_name' => $user->rank_name,
             'is_online' => $user->isOnline(),
-            'last_seen_human' => $user->getLastSeenForHumans()
+            'last_seen_human' => $user->getLastSeenForHumans(),
+            'karma' => $user->karma,
+            'blocked_count' => DB::table('blocks')->where('blocked_id', $user->id)->count(),
+            'ban_count' => $user->ban_count,
         ]);
     }
 

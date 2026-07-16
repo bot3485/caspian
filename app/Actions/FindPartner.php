@@ -141,7 +141,9 @@ private function finalizeMatch(int $myId, int $partnerId, User $me): int
             'karma' => $partner->karma,
             'country_code' => $partner->country_code,
             'country_flag' => UserCountry::getFlag($partner->country_code),
-            'common_interests' => $commonInterests 
+            'common_interests' => $commonInterests,
+            'blocked_count' => DB::table('blocks')->where('blocked_id', $partnerId)->count(),
+            'ban_count' => $partner->ban_count,
         ], DB::table('contacts')->where('user_id', $myId)->where('contact_id', $partnerId)->exists()));
         
         // Отправка события ПАРТНЕРУ (партнер получает МОИ данные)
@@ -156,7 +158,9 @@ private function finalizeMatch(int $myId, int $partnerId, User $me): int
             'karma' => $me->karma,
             'country_code' => $me->country_code,
             'country_flag' => UserCountry::getFlag($me->country_code),
-            'common_interests' => $commonInterests 
+            'common_interests' => $commonInterests,
+            'blocked_count' => DB::table('blocks')->where('blocked_id', $me->id)->count(), 
+            'ban_count' => $me->ban_count,
         ], DB::table('contacts')->where('user_id', $partnerId)->where('contact_id', $myId)->exists()));
 
         return $partnerId;

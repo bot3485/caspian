@@ -850,7 +850,10 @@ async handleMatch(e) {
                 country_flag: partner.country_flag || 'https://cdnjs.cloudflare.com/ajax/libs/twemoji/14.0.2/svg/1f30e.svg',
                 interests: partner.interests || [],
                 // Забираем общие интересы, если бэкенд их прислал
-                common_interests: partner.common_interests || [] 
+                common_interests: partner.common_interests || [] ,
+                karma: partner.karma || 0,
+                blocked_count: partner.blocked_count || 0,
+                ban_count: partner.ban_count || 0,
             };
             
             this.isFriend = this.friendsList.some(f => Number(f.id) === this.partnerId);

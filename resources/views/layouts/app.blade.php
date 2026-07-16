@@ -150,7 +150,15 @@ window.caspianApp = function(myId, myInterests, iceServers) {
         targetGender: '{{ Auth::user()->target_gender ?: 'all' }}',
         targetAgeMin: {{ Auth::user()->target_age_min ?: 18 }},
         targetAgeMax: {{ Auth::user()->target_age_max ?: 99 }},
-        
+        showIcebreakerOverlay: false,
+        icebreakerQuestion: '',
+        icebreakerTimer: null,
+        icebreakerCooldown: 0,
+        blitzCooldown: 0,
+        iceTimer: null,
+        blitzTimer: null,        
+
+
         countryNames: {
             'global': '🌍 {{__('chatroulette.Global_Match')}}',
             'az': '🇦🇿 Azerbaijan', 'ge': '🇬🇪 Georgia', 'am': '🇦🇲 Armenia',
@@ -210,18 +218,21 @@ async removeContact(contactId) {
 },
 
 async sendIcebreaker() {
-    if (this.state !== 'connected') return;
+    // Если время еще не вышло — ничего не делаем
+    if (this.state !== 'connected' || this.icebreakerCooldown > 0) return;
 
     try {
-        // 1. Получаем случайный индекс от сервера
         const res = await window.axios.get('/icebreaker/random');
         const index = res.data.index;
-
-        // 2. Отправляем этот индекс партнеру
         this.signal({ type: 'icebreaker', index: index });
-
-        // 3. Показываем вопрос у себя (на своем языке)
         await this.displayIcebreaker(index);
+
+        // Устанавливаем Кулдаун на 60 секунд
+        this.icebreakerCooldown = 60;
+        this.iceTimer = setInterval(() => {
+            this.icebreakerCooldown--;
+            if (this.icebreakerCooldown <= 0) clearInterval(this.iceTimer);
+        }, 1000);
     } catch (e) {
         console.error("Icebreaker failed", e);
     }
@@ -229,9 +240,18 @@ async sendIcebreaker() {
 async displayIcebreaker(index) {
     try {
         const res = await window.axios.get(`/icebreaker/content/${index}`);
-        window.dispatchEvent(new CustomEvent('toast', { 
-            detail: { msg: '🎲 ' + res.data.question } 
-        }));
+        
+        // Очищаем старый таймер, если он был
+        if (this.icebreakerTimer) clearTimeout(this.icebreakerTimer);
+        
+        // Устанавливаем текст и показываем окно
+        this.icebreakerQuestion = res.data.question;
+        this.showIcebreakerOverlay = true;
+
+        // Скрываем через 12 секунд
+        this.icebreakerTimer = setTimeout(() => {
+            this.showIcebreakerOverlay = false;
+        }, 12000); 
     } catch (e) {
         console.error("Icebreaker content fetch failed", e);
     }
@@ -251,19 +271,25 @@ async displayIcebreaker(index) {
     },
 
 triggerBlitz() {
-    if (this.state !== 'connected' || this.isBlitzActive) return;
+    // Если время еще не вышло или уже активен блиц — ничего не делаем
+    if (this.state !== 'connected' || this.isBlitzActive || this.blitzCooldown > 0) return;
 
     this.isBlitzActive = true;
     this.signal({ type: 'blitz' });
 
-    // Безопасный запуск звука
     if (this.blitzSound) {
         this.blitzSound.currentTime = 0;
-        this.blitzSound.play().catch(e => console.warn("Audio blocked by browser", e));
+        this.blitzSound.play().catch(e => console.warn("Audio blocked"));
     }
 
-    // Увеличим длительность эффекта, чтобы он был заметнее (например, 8 секунд)
-    setTimeout(() => { this.isBlitzActive = false; }, 6000); 
+    setTimeout(() => { this.isBlitzActive = false; }, 6000);
+
+    // Устанавливаем Кулдаун на 60 секунд
+    this.blitzCooldown = 60;
+    this.blitzTimer = setInterval(() => {
+        this.blitzCooldown--;
+        if (this.blitzCooldown <= 0) clearInterval(this.blitzTimer);
+    }, 1000);
 },
 
 async rebootMobileCamera() {
@@ -969,6 +995,10 @@ async setupPersonalCall(id, isAccepted) {
         if (this.$refs.remoteVideo) this.$refs.remoteVideo.srcObject = null;
         this.partnerId = null; this.partnerData = null; this.state = 'idle'; this.callContext = null;
         this.partnerFilters = { beauty: false, cinema: false }; this.messages = [];
+        clearInterval(this.iceTimer);
+        clearInterval(this.blitzTimer);
+        this.icebreakerCooldown = 0;
+        this.blitzCooldown = 0;
     },
 
         // --- MESSENGER & DATA ---

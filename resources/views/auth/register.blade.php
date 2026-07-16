@@ -20,7 +20,16 @@
         <!-- Поле Возраст -->
         <div class="mt-4">
             <x-input-label for="age" value="Age" />
-            <x-text-input id="age" class="block mt-1 w-full" type="number" name="age" required />
+            <x-text-input id="age" 
+                        class="block mt-1 w-full" 
+                        type="number" 
+                        name="age" 
+                        min="18" 
+                        max="100" 
+                        :value="old('age')" 
+                        required />
+            <!-- Добавляем вывод ошибки -->
+            <x-input-error :messages="$errors->get('age')" class="mt-2" />
         </div>
 
         <!-- Поле Пол -->

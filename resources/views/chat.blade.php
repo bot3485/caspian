@@ -487,16 +487,40 @@
                         <span class="text-lg">🙈</span>
                         <span class="text-[7px] font-black uppercase tracking-widest opacity-60">{{ __('chatroulette.Hide_Interlocutor') }}</span>
                     </button>
-                    <!-- 1. Icebreaker -->
-                    <button @click="sendIcebreaker()" class="flex flex-col items-center justify-center gap-1.5 h-16 rounded-2xl bg-white/5 hover:bg-brand-indigo/20 transition-all group">
-                        <span class="text-lg group-hover:animate-spin">🎲</span>
-                        <span class="text-[7px] font-black uppercase tracking-widest text-gray-500 group-hover:text-brand-indigo">{{ __('chatroulette.Cube') }}</span>
+                    <!-- Кнопка Icebreaker (🎲 Кубик) -->
+                    <button @click="sendIcebreaker()" 
+                            :disabled="icebreakerCooldown > 0 || state !== 'connected'"
+                            class="flex flex-col items-center justify-center gap-1.5 h-16 rounded-2xl transition-all group"
+                            :class="icebreakerCooldown > 0 
+                                ? 'bg-white/5 opacity-40 cursor-not-allowed' 
+                                : 'bg-white/5 hover:bg-brand-indigo/20'">
+                        
+                        <span class="text-lg" 
+                            :class="icebreakerCooldown > 0 ? '' : 'group-hover:animate-spin'"
+                            x-text="icebreakerCooldown > 0 ? '⏳' : '🎲'"></span>
+                        
+                        <span class="text-[7px] font-black uppercase tracking-widest"
+                            :class="icebreakerCooldown > 0 ? 'text-gray-600' : 'text-gray-500 group-hover:text-brand-indigo'"
+                            x-text="icebreakerCooldown > 0 ? icebreakerCooldown + 's' : '{{ __('chatroulette.Cube') }}'">
+                        </span>
                     </button>
 
-                    <!-- 2. Blitz Mode -->
-                    <button @click="triggerBlitz()" :disabled="isBlitzActive" class="flex flex-col items-center justify-center gap-1.5 h-16 rounded-2xl bg-white/5 hover:bg-yellow-500/20 transition-all group">
-                        <span class="text-lg group-hover:scale-150 transition-transform">⚡</span>
-                        <span class="text-[7px] font-black uppercase tracking-widest text-gray-500 group-hover:text-yellow-500">{{ __('chatroulette.Tension') }}</span>
+                    <!-- Кнопка Blitz Mode (⚡ Напряжение) -->
+                    <button @click="triggerBlitz()" 
+                            :disabled="blitzCooldown > 0 || isBlitzActive || state !== 'connected'" 
+                            class="flex flex-col items-center justify-center gap-1.5 h-16 rounded-2xl transition-all group"
+                            :class="blitzCooldown > 0 
+                                ? 'bg-white/5 opacity-40 cursor-not-allowed' 
+                                : 'bg-white/5 hover:bg-yellow-500/20'">
+                        
+                        <span class="text-lg" 
+                            :class="blitzCooldown > 0 ? '' : 'group-hover:scale-150 transition-transform'"
+                            x-text="blitzCooldown > 0 ? '⌛' : '⚡'"></span>
+                        
+                        <span class="text-[7px] font-black uppercase tracking-widest"
+                            :class="blitzCooldown > 0 ? 'text-gray-600' : 'text-gray-500 group-hover:text-yellow-500'"
+                            x-text="blitzCooldown > 0 ? blitzCooldown + 's' : '{{ __('chatroulette.Tension') }}'">
+                        </span>
                     </button>
                     <!-- Social Row -->
                     <template x-if="callContext !== 'personal'">
@@ -706,6 +730,56 @@
     </div>
 </div>
     </div>
+    <!-- ICEBREAKER PREMIUM OVERLAY (v4.0 - Ethereal Prompt) -->
+<div x-show="showIcebreakerOverlay" 
+     x-transition:enter="transition cubic-bezier(0.34, 1.56, 0.64, 1) duration-600"
+     x-transition:enter-start="opacity-0 scale-75 translate-y-20 blur-xl"
+     x-transition:enter-end="opacity-100 scale-100 translate-y-0 blur-0"
+     x-transition:leave="transition ease-in duration-400"
+     x-transition:leave-end="opacity-0 scale-90 blur-lg"
+     class="fixed bottom-44 left-1/2 -translate-x-1/2 z-[1500] w-full max-w-xl px-6 pointer-events-none"
+     x-cloak>
+    
+    <div class="pointer-events-auto relative group">
+        <!-- Анимированное свечение сзади -->
+        <div class="absolute -inset-1 bg-gradient-to-r from-brand-indigo/50 via-purple-500/50 to-brand-cyan/50 rounded-[2.5rem] blur opacity-30 group-hover:opacity-100 transition duration-1000 group-hover:duration-200"></div>
+        
+        <div class="relative caspian-glass rounded-[2rem] p-1 border-white/10 shadow-[0_32px_64px_rgba(0,0,0,0.8)] overflow-hidden">
+            <div class="bg-[#050505]/90 rounded-[1.8rem] p-6 md:p-8 flex flex-col items-center text-center gap-4">
+                
+                <!-- Верхняя пометка -->
+                <div class="flex items-center gap-3">
+                    <div class="h-px w-8 bg-brand-indigo/30"></div>
+                    <span class="text-[9px] font-black uppercase tracking-[0.4em] text-brand-indigo animate-pulse">🎲 System Icebreaker</span>
+                    <div class="h-px w-8 bg-brand-indigo/30"></div>
+                </div>
+
+                <!-- Текст вопроса (Элегантный и крупный) -->
+                <h2 class="text-lg md:text-2xl font-black italic tracking-tight text-white/95 leading-tight" 
+                    x-text="icebreakerQuestion">
+                </h2>
+
+                <!-- Таймер-полоска снизу (визуально показывает сколько осталось) -->
+                <div class="w-full h-0.5 bg-white/5 rounded-full mt-2 overflow-hidden">
+                    <div class="h-full bg-brand-indigo shadow-[0_0_10px_#6366f1]"
+                         x-show="showIcebreakerOverlay"
+                         x-transition:enter="transition-all linear duration-[12000ms]"
+                         x-transition:enter-start="w-full"
+                         x-transition:enter-end="w-0">
+                    </div>
+                </div>
+
+                <!-- Кнопка быстрого закрытия -->
+                <button @click="showIcebreakerOverlay = false" 
+                        class="absolute top-4 right-4 text-gray-600 hover:text-white transition-colors">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 </x-app-layout>
 <style>
     @keyframes blitz-shake-intense {

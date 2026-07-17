@@ -41,15 +41,18 @@
             <!-- Right: Controls -->
             <div class="flex items-center gap-2 sm:gap-4">
                 
-                <!-- Online Status (Скрыт на мелких экранах для чистоты) -->
-                <div class="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.02] border border-white/[0.05]"
-                     x-data="{ online: 0 }" 
-                     x-init="window.Echo.join('online-status').here(u => online = u.length).joining(u => online++).leaving(u => online--)">
+                <!-- Online Status (Updated for Mobile & Desktop) -->
+                <div class="flex items-center gap-2 px-2.5 py-1.5 sm:px-3 rounded-full bg-white/[0.02] border border-white/[0.05]"
+                    x-data="{ online: 0 }" 
+                    x-init="window.Echo.join('online-status').here(u => online = u.length).joining(u => online++).leaving(u => online--)">
                     <div class="relative flex h-1.5 w-1.5">
-                      <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                      <span class="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-500 shadow-[0_0_8px_#22c55e]"></span>
+                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                        <span class="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-500 shadow-[0_0_8px_#22c55e]"></span>
                     </div>
-                    <span class="text-[9px] font-bold text-gray-400 tracking-widest font-mono" x-text="online + ' ON'"></span>
+                    <!-- На мобильных показываем только число, на десктопе добавляем 'ON' -->
+                    <span class="text-[9px] font-black text-gray-300 tracking-widest font-mono">
+                        <span x-text="online"></span><span class="hidden sm:inline"> ON</span>
+                    </span>
                 </div>
 
                 <!-- Language Selector (Refined Dropdown) -->
@@ -91,12 +94,46 @@
 
                 <!-- Chat Toggle (Sleek SVG instead of emoji) -->
                 <button @click="globalSidebarOpen = !globalSidebarOpen" 
-                        class="relative w-10 h-10 rounded-xl bg-white/[0.03] border border-white/[0.08] flex items-center justify-center hover:bg-brand-indigo/20 hover:border-brand-indigo/40 hover:shadow-[0_0_20px_rgba(99,102,241,0.2)] transition-all duration-300 group">
-                    <svg class="w-4 h-4 text-gray-400 group-hover:text-white transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                    </svg>
-                    <div x-show="isPartnerTyping" class="absolute -top-1 -right-1 w-2.5 h-2.5 bg-brand-indigo rounded-full border-2 border-[#020202] shadow-[0_0_8px_rgba(99,102,241,0.8)] animate-pulse"></div>
-                </button>
+                    class="relative w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-500 group border"
+                    :class="{
+                        'bg-brand-indigo/20 border-brand-indigo/40 shadow-[0_0_20px_rgba(99,102,241,0.3)]': hasUnreadFriends(),
+                        'bg-amber-500/10 border-amber-500/30 shadow-[0_0_15px_rgba(245,158,11,0.2)]': !hasUnreadFriends() && hasUnreadHistory(),
+                        'bg-white/[0.03] border-white/[0.08] hover:bg-white/10': !hasUnread()
+                    }">
+                
+                <!-- Иконка: белая и пульсирующая при наличии сообщений -->
+                <svg class="w-4 h-4 transition-all duration-500" 
+                    :class="hasUnread() ? 'text-white animate-pulse scale-110' : 'text-gray-400 group-hover:text-white'" 
+                    fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                </svg>
+
+                <!-- Иконка нового запроса / сообщения (Появляется над кнопкой) -->
+                <template x-if="hasNewNotification">
+                    <div class="absolute -top-1.5 -right-1.5 z-10 flex items-center justify-center">
+                        <!-- Внешнее свечение (Halo) -->
+                        <span class="animate-ping absolute inline-flex h-4 w-4 rounded-full bg-brand-indigo opacity-75"></span>
+                        
+                        <!-- Сама иконка -->
+                        <div class="relative bg-brand-indigo text-white w-5 h-5 rounded-full flex items-center justify-center shadow-[0_0_15px_rgba(99,102,241,1)] border-2 border-[#020202]">
+                            <!-- Иконка человечка с плюсом (User Plus) -->
+                            <svg class="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                            </svg>
+                        </div>
+                    </div>
+                </template>
+
+                <!-- Точка-индикатор с «ореолом» (Ping) -->
+                <template x-if="hasUnread()">
+                    <span class="absolute -top-1 -right-1 flex h-3 w-3">
+                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75"
+                            :class="hasUnreadFriends() ? 'bg-brand-indigo' : 'bg-amber-500'"></span>
+                        <span class="relative inline-flex rounded-full h-3 w-3 border-2 border-[#020202]"
+                            :class="hasUnreadFriends() ? 'bg-brand-indigo' : 'bg-amber-500'"></span>
+                    </span>
+                </template>
+            </button>
 
                 <!-- User Dropdown (Premium Avatar) -->
                 <div class="pl-2 sm:pl-4 ml-1 sm:ml-2 border-l border-white/[0.08]">

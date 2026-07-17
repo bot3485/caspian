@@ -17,26 +17,28 @@
         </template>
     </button>
 
-    <!-- Кнопка CONTACTS (Друзья) -->
+    <!-- Вкладка CONTACTS -->
     <button @click="tab = 'friends'; activeFriend = null;" 
-            class="flex-1 py-4 text-[9px] font-black uppercase tracking-[0.15em] flex items-center justify-center gap-1.5 relative transition-all duration-300"
+            class="flex-1 py-4 text-[9px] font-black uppercase tracking-[0.15em] flex items-center justify-center gap-2 relative transition-all"
             :class="tab === 'friends' ? 'text-white' : 'text-gray-500 hover:text-gray-300'">
         <span>{{ __('messenger.Contacts') }}</span>
-        <div class="absolute bottom-0 left-1/2 -translate-x-1/2 h-[2px] bg-brand-indigo rounded-t-full transition-all duration-300 shadow-[0_-2px_10px_rgba(99,102,241,0.5)]"
-             :class="tab === 'friends' ? 'w-1/2 opacity-100' : 'w-0 opacity-0'"></div>
-             
-        <template x-if="friendsList.some(f => f.has_new_message)">
-            <span class="w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_8px_#22c55e] animate-pulse"></span>
+        <template x-if="hasUnreadFriends()">
+            <span class="flex h-1.5 w-1.5 rounded-full bg-brand-indigo shadow-[0_0_8px_#6366f1] animate-pulse"></span>
         </template>
+        <div class="absolute bottom-0 left-1/2 -translate-x-1/2 h-[2px] bg-brand-indigo transition-all duration-300"
+            :class="tab === 'friends' ? 'w-1/2 opacity-100' : 'w-0 opacity-0'"></div>
     </button>
-    
-    <!-- Кнопка LOGS (История) -->
+
+    <!-- Вкладка LOGS (История) -->
     <button @click="tab = 'history'; activeFriend = null;" 
-            class="flex-1 py-4 text-[9px] font-black uppercase tracking-[0.15em] relative transition-all duration-300"
+            class="flex-1 py-4 text-[9px] font-black uppercase tracking-[0.15em] flex items-center justify-center gap-2 relative transition-all"
             :class="tab === 'history' ? 'text-white' : 'text-gray-500 hover:text-gray-300'">
-        {{ __('messenger.Logs') }}
-        <div class="absolute bottom-0 left-1/2 -translate-x-1/2 h-[2px] bg-brand-indigo rounded-t-full transition-all duration-300 shadow-[0_-2px_10px_rgba(99,102,241,0.5)]"
-             :class="tab === 'history' ? 'w-1/2 opacity-100' : 'w-0 opacity-0'"></div>
+        <span>{{ __('messenger.Logs') }}</span>
+        <template x-if="hasUnreadHistory()">
+            <span class="flex h-1.5 w-1.5 rounded-full bg-amber-500 shadow-[0_0_8px_#f59e0b] animate-pulse"></span>
+        </template>
+        <div class="absolute bottom-0 left-1/2 -translate-x-1/2 h-[2px] bg-brand-indigo transition-all duration-300"
+            :class="tab === 'history' ? 'w-1/2 opacity-100' : 'w-0 opacity-0'"></div>
     </button>
     
     <!-- Кнопка BLOCKED (ЧС) -->
@@ -138,6 +140,12 @@
     <div x-show="activeFriend" class="flex-1 flex flex-col overflow-hidden relative">
         <!-- Header Чата -->
         <div class="px-4 py-3 bg-[#020202]/80 backdrop-blur-xl border-b border-white/[0.05] flex items-center justify-between z-10">
+                <button @click="clearMessages(activeFriend.id)" 
+                    class="w-9 h-9 flex items-center justify-center bg-white/[0.03] hover:bg-red-500/20 text-gray-500 hover:text-red-500 rounded-[1rem] border border-white/5 transition-all">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+            </button>
             <button @click="activeFriend = null" class="w-9 h-9 flex items-center justify-center bg-white/[0.03] hover:bg-white/10 rounded-[1rem] border border-white/5 transition-colors">
                 <svg class="w-4 h-4 text-gray-400 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
             </button>
@@ -203,8 +211,8 @@
         <!-- НИЖНЯЯ ПАНЕЛЬ (ВВОД ИЛИ БЛОКИРОВКА) -->
         <div class="px-4 pt-2 pb-8 sm:pb-4 bg-gradient-to-t from-[#050505] via-[#050505] to-transparent z-10" style="padding-bottom: max(env(safe-area-inset-bottom, 1rem), 1.5rem);">
             
-            <!-- Поле ввода: Разрешено если принят ИЛИ если еще нет в базе (из истории) -->
-            <template x-if="activeFriend?.status === 'accepted' || activeFriend?.status === 'none'">
+            <!-- 1. Поле ввода: ПОКАЗЫВАЕМ ТОЛЬКО ЕСЛИ ДРУЖБА ПРИНЯТА (accepted) -->
+            <template x-if="activeFriend?.status === 'accepted'">
                 <div class="flex items-center gap-2 bg-white/[0.03] backdrop-blur-2xl p-1.5 rounded-[1.5rem] border border-white/[0.08] shadow-2xl focus-within:border-brand-indigo/50 transition-all duration-300">
                     <input type="text" x-model="friendChatInput" @input="sendTypingSignal()" @keyup.enter="sendFriendMsg()" placeholder="Message..." class="flex-1 bg-transparent border-none text-sm px-4 py-2 focus:ring-0 text-white placeholder-gray-600">
                     <button @click="sendFriendMsg()" class="bg-brand-indigo text-white w-10 h-10 rounded-[1rem] flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-md">
@@ -213,7 +221,7 @@
                 </div>
             </template>
 
-            <!-- Заглушка: Если запрос отправлен, но не принят -->
+            <!-- 2. Заглушка: Если запрос отправлен, но еще не принят (pending) -->
             <template x-if="activeFriend?.status === 'pending'">
                 <div class="p-4 bg-white/[0.02] border border-dashed border-white/10 rounded-2xl text-center">
                     <div class="flex justify-center gap-1 mb-2">
@@ -223,6 +231,14 @@
                     </div>
                     <p class="text-[9px] font-black uppercase tracking-[0.2em] text-indigo-400">Connection is Pending</p>
                     <p class="text-[7px] text-gray-600 mt-1 uppercase tracking-widest">Chat will unlock once the protocol is accepted</p>
+                </div>
+            </template>
+
+            <!-- 3. Заглушка: Если вы еще не друзья (none) - ТВОЙ НОВЫЙ КОД ТУТ -->
+            <template x-if="activeFriend?.status === 'none'">
+                <div class="p-4 bg-white/[0.02] border border-dashed border-white/10 rounded-2xl text-center">
+                    <p class="text-[9px] font-black uppercase tracking-[0.2em] text-gray-500">Protocol not initiated</p>
+                    <p class="text-[7px] text-gray-600 mt-1 uppercase tracking-widest">Add user to friends to start a secure conversation</p>
                 </div>
             </template>
         </div>
@@ -235,6 +251,10 @@
                 <div class="flex items-center justify-between">
                     <div class="flex items-center gap-4">
                         <div class="w-12 h-12 bg-gradient-to-br from-gray-800 to-[#111] border border-white/5 rounded-[1.2rem] flex items-center justify-center text-white font-black shadow-inner" x-text="h.name[0]"></div>
+                            <!-- ПУЛЬСИРУЮЩАЯ ТОЧКА НА АВАТАРЕ -->
+                            <template x-if="h.unread_count > 0">
+                                <span class="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 rounded-full border-2 border-[#050505] flex items-center justify-center text-[8px] font-black text-black" x-text="h.unread_count"></span>
+                            </template>
                         <div>
                             <div class="text-xs font-bold text-gray-200" x-text="h.name"></div>
                             <div class="text-[8px] font-black text-gray-600 uppercase tracking-widest mt-1" x-text="h.last_met_diff"></div>
@@ -244,20 +264,20 @@
                         <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"></path></svg>
                     </button>
                 </div>
-                <div class="flex gap-2">
-                    <button @click="openFriendChat(h.id)" class="flex-1 bg-white/[0.04] border border-white/5 hover:bg-brand-indigo hover:border-brand-indigo text-white py-3 rounded-xl text-[9px] font-black uppercase tracking-[0.2em] transition-all">
-                        {{ __('messenger.Message') }}
-                    </button>
-                    <!-- Кнопка + (с состояниями) -->
-                    <template x-if="h.is_pending">
-                        <button class="w-12 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-500 flex items-center justify-center cursor-default">
-                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                <div class="flex gap-2 w-full">
+                    <!-- Если человека еще нет в контактах — кнопка ДОБАВИТЬ -->
+                    <template x-if="!h.is_pending && !friendsList.find(f => Number(f.id) === Number(h.id))">
+                        <button @click="window.axios.post('/chat/contact/add', {contactId: h.id}).then(() => { h.is_pending = true; window.dispatchEvent(new CustomEvent('toast', {detail: {msg: 'Request Sent'}})) })" 
+                                class="flex-1 bg-brand-indigo text-white py-3 rounded-xl text-[9px] font-black uppercase tracking-[0.2em] transition-all hover:scale-[1.02] active:scale-95">
+                            + {{ __('chatroulette.Add_Friend') }}
                         </button>
                     </template>
-                    <template x-if="!h.is_pending">
-                        <button @click="window.axios.post('/chat/contact/add', {contactId: h.id}).then(() => { h.is_pending = true; window.dispatchEvent(new CustomEvent('toast', {detail: {msg: 'Request Sent'}})) })" class="w-12 bg-white/[0.04] border border-white/5 rounded-xl text-gray-400 hover:bg-green-500 hover:text-white transition-all flex items-center justify-center">
-                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
-                        </button>
+
+                    <!-- Если запрос отправлен или вы уже друзья — просто информационная плашка -->
+                    <template x-if="h.is_pending || friendsList.find(f => Number(f.id) === Number(h.id))">
+                        <div class="flex-1 py-3 rounded-xl bg-white/[0.02] border border-white/5 text-gray-600 text-[8px] font-black uppercase tracking-[0.2em] text-center italic">
+                            <span x-text="h.is_pending ? 'Request Pending' : 'In Contacts'"></span>
+                        </div>
                     </template>
                 </div>
             </div>

@@ -113,6 +113,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::get('/blocked', 'getBlockedUsers')->name('chat.blocked');
             Route::post('/block', 'blockUser')->name('chat.block');
             Route::post('/unblock', 'unblockUser')->name('chat.unblock');
+            Route::post('/clear-messages', [ChatController::class, 'clearChat'])->name('chat.clear');
         });
     });
 });

@@ -548,4 +548,19 @@ public function removeContact(Request $request): JsonResponse
     return response()->json(['status' => 'success']);
 }
 
+public function clearChat(Request $request): JsonResponse
+{
+    $userId = Auth::id();
+    $contactId = (int)$request->contactId;
+
+    // Удаляем все сообщения между пользователями
+    \App\Models\Message::where(function($q) use ($userId, $contactId) {
+        $q->where('sender_id', $userId)->where('receiver_id', $contactId);
+    })->orWhere(function($q) use ($userId, $contactId) {
+        $q->where('sender_id', $contactId)->where('receiver_id', $userId);
+    })->delete();
+
+    return response()->json(['status' => 'success']);
+}
+
 }

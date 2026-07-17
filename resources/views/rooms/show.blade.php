@@ -1,18 +1,16 @@
 <x-app-layout>
-    <!-- 
-      Главный контейнер: ЖЕСТКАЯ БЛОКИРОВКА СКРОЛЛА (overflow-hidden)
-      Высота строго равна 100dvh минус высота основного nav.
-    -->
+    <!-- ЖЕСТКАЯ БЛОКИРОВКА СКРОЛЛА (overflow-hidden) -->
     <div class="h-[calc(100dvh-80px)] w-full bg-[#020203] flex flex-col overflow-hidden text-white font-sans relative" 
          x-data="groupRoomComponent('{{ $room->uuid }}', {{ auth()->id() }}, '{{ auth()->user()->name }}')"
          @resize.window="windowWidth = window.innerWidth">
         
-        <!-- АТМОСФЕРНЫЙ ФОН КИНОТЕАТРА -->
+        <!-- АТМОСФЕРНЫЙ ФОН -->
         <div class="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-brand-indigo/10 rounded-full blur-[140px] pointer-events-none mix-blend-screen transition-all duration-1000" :class="focusedId ? 'opacity-100 scale-110' : 'opacity-70'"></div>
         <div class="absolute bottom-[-20%] right-[-10%] w-[60%] h-[60%] bg-purple-900/10 rounded-full blur-[150px] pointer-events-none mix-blend-screen"></div>
 
-        <!-- HEADER (Независимый слой сверху) -->
-        <div class="absolute top-0 left-0 right-0 z-[110] p-4 pointer-events-none flex justify-between items-start h-[70px]">
+        <!-- HEADER (Скрывается при полном экране) -->
+        <div class="absolute top-0 left-0 right-0 z-[110] p-4 pointer-events-none flex justify-between items-start h-[70px] transition-all duration-500 ease-in-out"
+             :class="isMaximized ? 'opacity-0 -translate-y-4' : 'opacity-100 translate-y-0'">
             <div class="pointer-events-auto flex items-center gap-3 bg-[#0a0a0a]/80 backdrop-blur-2xl px-4 py-2 rounded-2xl border border-white/[0.08] shadow-[0_10px_30px_rgba(0,0,0,0.5)]">
                 <div class="w-8 h-8 bg-gradient-to-br from-brand-indigo/20 to-purple-600/20 rounded-xl flex items-center justify-center text-sm border border-white/10">🛸</div>
                 <div class="min-w-0 pr-2">
@@ -32,16 +30,20 @@
         </div>
 
         <!-- 
-          ИДЕАЛЬНАЯ СЕТКА: АБСОЛЮТНАЯ ИЗОЛЯЦИЯ
-          Этот контейнер начинается строго ПОД хедером (top: 80px) 
-          и заканчивается строго НАД кнопками (bottom: 90px).
-          Всё, что внутри, будет сжиматься, но никогда не создаст скролл.
+          ИДЕАЛЬНАЯ СЕТКА
+          Если isMaximized: Растягивается на весь экран (top-0, bottom-0)
+          Иначе: Сидит строго между шапкой и кнопками
         -->
-        <div class="absolute top-[80px] bottom-[90px] left-2 right-2 md:left-6 md:right-6 flex flex-wrap items-center justify-center gap-2 md:gap-3 z-10 overflow-hidden transition-all duration-700"
-             :class="focusedId ? 'content-start' : 'content-center'">
+        <div class="absolute flex flex-wrap items-center justify-center gap-2 md:gap-3 overflow-hidden transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)]"
+             :class="[
+                 focusedId ? 'content-start' : 'content-center',
+                 isMaximized ? 'top-0 bottom-0 left-0 right-0 z-[150] bg-black' : 'top-[80px] bottom-[90px] left-2 right-2 md:left-6 md:right-6 z-10'
+             ]">
             
             <!-- 1. HOST VIDEO (ВЫ) -->
-            <div @click="toggleFocus('me')"
+            <div x-show="!isMaximized || focusedId === 'me'"
+                 x-transition:enter="transition ease-out duration-500" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100"
+                 @click="toggleFocus('me')"
                  class="relative overflow-hidden transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)] cursor-pointer group shrink-0 flex items-center justify-center"
                  :class="focusedId === 'me' ? 'border border-white/10 shadow-[0_30px_60px_rgba(0,0,0,0.8),_0_0_60px_rgba(99,102,241,0.15)] z-[50] bg-black' : 'border border-white/[0.05] hover:border-white/30 bg-[#050505] z-10 shadow-xl'"
                  :style="getBoxStyle('me')">
@@ -50,6 +52,17 @@
                        class="w-full h-full transition-all duration-700" 
                        :class="[isScreenSharing ? 'scale-x-100' : 'scale-x-[-1]', focusedId === 'me' ? 'object-contain' : 'object-cover']"></video>
                 
+                <!-- КНОПКА ПОЛНОГО ЭКРАНА (Видна только когда окно в фокусе) -->
+                <button x-show="focusedId === 'me'" 
+                        @click.stop="isMaximized = !isMaximized"
+                        class="absolute top-4 right-4 z-[60] w-10 h-10 bg-black/50 backdrop-blur-xl rounded-full border border-white/10 flex items-center justify-center hover:bg-white/10 transition-all duration-300"
+                        :class="isMaximized ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'">
+                    <!-- Expand Icon -->
+                    <svg x-show="!isMaximized" class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg>
+                    <!-- Shrink Icon -->
+                    <svg x-show="isMaximized" x-cloak class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 14h6m0 0v6m0-6l-7 7m17-11h-6m0 0V4m0 6l7-7M4 10h6m0 0V4m0 6l-7-7m17 11h-6m0 0v6m0-6l7 7"></path></svg>
+                </button>
+
                 <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/5 to-transparent pointer-events-none transition-opacity duration-500" :class="focusedId === 'me' ? 'opacity-0' : 'opacity-80'"></div>
                 <div class="absolute bottom-3 left-3 px-3 py-1.5 bg-black/50 backdrop-blur-xl rounded-full border border-white/10 flex items-center shadow-lg transition-all duration-500" :class="focusedId === 'me' ? 'opacity-0 scale-90' : 'opacity-100 scale-100'">
                     <span class="text-[8px] font-black uppercase tracking-widest text-white/90">Вы (Host)</span>
@@ -58,7 +71,9 @@
 
             <!-- 2. PEERS (УЧАСТНИКИ) -->
             <template x-for="peer in peers" :key="peer.id">
-                <div @click="toggleFocus(peer.id)"
+                <div x-show="!isMaximized || focusedId === peer.id"
+                     x-transition:enter="transition ease-out duration-500" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100"
+                     @click="toggleFocus(peer.id)"
                      class="relative overflow-hidden transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)] cursor-pointer group shrink-0 flex items-center justify-center"
                      :class="focusedId === peer.id ? 'border border-white/10 shadow-[0_30px_60px_rgba(0,0,0,0.8),_0_0_60px_rgba(99,102,241,0.15)] z-[50] bg-black' : 'border border-white/[0.05] hover:border-white/30 bg-[#050505] z-10 shadow-xl'"
                      :style="getBoxStyle(peer.id)">
@@ -67,6 +82,15 @@
                            class="w-full h-full transition-all duration-700"
                            :class="focusedId === peer.id ? 'object-contain' : 'object-cover'"></video>
                     
+                    <!-- КНОПКА ПОЛНОГО ЭКРАНА (Для участника) -->
+                    <button x-show="focusedId === peer.id" 
+                            @click.stop="isMaximized = !isMaximized"
+                            class="absolute top-4 right-4 z-[60] w-10 h-10 bg-black/50 backdrop-blur-xl rounded-full border border-white/10 flex items-center justify-center hover:bg-white/10 transition-all duration-300"
+                            :class="isMaximized ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'">
+                        <svg x-show="!isMaximized" class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg>
+                        <svg x-show="isMaximized" x-cloak class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 14h6m0 0v6m0-6l-7 7m17-11h-6m0 0V4m0 6l7-7M4 10h6m0 0V4m0 6l-7-7m17 11h-6m0 0v6m0-6l7 7"></path></svg>
+                    </button>
+
                     <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/5 to-transparent pointer-events-none transition-opacity duration-500" :class="focusedId === peer.id ? 'opacity-0' : 'opacity-80'"></div>
                     <div class="absolute bottom-3 left-3 px-3 py-1.5 bg-black/50 backdrop-blur-xl rounded-full border border-white/10 flex items-center gap-2 shadow-lg transition-all duration-500" :class="focusedId === peer.id ? 'opacity-0 scale-90' : 'opacity-100 scale-100'">
                         <div class="w-1.5 h-1.5 rounded-full" :class="peer.connected ? 'bg-green-400' : 'bg-amber-500 animate-pulse'"></div>
@@ -75,9 +99,10 @@
                 </div>
             </template>
 
-            <!-- 3. ПУСТЫЕ СЛОТЫ (ОЖИДАНИЕ) -->
+            <!-- 3. ПУСТЫЕ СЛОТЫ (Скрываются при полном экране) -->
             <template x-for="i in Math.max(0, 5 - peers.length)" :key="'empty-' + i">
-                <div class="relative overflow-hidden border border-white/[0.03] bg-[#050505]/40 backdrop-blur-sm flex flex-col items-center justify-center shrink-0 transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)]"
+                <div x-show="!isMaximized"
+                     class="relative overflow-hidden border border-white/[0.03] bg-[#050505]/40 backdrop-blur-sm flex flex-col items-center justify-center shrink-0 transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)]"
                      :style="getBoxStyle('empty-' + i)">
                      <div class="w-8 h-8 md:w-10 md:h-10 rounded-full bg-white/[0.02] flex items-center justify-center mb-2 border border-white/[0.05] shadow-inner transition-transform group-hover:scale-110">
                          <svg class="w-3 h-3 md:w-4 md:h-4 text-white/10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
@@ -87,64 +112,57 @@
             </template>
         </div>
 
-        <!-- ЭЛЕГАНТНАЯ DYNAMIC ISLAND HUD ПАНЕЛЬ (Независимый слой снизу) -->
-        <div class="absolute bottom-6 left-0 right-0 px-4 z-[120] flex justify-center pointer-events-none">
+        <!-- DYNAMIC ISLAND HUD (Скрывается при полном экране) -->
+        <div class="absolute bottom-6 left-0 right-0 px-4 z-[120] flex justify-center pointer-events-none transition-all duration-500 ease-in-out"
+             :class="isMaximized ? 'opacity-0 translate-y-6' : 'opacity-100 translate-y-0'">
             <div class="pointer-events-auto flex items-center bg-[#0a0a0a]/95 backdrop-blur-3xl border border-white/10 rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.8)] overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)]" 
                  :class="controlsOpen ? 'max-w-[500px] p-1.5' : 'max-w-[60px] p-1.5'"
                  x-data="{ controlsOpen: true }">
                 
-                <button @click="controlsOpen = !controlsOpen" 
-                        class="w-12 h-12 relative rounded-full bg-white/[0.03] hover:bg-white/15 flex items-center justify-center transition-all duration-500 z-10 shrink-0 shadow-inner"
-                        :class="controlsOpen ? 'bg-white/10' : ''">
-                    <svg class="w-5 h-5 text-white transition-transform duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)]" :class="controlsOpen ? 'rotate-180' : 'rotate-0'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"></path>
-                    </svg>
+                <button @click="controlsOpen = !controlsOpen" class="w-12 h-12 relative rounded-full bg-white/[0.03] hover:bg-white/15 flex items-center justify-center transition-all duration-500 z-10 shrink-0 shadow-inner" :class="controlsOpen ? 'bg-white/10' : ''">
+                    <svg class="w-5 h-5 text-white transition-transform duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)]" :class="controlsOpen ? 'rotate-180' : 'rotate-0'" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"></path></svg>
                 </button>
                 
-                <div class="flex items-center transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)]"
-                     :class="controlsOpen ? 'opacity-100 translate-x-0 w-auto pl-1.5 pr-1.5' : 'opacity-0 -translate-x-10 w-0 px-0'">
+                <div class="flex items-center transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)]" :class="controlsOpen ? 'opacity-100 translate-x-0 w-auto pl-1.5 pr-1.5' : 'opacity-0 -translate-x-10 w-0 px-0'">
                     <div class="flex items-center gap-1.5 w-[max-content]">
-                        <button @click="toggleMic()" :class="micEnabled ? 'bg-white/[0.03] text-white hover:bg-white/10' : 'bg-red-500/20 text-red-400 border border-red-500/30 shadow-[0_0_15px_rgba(239,68,68,0.2)]'" class="w-12 h-12 rounded-full flex items-center justify-center text-lg transition-all border border-transparent shrink-0">
-                            <span x-text="micEnabled ? '🎤' : '🔇'"></span>
-                        </button>
-                        <button @click="toggleCam()" :class="camEnabled ? 'bg-white/[0.03] text-white hover:bg-white/10' : 'bg-red-500/20 text-red-400 border border-red-500/30 shadow-[0_0_15px_rgba(239,68,68,0.2)]'" class="w-12 h-12 rounded-full flex items-center justify-center text-lg transition-all border border-transparent shrink-0">
-                            <span x-text="camEnabled ? '📷' : '🚫'"></span>
-                        </button>
-                        <button @click="toggleScreenShare()" :class="isScreenSharing ? 'bg-brand-indigo/30 text-white border-brand-indigo/50 shadow-[0_0_15px_rgba(99,102,241,0.4)]' : 'bg-white/[0.03] text-white hover:bg-white/10'" class="w-12 h-12 rounded-full flex items-center justify-center text-lg transition-all border border-transparent shrink-0">
-                            <span>📺</span>
-                        </button>
-                        <button @click="settingsOpen = true" class="w-12 h-12 rounded-full bg-white/[0.03] text-white hover:bg-white/10 flex items-center justify-center text-lg transition-all border border-transparent shrink-0">
-                            <span>⚙️</span>
-                        </button>
+                        <button @click="toggleMic()" :class="micEnabled ? 'bg-white/[0.03] text-white hover:bg-white/10' : 'bg-red-500/20 text-red-400 border border-red-500/30 shadow-[0_0_15px_rgba(239,68,68,0.2)]'" class="w-12 h-12 rounded-full flex items-center justify-center text-lg transition-all border border-transparent shrink-0"><span x-text="micEnabled ? '🎤' : '🔇'"></span></button>
+                        <button @click="toggleCam()" :class="camEnabled ? 'bg-white/[0.03] text-white hover:bg-white/10' : 'bg-red-500/20 text-red-400 border border-red-500/30 shadow-[0_0_15px_rgba(239,68,68,0.2)]'" class="w-12 h-12 rounded-full flex items-center justify-center text-lg transition-all border border-transparent shrink-0"><span x-text="camEnabled ? '📷' : '🚫'"></span></button>
+                        <button @click="toggleScreenShare()" :class="isScreenSharing ? 'bg-brand-indigo/30 text-white border-brand-indigo/50 shadow-[0_0_15px_rgba(99,102,241,0.4)]' : 'bg-white/[0.03] text-white hover:bg-white/10'" class="w-12 h-12 rounded-full flex items-center justify-center text-lg transition-all border border-transparent shrink-0"><span>📺</span></button>
+                        <button @click="settingsOpen = true" class="w-12 h-12 rounded-full bg-white/[0.03] text-white hover:bg-white/10 flex items-center justify-center text-lg transition-all border border-transparent shrink-0"><span>⚙️</span></button>
                         <div class="w-px h-8 bg-white/10 mx-1 rounded-full shrink-0"></div>
-                        <a href="{{ route('rooms.index') }}" class="bg-red-600/10 border border-red-500/20 hover:bg-red-600 text-red-400 hover:text-white px-5 h-12 rounded-full flex items-center justify-center font-black text-[9px] uppercase tracking-[0.2em] transition-all shrink-0">
-                            Выход
-                        </a>
+                        <a href="{{ route('rooms.index') }}" class="bg-red-600/10 border border-red-500/20 hover:bg-red-600 text-red-400 hover:text-white px-5 h-12 rounded-full flex items-center justify-center font-black text-[9px] uppercase tracking-[0.2em] transition-all shrink-0">Выход</a>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- МОДАЛЬНОЕ ОКНО НАСТРОЕК (Поверх всего) -->
+<!-- МОДАЛЬНОЕ ОКНО НАСТРОЕК -->
         <div x-show="settingsOpen" style="display: none;" class="absolute inset-0 z-[200] flex items-center justify-center px-4 bg-black/60 backdrop-blur-md transition-opacity"
              x-transition:enter="ease-out duration-300" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
              x-transition:leave="ease-in duration-200" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0">
-            <div @click.away="settingsOpen = false" class="w-full max-w-sm bg-[#0a0a0a] border border-white/10 rounded-[2rem] p-6 shadow-[0_25px_50px_rgba(0,0,0,0.8)] transform transition-all">
+            <div @click.away="settingsOpen = false" class="w-full max-w-sm bg-[#0a0a0a] border border-white/10 rounded-[2rem] p-6 shadow-[0_25px_50px_rgba(0,0,0,0.8)] transform transition-all"
+                 x-transition:enter="ease-out duration-300" x-transition:enter-start="scale-95 translate-y-4" x-transition:enter-end="scale-100 translate-y-0">
+                
                 <div class="flex justify-between items-center mb-6">
                     <h3 class="text-sm font-black uppercase tracking-widest text-white">Устройства</h3>
                     <button @click="settingsOpen = false" class="text-gray-400 hover:text-white transition-colors">✕</button>
                 </div>
+
                 <div class="space-y-5">
                     <div>
                         <label class="block text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-2">Микрофон</label>
                         <select x-model="selectedAudio" @change="applyDeviceChanges()" class="w-full bg-white/[0.03] border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:ring-1 focus:ring-brand-indigo outline-none cursor-pointer">
-                            <template x-for="device in audioDevices" :key="device.deviceId"><option :value="device.deviceId" x-text="device.label" class="bg-[#0a0a0a] text-white"></option></template>
+                            <template x-for="device in audioDevices" :key="device.deviceId">
+                                <option :value="device.deviceId" x-text="device.label || 'Микрофон'" class="bg-[#0a0a0a] text-white"></option>
+                            </template>
                         </select>
                     </div>
                     <div>
                         <label class="block text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-2">Камера</label>
                         <select x-model="selectedVideo" @change="applyDeviceChanges()" class="w-full bg-white/[0.03] border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:ring-1 focus:ring-brand-indigo outline-none cursor-pointer">
-                            <template x-for="device in videoDevices" :key="device.deviceId"><option :value="device.deviceId" x-text="device.label" class="bg-[#0a0a0a] text-white"></option></template>
+                            <template x-for="device in videoDevices" :key="device.deviceId">
+                                <option :value="device.deviceId" x-text="device.label || 'Камера'" class="bg-[#0a0a0a] text-white"></option>
+                            </template>
                         </select>
                     </div>
                 </div>
@@ -152,10 +170,12 @@
         </div>
     </div>
 
+    <style> [x-cloak] { display: none !important; } </style>
     <script>
         function groupRoomComponent(roomUuid, myId, myName) {
             return {
                 focusedId: null,
+                isMaximized: false, // НОВОЕ: Флаг для режима во весь экран
                 peers: [], 
                 currentCount: 0,
                 localStream: null, 
@@ -164,35 +184,34 @@
                 camEnabled: true, 
                 isScreenSharing: false,
                 windowWidth: window.innerWidth,
-                
                 settingsOpen: false,
-                audioDevices: [],
-                videoDevices: [],
-                selectedAudio: '',
-                selectedVideo: '',
+                audioDevices: [], videoDevices: [], selectedAudio: '', selectedVideo: '',
                 rtcConfig: { iceServers: @js(config('webrtc.ice_servers')), bundlePolicy: "balanced" },
 
                 // МАТЕМАТИКА ЖЕСТКОЙ БЛОКИРОВКИ СКРОЛЛА
-                getBoxStyle(id) {
+getBoxStyle(id) {
                     const isFocused = this.focusedId === id;
                     const someoneFocused = this.focusedId !== null;
                     const isMobile = this.windowWidth < 768;
 
                     if (isFocused) {
-                        // ЭКРАН КИНОТЕАТРА: Занимает 70% доступной высоты, ширина автоматическая.
+                        // 1. АБСОЛЮТНЫЙ ПОЛНЫЙ ЭКРАН (Maximized)
+                        if (this.isMaximized) {
+                            return 'width: 100%; height: 100%; order: -1; margin: 0; border-radius: 0; max-width: none;';
+                        }
+                        // 2. РЕЖИМ КИНОТЕАТРА (Просто фокус)
                         return `
                             width: 100%; 
                             height: ${isMobile ? '65%' : '70%'}; 
                             order: -1; 
                             margin-bottom: ${isMobile ? '0.5rem' : '1rem'}; 
                             border-radius: ${isMobile ? '1rem' : '2rem'};
+                            max-width: 1300px;
                         `;
                     }
 
                     if (someoneFocused) {
-                        // ЗРИТЕЛИ: Оставшиеся 5 элементов (участники + пустые слоты) 
-                        // Автоматически строятся в 2 ряда (3+2). 
-                        // max-height страхует от вытягивания вниз, aspect-ratio держит 16:9.
+                        // 3. ЗРИТЕЛИ (Миниатюры)
                         return `
                             width: calc(33.333% - 8px); 
                             max-width: 240px; 
@@ -203,29 +222,24 @@
                         `;
                     }
 
-                    // СТАНДАРТНАЯ СЕТКА (Нет фокуса)
+                    // 4. СТАНДАРТНАЯ СЕТКА (Все равны)
                     if (isMobile) {
-                        // Мобилки: 2 колонки, 3 ряда. max-height строго < 33%, чтобы не было скролла!
-                        return `
-                            width: calc(50% - 4px); 
-                            max-height: calc(33.333% - 6px); 
-                            aspect-ratio: 16/9; 
-                            border-radius: 1rem;
-                        `;
+                        return 'width: calc(50% - 4px); max-height: calc(33.333% - 6px); aspect-ratio: 16/9; border-radius: 1rem;';
                     } else {
-                        // ПК: 3 колонки, 2 ряда. max-height строго < 50%, чтобы не было скролла!
-                        return `
-                            width: calc(33.333% - 8px); 
-                            max-height: calc(50% - 6px); 
-                            aspect-ratio: 16/9; 
-                            border-radius: 1.5rem;
-                        `;
+                        return 'width: calc(33.333% - 8px); max-height: calc(50% - 6px); aspect-ratio: 16/9; border-radius: 1.5rem;';
                     }
                 },
 
                 toggleFocus(id) {
                     if (String(id).includes('empty')) return;
-                    this.focusedId = (this.focusedId === id) ? null : id;
+                    
+                    if (this.focusedId === id) {
+                        this.focusedId = null;
+                        this.isMaximized = false; // Сбрасываем при закрытии
+                    } else {
+                        this.focusedId = id;
+                        this.isMaximized = false; // Начинаем всегда с режима кинотеатра
+                    }
                 },
 
                 // Остальная логика WebRTC (без изменений)
@@ -372,7 +386,15 @@
                 sendSignal(to, payload) { window.axios.post('/chat/signal', { partnerId: to, data: { ...payload, from: myId, roomUuid: roomUuid } }); },
                 removePeer(id) {
                     const p = this.peers.find(x => x.id === id);
-                    if (p) { p.pc.close(); this.peers = this.peers.filter(x => x.id !== id); }
+                    if (p) { 
+                        p.pc.close(); 
+                        this.peers = this.peers.filter(x => x.id !== id); 
+                        // Если участник вышел пока мы смотрели его на весь экран - сбрасываем фокус
+                        if (this.focusedId === id) {
+                            this.focusedId = null;
+                            this.isMaximized = false;
+                        }
+                    }
                 },
 
                 toggleMic() { this.micEnabled = !this.micEnabled; if(this.localStream) this.localStream.getAudioTracks()[0].enabled = this.micEnabled; },

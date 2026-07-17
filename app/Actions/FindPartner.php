@@ -34,6 +34,10 @@ class FindPartner
         while ($maxAttempts-- > 0 && ($tempId = Redis::lpop($partnerQueue))) {
             $tempId = (int)$tempId;
             
+            if (Redis::exists("user_left:{$tempId}")) {
+                continue; 
+            }
+
             // Пропускаем себя или уже проверенных в этом цикле
             if ($tempId === $userId || in_array($tempId, $skippedIds)) continue;
 
@@ -207,6 +211,11 @@ class FindPartner
         $user = User::find($userId);
         $country = $user ? ($user->target_country ?: 'global') : 'global';
 
+        // 1. Ставим флаг в Redis, что пользователь вышел (на 30 сек)
+        // Это позволит методу execute() мгновенно пропустить его, если он еще в списке
+        Redis::setex("user_left:{$userId}", 30, "1");
+
+        // 2. Стандартное удаление (пусть остается как фоновая чистка)
         foreach ([$this->queueHigh, $this->queueLow] as $base) {
             Redis::lrem("{$base}_{$country}", 0, $userId);
             Redis::lrem("{$base}_global", 0, $userId);

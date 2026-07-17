@@ -913,8 +913,7 @@ if (m.type === 'call-accepted') {
             
             const answer = await this.pc.createAnswer();
             await this.pc.setLocalDescription(answer);
-            this.signal({ type: 'answer', sdp: this.pc.localDescription.sdp });
-            
+            this.signal({ type: 'answer', sdp: this.pc.localDescription.sdp }); 
             while(this.iceQueue.length) {
                 await this.pc.addIceCandidate(this.iceQueue.shift()).catch(e => {});
             }

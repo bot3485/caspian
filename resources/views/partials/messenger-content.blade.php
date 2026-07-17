@@ -234,13 +234,6 @@
                 </div>
             </template>
 
-            <!-- 3. Заглушка: Если вы еще не друзья (none) - ТВОЙ НОВЫЙ КОД ТУТ -->
-            <template x-if="activeFriend?.status === 'none'">
-                <div class="p-4 bg-white/[0.02] border border-dashed border-white/10 rounded-2xl text-center">
-                    <p class="text-[9px] font-black uppercase tracking-[0.2em] text-gray-500">Protocol not initiated</p>
-                    <p class="text-[7px] text-gray-600 mt-1 uppercase tracking-widest">Add user to friends to start a secure conversation</p>
-                </div>
-            </template>
         </div>
     </div>
 
@@ -260,8 +253,11 @@
                             <div class="text-[8px] font-black text-gray-600 uppercase tracking-widest mt-1" x-text="h.last_met_diff"></div>
                         </div>
                     </div>
-                    <button @click="window.axios.post('/chat/block', {userId: h.id}).then(() => loadHistory())" class="w-9 h-9 flex items-center justify-center rounded-[1rem] bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500 hover:text-white transition-all">
-                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"></path></svg>
+                    <button @click="if(confirm('{{ __('messenger.Block_User') }}')) { window.axios.post('/chat/block', {userId: h.id}).then(() => loadHistory()) }" 
+                            class="w-9 h-9 flex items-center justify-center rounded-[1rem] bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500 hover:text-white transition-all">
+                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"></path>
+                        </svg>
                     </button>
                 </div>
                 <div class="flex gap-2 w-full">
@@ -269,7 +265,7 @@
                     <template x-if="!h.is_pending && !friendsList.find(f => Number(f.id) === Number(h.id))">
                         <button @click="window.axios.post('/chat/contact/add', {contactId: h.id}).then(() => { h.is_pending = true; window.dispatchEvent(new CustomEvent('toast', {detail: {msg: 'Request Sent'}})) })" 
                                 class="flex-1 bg-brand-indigo text-white py-3 rounded-xl text-[9px] font-black uppercase tracking-[0.2em] transition-all hover:scale-[1.02] active:scale-95">
-                            + {{ __('chatroulette.Add_Friend') }}
+                            + {{ __('messenger.Add_Friend') }}
                         </button>
                     </template>
 

@@ -50,5 +50,5 @@ return [
 'No_Signal'=>               'No Signal',
 'Prestige_Status'=>         'Prestige Status',
 'Past_Violations'=>         'Past Violations',
-'Latency'=>                 'Latency'
+'Latency'=>                 'Latency',
 ];

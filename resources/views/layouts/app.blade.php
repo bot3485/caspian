@@ -179,7 +179,7 @@ window.caspianApp = function(myId, myInterests, iceServers) {
 
 
         countryNames: {
-            'global': '🌍 {{__('chatroulette.Global_Match')}}',
+            'global': '🌍 {{__('app.Global_Match')}}',
             'az': '🇦🇿 Azerbaijan', 'ge': '🇬🇪 Georgia', 'am': '🇦🇲 Armenia',
             'ru': '🇷🇺 Russia', 'kz': '🇰🇿 Kazakhstan', 'uz': '🇺🇿 Uzbekistan',
             'ua': '🇺🇦 Ukraine', 'tr': '🇹🇷 Turkey', 'de': '🇩🇪 Germany',
@@ -192,9 +192,9 @@ window.caspianApp = function(myId, myInterests, iceServers) {
             this.targetCountry = country;
             try {
                 await window.axios.post('/profile', { _method: 'PATCH', target_country: country });
-                window.dispatchEvent(new CustomEvent('toast', { detail: { msg: '{{ __('chatroulette.Target_Country_Updated') }}' } }));
+                window.dispatchEvent(new CustomEvent('toast', { detail: { msg: '{{ __('app.Target_Country_Updated') }}' } }));
             } catch (e) {
-                window.dispatchEvent(new CustomEvent('toast', { detail: { msg: '{{ __('chatroulette.Update_Failed') }}' } }));
+                window.dispatchEvent(new CustomEvent('toast', { detail: { msg: '{{ __('app.Update_Failed') }}' } }));
             }
         },
 async applyFilters() {
@@ -206,13 +206,13 @@ async applyFilters() {
             target_age_max: this.targetAgeMax
         });
         this.filterModalOpen = false;
-        window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'Targeting Updated 🎯' } }));
+        window.dispatchEvent(new CustomEvent('toast', { detail: { msg: '{{ __('app.Target_Gender_Updated') }} 🎯' } }));
         
         // Если мы уже в поиске, перезапускаем его с новыми фильтрами
         if(this.state === 'searching') this.startSearch(); 
     } catch (e) {
         console.error("Filter Save Error:", e);
-        window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'Save Failed' } }));
+        window.dispatchEvent(new CustomEvent('toast', { detail: { msg: '{{ __('app.Save_Failed') }}' } }));
     }
 },
 
@@ -862,7 +862,7 @@ if (m.type === 'call-accepted') {
 
     if (m.type === 'blitz') {
         this.startBlitzEffect(); // Запускаем эффект, так как его инициировал партнер
-        window.dispatchEvent(new CustomEvent('toast', { detail: { msg: '⚡️ SYSTEM OVERLOAD' } }));
+        window.dispatchEvent(new CustomEvent('toast', { detail: { msg: '⚡️ {{ __('app.System_Overload') }}' } }));
         return;
     }
 
@@ -1066,11 +1066,11 @@ async setupPersonalCall(id, isAccepted) {
 
             if (r.data.status === 'busy') {
                 this.stopCall(false);
-                window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'User is busy' } }));
+                window.dispatchEvent(new CustomEvent('toast', { detail: { msg: '{{ __('app.User_Is_Busy') }}' } }));
                 return;
             }
 
-            window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'Calling...' } }));
+            window.dispatchEvent(new CustomEvent('toast', { detail: { msg: '{{ __('app.Calling') }}...' } }));
         }
     } catch (e) {
         console.error("Call Setup Error:", e);
@@ -1176,7 +1176,7 @@ stopRingtone() {
             this.stopRingtone();
             this.reset();
             window.axios.post('/chat/leave');
-            window.dispatchEvent(new CustomEvent('toast', {detail: {msg: 'Call Ended'}}));
+            window.dispatchEvent(new CustomEvent('toast', {detail: {msg: '{{ __('app.Call_Ended') }}'}}));
         },
 
 reset() {
@@ -1211,12 +1211,12 @@ async toggleContact() {
         const res = await window.axios.post('/chat/contact/add', { contactId: this.partnerId });
         
         if (res.data.action === 'requested') {
-            window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'Request Encrypted & Sent 📡' } }));
+            window.dispatchEvent(new CustomEvent('toast', { detail: { msg: '{{ __('app.Request_Encryted_And_Send') }} 📡' } }));
             this.isFriend = false; 
             // Это сообщение создало в базе SYSTEM_FRIEND_REQUEST, 
             // которое сразу отобразится в чате
         } else if (res.data.action === 'exists') {
-             window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'Protocol already active' } }));
+             window.dispatchEvent(new CustomEvent('toast', { detail: { msg: '{{ __('app.Protocol_Already_Active') }}' } }));
         }
     } catch (e) {
         console.error(e);
@@ -1227,10 +1227,10 @@ async handleFriendRequest(senderId, action) {
     try {
         if (action === 'accept') {
             await window.axios.post('/chat/contact/accept', { senderId });
-            window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'Identity Verified ✓' } }));
+            window.dispatchEvent(new CustomEvent('toast', { detail: { msg: '{{ __('app.Identyty_Verified') }} ✓' } }));
         } else {
             await window.axios.post('/chat/contact/decline', { senderId });
-            window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'Request Terminated' } }));
+            window.dispatchEvent(new CustomEvent('toast', { detail: { msg: '{{ __('app.Request_Terminated') }}' } }));
         }
         
         // Моментально обновляем данные
@@ -1389,7 +1389,7 @@ async handleFriendRequest(senderId, action) {
                 reason: 'general',
                 image: screenshot // Отправляем "фото прегрешения"
             }).then(() => {
-                window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'Report transmitted to Shield 🛡️' } }));
+                window.dispatchEvent(new CustomEvent('toast', { detail: { msg: '{{ __('app.Repoert_Transmitted_To_Shield') }} 🛡️' } }));
                 this.startSearch();
             });
         },
@@ -1540,7 +1540,7 @@ async handleFriendRequest(senderId, action) {
                 })
                 .catch(err => {
                     console.error("Caspian DEBUG: Axios Error:", err);
-                    window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'Failed to load history' } }));
+                    window.dispatchEvent(new CustomEvent('toast', { detail: { msg: '{{ __('app.Failed_To_Load_History') }}' } }));
                 }); 
         },
 
@@ -1549,15 +1549,15 @@ async handleFriendRequest(senderId, action) {
             try {
                 await window.axios.post('/chat/clear-messages', { contactId });
                 this.friendMessages = []; // Моментально очищаем экран
-                window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'History Terminated 🗑️' } }));
+                window.dispatchEvent(new CustomEvent('toast', { detail: { msg: '{{ __('app.History_Terminated') }} 🗑️' } }));
             } catch (e) { console.error(e); }
         },
 
         t(key) {
             const trans = {
-                'male': '{{ __("chatroulette.Male") }}',
-                'female': '{{ __("chatroulette.Female") }}',
-                'all': '{{ __("chatroulette.Global_Match") }}'
+                'male': '{{ __("app.Male") }}',
+                'female': '{{ __("app.Female") }}',
+                'all': '{{ __("app.Global_Match") }}'
             };
             return trans[key] || key;
         },

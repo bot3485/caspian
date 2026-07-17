@@ -4,31 +4,34 @@
      style="height: calc(100dvh - 120px - env(safe-area-inset-bottom));">
         
         <!-- 1. VIDEO ECOSYSTEM (Dual-Engine Split Screen) -->
-        <div class="flex flex-col md:flex-row w-full h-full gap-2 md:gap-4 transition-all duration-700 ease-in-out">
-            
-            <!-- PARTNER CONTAINER (REMOTE) -->
-            <div @click="toggleFocus('remote')"
-                :class="{
-                    'blitz-shaking-logic': isBlitzActive, /* Тряска всего окна */
-                    'h-1/2 md:h-full md:w-1/2': layoutFocus === 'split',
-                    'h-[70%] md:h-full md:w-[75%] shadow-[0_0_50px_rgba(0,0,0,0.5)] z-10': layoutFocus === 'remote',
-                    'h-[30%] md:h-full md:w-[25%] opacity-40': layoutFocus === 'local'
-                }"
-                class="relative overflow-hidden rounded-[2.5rem] bg-[#050505] border border-white/5 transition-all duration-700 ease-in-out cursor-pointer group">
-                
-                <!-- Само видео внутри -->
-                <video x-ref="remoteVideo" 
-                    id="remoteVideo"
-                    autoplay 
-                    playsinline  
-                    webkit-playsinline 
-                    @loadedmetadata="$el.play().catch(e => { if(e.name !== 'AbortError') console.log('Remote play blocked', e) })"
-                    :class="[getFilterClass('remote'), { 
-                        'blitz-visual-logic': isBlitzActive,
-                        'opacity-40': isRemoteBlurred && !isBlitzActive 
-                    }]"
-                    class="w-full h-full object-cover transition-all duration-1000 bg-black">
-                </video>
+       <div class="flex flex-col md:flex-row w-full h-full gap-2 md:gap-4 transition-all duration-700 ease-in-out"
+     :class="isBlitzActive ? 'blitz-grid-warp' : ''">
+    
+    <!-- PARTNER CONTAINER (REMOTE) -->
+    <div @click="toggleFocus('remote')"
+        :class="{
+            'blitz-hell-logic': isBlitzActive,
+            'h-1/2 md:h-full md:w-1/2': layoutFocus === 'split',
+            'h-[70%] md:h-full md:w-[75%] shadow-[0_0_50px_rgba(0,0,0,0.5)] z-10': layoutFocus === 'remote',
+            'h-[30%] md:h-full md:w-[25%] opacity-40': layoutFocus === 'local'
+        }"
+        class="relative overflow-hidden rounded-[2.5rem] bg-[#050505] border border-white/5 transition-all duration-700 ease-in-out cursor-pointer group">
+        
+        <video x-ref="remoteVideo" 
+            id="remoteVideo"
+            autoplay playsinline webkit-playsinline 
+            :class="[getFilterClass('remote'), { 
+                'blitz-hell-video': isBlitzActive,
+                'opacity-40': isRemoteBlurred && !isBlitzActive 
+            }]"
+            class="w-full h-full object-cover transition-all duration-1000 bg-black">
+        </video>
+
+        <!-- Кровавый слой (только для Блица) -->
+        <div x-show="isBlitzActive" 
+             class="absolute inset-0 bg-red-900/40 mix-blend-color-burn pointer-events-none z-20 animate-pulse" 
+             x-cloak></div>
+
 
                 <!-- Оверлей размытия (Privacy Mode) -->
                 <div x-show="isRemoteBlurred" 
@@ -327,30 +330,30 @@
             </div>
 
             <!-- MY CONTAINER (LOCAL) -->
-            <div @click="toggleFocus('local')"
-                :class="{
-                    'blitz-shaking-logic': isBlitzActive, /* Тряска и у тебя тоже */
-                    'h-1/2 md:h-full md:w-1/2': layoutFocus === 'split',
-                    'h-[70%] md:h-full md:w-[75%] shadow-[0_0_50px_rgba(0,0,0,0.5)] z-10': layoutFocus === 'local',
-                    'h-[30%] md:h-full md:w-[25%] opacity-40': layoutFocus === 'remote'
-                }"
-                class="relative overflow-hidden rounded-[2.5rem] bg-[#050505] border border-white/5 transition-all duration-700 ease-in-out cursor-pointer group">
-            
-                <video
-            remoteVideo x-ref="localVideo" 
-                id="localVideo" 
-                autoplay 
-                muted 
-                playsinline 
-                webkit-playsinline
-                @loadedmetadata="$el.play().catch(e => { if(e.name !== 'AbortError') console.log('Local play blocked', e) })"
-                :class="[getFilterClass('local'), { 
-                    'blitz-visual-logic': isBlitzActive,
-                    'scale-x-[-1]': true 
-                }]"
-                class="w-full h-full object-cover transition-all duration-1000 bg-black">
-            </video>
+             <!-- MY CONTAINER (LOCAL) -->
+    <div @click="toggleFocus('local')"
+        :class="{
+            'blitz-hell-logic': isBlitzActive,
+            'h-1/2 md:h-full md:w-1/2': layoutFocus === 'split',
+            'h-[70%] md:h-full md:w-[75%]': layoutFocus === 'local',
+            'h-[30%] md:h-full md:w-[25%]': layoutFocus === 'remote'
+        }"
+        class="relative overflow-hidden rounded-[2.5rem] bg-[#050505] border border-white/5 transition-all duration-700 ease-in-out cursor-pointer group">
+        
+        <video x-ref="localVideo" 
+            id="localVideo" 
+            autoplay muted playsinline webkit-playsinline
+            :class="[getFilterClass('local'), { 
+                'blitz-hell-video': isBlitzActive,
+                'scale-x-[-1]': true 
+            }]"
+            class="w-full h-full object-cover transition-all duration-1000 bg-black">
+        </video>
 
+        <!-- Кровавый слой (только для Блица) -->
+        <div x-show="isBlitzActive" 
+             class="absolute inset-0 bg-red-900/40 mix-blend-color-burn pointer-events-none z-20 animate-pulse" 
+             x-cloak></div>
 
                 <!-- MY INFO TAG -->
 <!-- MY INFO & ACTIVE FILTERS TAG -->
@@ -527,14 +530,12 @@
 
                     <!-- Кнопка Blitz Mode (⚡ Напряжение) -->
                     <button @click="triggerBlitz()" 
-                            :disabled="blitzCooldown > 0 || isBlitzActive || state !== 'connected'" 
-                            class="flex flex-col items-center justify-center gap-1.5 h-16 rounded-2xl transition-all group"
-                            :class="blitzCooldown > 0 
-                                ? 'bg-white/5 opacity-40 cursor-not-allowed' 
-                                : 'bg-white/5 hover:bg-yellow-500/20'">
-                        
+                        :disabled="blitzCooldown > 0 || isBlitzActive || state !== 'connected'" 
+                        class="flex flex-col items-center justify-center gap-1.5 h-16 rounded-2xl transition-all group"
+                        :class="isBlitzActive ? 'bg-red-600 animate-pulse' : 'bg-white/5 hover:bg-yellow-500/20'">
+                    
                         <span class="text-lg" 
-                            :class="blitzCooldown > 0 ? '' : 'group-hover:scale-150 transition-transform'"
+                            :class="blitzCooldown > 0 ? 'opacity-40' : 'group-hover:scale-150 transition-transform'"
                             x-text="blitzCooldown > 0 ? '⌛' : '⚡'"></span>
                         
                         <span class="text-[7px] font-black uppercase tracking-widest"
@@ -802,63 +803,47 @@
 </div>
 </x-app-layout>
 <style>
-    @keyframes blitz-shake-intense {
-        0%, 100% { transform: translate(0, 0) scale(1) rotate(0deg); }
-        10% { transform: translate(-5px, -8px) scale(1.05) rotate(2deg); }
-        20% { transform: translate(7px, 4px) scale(0.95) rotate(-1deg); }
-        30% { transform: translate(-4px, 7px) scale(1.1) rotate(3deg); }
-        40% { transform: translate(8px, -5px) scale(0.9) rotate(-2deg); }
-        50% { transform: translate(-9px, -2px) scale(1.15) rotate(4deg); }
-        60% { transform: translate(4px, 8px) scale(0.85) rotate(-1.5deg); }
-        70% { transform: translate(-7px, -7px) scale(1.05) rotate(2.5deg); }
-        80% { transform: translate(5px, 5px) scale(0.8) rotate(-3deg); }
-        90% { transform: translate(-2px, -4px) scale(1.2) rotate(1deg); }
+        /* 1. Глобальный глитч-шум (накладывается поверх видео) */
+    /* Дьявольская 3D деформация контейнера */
+    @keyframes blitz-hell-warp {
+        0%, 100% { transform: perspective(1000px) rotateX(0deg) rotateY(0deg) scale(1); }
+        20% { transform: perspective(1000px) rotateX(15deg) rotateY(-15deg) scale(1.05) skewX(5deg); }
+        40% { transform: perspective(1000px) rotateX(-20deg) rotateY(20deg) scale(0.95) skewY(-5deg); }
+        60% { transform: perspective(1000px) rotateX(10deg) rotateY(10deg) scale(1.1); }
+        80% { transform: perspective(1000px) rotateX(-5deg) rotateY(-10deg) scale(0.9); }
     }
 
-    /* Жесткий глитч (инверсия, цвета, искажения) */
-    @keyframes blitz-glitch-visual {
-        0% { filter: hue-rotate(0deg) contrast(1) brightness(1); transform: scale(1); }
-        5% { filter: hue-rotate(180deg) invert(1) contrast(5); transform: scale(1.1) skewX(20deg); }
-        10% { filter: hue-rotate(90deg) invert(0) contrast(2) brightness(2); transform: scale(0.9) skewX(-15deg); }
-        15% { filter: hue-rotate(270deg) invert(1) contrast(8); transform: scale(1.3) rotate(5deg); }
-        20% { filter: none; transform: scale(1); }
-        25% { filter: brightness(5) contrast(10); transform: scale(1.05) skewY(10deg); }
-        100% { filter: none; }
+    /* Агрессивное свечение бездны */
+    @keyframes blitz-hell-border {
+        0%, 100% { border-color: #ff0000; box-shadow: 0 0 80px #ff0000, inset 0 0 30px #000; }
+        50% { border-color: #ffffff; box-shadow: 0 0 120px #ff0000, inset 0 0 60px #600000; }
     }
 
-    /* Огненная пульсирующая рамка */
-    @keyframes blitz-border-fire {
-        0%, 100% { border-color: #ff0000; box-shadow: 0 0 20px #ff0000, inset 0 0 20px #ff0000; }
-        20% { border-color: #ffae00; box-shadow: 0 0 40px #ffae00, inset 0 0 30px #ffae00; }
-        40% { border-color: #ff4800; box-shadow: 0 0 60px #ff4800, inset 0 0 40px #ff4800; }
-        60% { border-color: #ffffff; box-shadow: 0 0 80px #ffffff, inset 0 0 50px #ffffff; }
-        80% { border-color: #ff0000; box-shadow: 0 0 50px #ff0000, inset 0 0 30px #ff0000; }
-    }
-
-    /* Мигание экрана (вспышки) */
-    @keyframes intense-flash {
-        0%, 100% { opacity: 1; }
-        50% { opacity: 0.4; background: rgba(255, 0, 0, 0.2); }
-    }
-
-    .blitz-visual-logic {
-        /* Применяем глитч и вспышки */
-        animation: blitz-glitch-visual 0.15s step-end infinite, intense-flash 0.05s infinite !important;
+    /* Глитч внутри видео (инверсия и цветовой сдвиг) */
+    .blitz-hell-video {
+        animation: blitz-glitch-visual 0.15s steps(2) infinite !important;
+        filter: invert(1) hue-rotate(180deg) contrast(4) brightness(1.2) saturate(4) !important;
         mix-blend-mode: exclusion;
+        will-change: filter, transform;
     }
 
-    .blitz-shaking-logic {
-        /* Применяем жесткую тряску и огонь на рамку */
-        animation: blitz-shake-intense 0.07s linear infinite !important;
-        border: 8px solid !important;
-        animation: blitz-border-fire 0.1s infinite !important;
-        z-index: 9999 !important;
-        background-color: black !important;
+    /* Класс для контейнеров */
+    .blitz-hell-logic {
+        animation: 
+            blitz-shake-intense 0.08s linear infinite,
+            blitz-hell-warp 1.2s ease-in-out infinite,
+            blitz-hell-border 0.2s infinite !important;
+        z-index: 500 !important;
+        border-width: 8px !important;
+        background: #000 !important;
+        /* Ломаем края через рваный полигон */
+        clip-path: polygon(0 0, 100% 0, 100% 90%, 80% 100%, 20% 95%, 0 100%) !important;
     }
 
-    /* Делаем так, чтобы всё внутри видео-окна тоже дрожало и искажалось */
-    .blitz-shaking-logic video {
-        filter: contrast(2) saturate(5) !important;
+    /* Глобальный эффект "плавления" сетки */
+    .blitz-grid-warp {
+        perspective: 1500px;
+        overflow: visible !important;
     }
 
     /* Анимация вращения градиента для LED эффекта */

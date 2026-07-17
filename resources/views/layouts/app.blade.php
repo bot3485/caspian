@@ -80,7 +80,7 @@
             <div class="flex items-center gap-4">
                 <div class="w-12 h-12 bg-brand-indigo rounded-2xl flex items-center justify-center animate-pulse font-black shadow-lg" x-text="incomingCall?.fromName ? incomingCall.fromName[0] : '?'"></div>
                 <div>
-                    <p class="text-[8px] font-black text-brand-indigo uppercase tracking-[0.3em]">Incoming Session</p>
+                    <p class="text-[8px] font-black text-brand-indigo uppercase tracking-[0.3em]">{{ __('app.Incoming_Session') }}</p>
                     <p class="text-sm font-black uppercase italic" x-text="incomingCall?.fromName"></p>
                 </div>
             </div>
@@ -151,9 +151,11 @@ window.caspianApp = function(myId, myInterests, iceServers) {
         selectedAudioId: '',
         showInterestMatch: false,
         commonInterests: [],
-        isBlitzActive: false,
         blitzSound: new Audio('/sounds/glitch.wav'),
         isRinging: false,
+        isBlitzActive: false,
+        blitzCooldown: 0,
+        blitzTimer: null,
 
         // --- INTERNAL LOGIC ---
         isProcessingSignal: false, makingOffer: false, processedEvents: new Set(), iceQueue: [],
@@ -173,9 +175,7 @@ window.caspianApp = function(myId, myInterests, iceServers) {
         icebreakerQuestion: '',
         icebreakerTimer: null,
         icebreakerCooldown: 0,
-        blitzCooldown: 0,
-        iceTimer: null,
-        blitzTimer: null,        
+        iceTimer: null,     
 
 
         countryNames: {
@@ -217,7 +217,7 @@ async applyFilters() {
 },
 
 async removeContact(contactId) {
-    if (!confirm('Are you sure you want to remove this contact?')) return;
+    if (!confirm('{{ __('app.Remove_Friend_Sure') }}')) return;
     
     try {
         await window.axios.post('/chat/contact/remove', { contactId });
@@ -230,7 +230,7 @@ async removeContact(contactId) {
             this.activeFriend = null;
         }
         
-        window.dispatchEvent(new CustomEvent('toast', { detail: { msg: 'Contact Unlinked ✕' } }));
+        window.dispatchEvent(new CustomEvent('toast', { detail: { msg: '{{ __("app.Contact_Unlinked") }} ✕' } }));
     } catch (e) {
         console.error("Error removing contact:", e);
     }
@@ -278,26 +278,77 @@ async displayIcebreaker(index) {
 
 
 triggerBlitz() {
-    // Если время еще не вышло или уже активен блиц — ничего не делаем
+    // Если мы не в чате, эффект уже занят или идет откат — выходим
     if (this.state !== 'connected' || this.isBlitzActive || this.blitzCooldown > 0) return;
 
-    this.isBlitzActive = true;
-    this.signal({ type: 'blitz' });
-
-    if (this.blitzSound) {
-        this.blitzSound.currentTime = 0;
-        this.blitzSound.play().catch(e => console.warn("Audio blocked"));
-    }
-
-    setTimeout(() => { this.isBlitzActive = false; }, 6000);
-
-    // Устанавливаем Кулдаун на 60 секунд
+    // 1. МГНОВЕННЫЙ ЗАПУСК ТАЙМЕРА (60 секунд)
     this.blitzCooldown = 60;
+    
+    // Очищаем старый интервал если он вдруг был
+    if (this.blitzTimer) clearInterval(this.blitzTimer);
+    
+    // Запускаем счетчик
     this.blitzTimer = setInterval(() => {
         this.blitzCooldown--;
-        if (this.blitzCooldown <= 0) clearInterval(this.blitzTimer);
+        if (this.blitzCooldown <= 0) {
+            clearInterval(this.blitzTimer);
+            this.blitzTimer = null;
+        }
     }, 1000);
+
+    // 2. ОТПРАВКА СИГНАЛА
+    this.signal({ type: 'blitz' });
+
+    // 3. ЗАПУСК ВИЗУАЛА У СЕБЯ
+    this.startBlitzEffect();
 },
+    
+    startBlitzEffect() {
+    this.isBlitzActive = true;
+    this.vibrate([100, 50, 100, 50, 200]); // Ритмичная вибрация
+
+    // Звук (обязательно добавь в папку public/sounds агрессивный звук помех)
+    if (this.blitzSound) {
+        this.blitzSound.volume = 1.0;
+        this.blitzSound.play();
+    }
+
+    // Тряска всего экрана (body)
+    document.body.style.transition = 'none';
+    
+    let hellInterval = setInterval(() => {
+        if (!this.isBlitzActive) {
+            clearInterval(hellInterval);
+            document.body.style.transform = '';
+            document.body.style.filter = '';
+            return;
+        }
+
+        // Рандомные вспышки на весь экран
+        const bgColor = Math.random() > 0.8 ? '#4a0000' : '#020202';
+        document.body.style.backgroundColor = bgColor;
+        
+        // Хаотичный сдвиг всего интерфейса
+        const x = (Math.random() - 0.5) * 20;
+        const y = (Math.random() - 0.5) * 20;
+        document.body.style.transform = `translate(${x}px, ${y}px)`;
+        
+        // Инверсия всего сайта на доли секунды
+        if (Math.random() > 0.95) {
+            document.body.style.filter = 'invert(1) contrast(2)';
+        } else {
+            document.body.style.filter = '';
+        }
+    }, 50);
+
+    // Авто-выключение через 6.66 секунды (для стиля)
+    setTimeout(() => {
+        this.isBlitzActive = false;
+        document.body.style.backgroundColor = '#020202';
+        document.body.style.transition = 'all 1s ease';
+    }, 6666);
+},
+
 
 async rebootMobileCamera() {
     if (!this.localStream || !this.pc || this.state !== 'connected') return;
@@ -402,7 +453,7 @@ async changeVideoDevice() {
         this.deviceModalOpen = false;
     } catch (e) {
         console.error(e);
-        window.dispatchEvent(new CustomEvent('toast', {detail: {msg: 'Device Error: Access Denied'}}));
+        window.dispatchEvent(new CustomEvent('toast', {detail: {msg: '{{ __('app.Device_Error_Access_Denied') }}'}}));
     }
 },
 
@@ -524,7 +575,7 @@ async initMedia() {
             this.$refs.localVideo.play().catch(e => console.log("Auto-play blocked", e));
         }
     } catch (e) { 
-        window.dispatchEvent(new CustomEvent('toast', {detail: {msg: 'Camera Permission Denied'}})); 
+        window.dispatchEvent(new CustomEvent('toast', {detail: {msg: '{{ __('app.Camera_Permission_Denied') }}'}})); 
     }
     if (this.$refs.localVideo) {
         this.$refs.localVideo.srcObject = this.localStream;
@@ -810,10 +861,8 @@ if (m.type === 'call-accepted') {
     }
 
     if (m.type === 'blitz') {
-        this.isBlitzActive = true;
-        this.playSound(this.blitzSound); // Используем наш фикс для звука
+        this.startBlitzEffect(); // Запускаем эффект, так как его инициировал партнер
         window.dispatchEvent(new CustomEvent('toast', { detail: { msg: '⚡️ SYSTEM OVERLOAD' } }));
-        setTimeout(() => { this.isBlitzActive = false; }, 6000);
         return;
     }
 
@@ -1316,7 +1365,7 @@ async handleFriendRequest(senderId, action) {
         },
         
         reportPartner() {
-            if (!this.partnerId || !confirm('Report and block this user?')) return;
+            if (!this.partnerId || !confirm('{{ __("app.Report_Desc") }}')) return;
 
             const video = document.getElementById('remoteVideo');
             let screenshot = null;
@@ -1550,7 +1599,7 @@ async handleFriendRequest(senderId, action) {
 <div x-show="showLevelUp" x-transition.opacity.scale.origin.center class="fixed inset-0 z-[3000] flex items-center justify-center pointer-events-none" x-cloak>
     <div class="relative bg-[#0a0a0a]/90 backdrop-blur-3xl border-2 border-brand-indigo p-10 rounded-[3rem] shadow-[0_0_100px_rgba(99,102,241,0.5)] text-center">
         <div class="text-6xl mb-4">🏆</div>
-        <h2 class="text-4xl font-black uppercase italic tracking-tighter text-white">Level Up!</h2>
+        <h2 class="text-4xl font-black uppercase italic tracking-tighter text-white">{{ __('app.Level_UP') }}!</h2>
         <div class="mt-2 flex items-center justify-center gap-3">
             <span class="text-2xl font-black text-brand-indigo" x-text="'LVL ' + currentLevel"></span>
         </div>

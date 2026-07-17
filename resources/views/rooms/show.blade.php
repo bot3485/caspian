@@ -123,7 +123,7 @@
                     <div class="w-px h-8 bg-white/10 mx-1 rounded-full"></div>
                     
                     <a href="{{ route('rooms.index') }}" class="bg-red-600/10 border border-red-500/20 hover:bg-red-600 text-red-400 hover:text-white px-5 h-12 rounded-full flex items-center justify-center font-black text-[9px] uppercase tracking-[0.2em] transition-all">
-                        {{ __('rooms.Exit') }}
+                        {{ __('rooms.Exit_Room') }}
                     </a>
                 </div>
             </div>

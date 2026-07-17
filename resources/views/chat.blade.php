@@ -45,6 +45,7 @@
                     </div>
                     <span class="text-[10px] font-black uppercase tracking-[0.5em] text-white/40 italic animate-pulse">Privacy Mode</span>
                 </div>
+                
                 <!-- NEW: COUNTRY TARGET SELECTOR (Элегантный переключатель стран в рулетке) -->
                     <div x-show="state === 'idle' || state === 'searching'" 
                         class="absolute top-6 right-6 z-30 pointer-events-auto"
@@ -68,7 +69,6 @@
                         <div class="h-px bg-white/5 mx-2"></div>
                         
                         <!-- Региональные приоритеты -->
-                        <!-- Используем сетку или просто список для всех стран из Enum -->
                         @foreach(['az', 'ge', 'am', 'ru', 'kz', 'uz', 'ua', 'tr', 'de', 'gb', 'fr', 'it', 'es', 'pl', 'us', 'ca'] as $code)
                             <button @click.stop="updateTargetCountry('{{$code}}'); countryDropdown = false;" 
                                     class="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-brand-indigo text-[9px] font-black uppercase tracking-widest transition-all text-gray-400 hover:text-white">
@@ -91,189 +91,85 @@
                        x-text="state === 'searching' ? '{{ __('chatroulette.Searching') }}...' : '{{ __('chatroulette.Ready_To_Start') }}'"></p>
                 </div>
 
-<!-- PARTNER INFO WIDGET (Engine v3.8 - Mobile Shield Edition) -->
-<div x-show="state === 'connected' && partnerData" 
-     class="absolute top-6 left-6 z-[1000] flex items-start pointer-events-none"
-     x-cloak>
-    
-    <!-- TRIGGER BUTTON (Кнопка-Флаг с LED) -->
-<div class="relative w-14 h-14 md:w-16 md:h-16 shrink-0 pointer-events-auto">
-    
-<!-- НОВОЕ: ИНДИКАТОР VPN НАД ФЛАГОМ -->
-        <template x-if="partnerData?.vpn">
-            <div class="absolute -top-5 left-1/2 -translate-x-1/2 z-50 whitespace-nowrap">
-                <div class="flex items-center gap-1 px-2 py-0.5 bg-amber-500/90 backdrop-blur-md rounded-md border border-white/20 shadow-[0_0_15px_rgba(245,158,11,0.5)] animate-bounce">
-                    <!-- Иконка щита с молнией или замком -->
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-2.5 w-2.5 text-black" viewBox="0 0 20 20" fill="currentColor">
-                        <path fill-rule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zM10 5a1 1 0 011 1v3a1 1 0 11-2 0V6a1 1 0 011-1zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd" />
-                    </svg>
-                    <span class="text-[7px] font-black uppercase tracking-tighter text-black">Masked IP</span>
-                </div>
-            </div>
-        </template>
-
-
-    <!-- LED ГРАДИЕНТ -->
-    <div class="absolute -inset-1.5 rounded-[1.8rem] opacity-70"
-         :class="partnerData?.ban_count > 0 ? 'led-toxic' : 'animate-[led-rotate_4s_linear_infinite]'"
-         :style="partnerData?.ban_count > 0 ? '' : { 
-            background: partnerData?.gender === 'female' 
-                ? 'conic-gradient(from 0deg, transparent, #db2777, transparent, #db2777, transparent)' 
-                : 'conic-gradient(from 0deg, transparent, #2563eb, transparent, #6366f1, transparent)' 
-         }">
-    </div>
-    
-    <!-- Halo Свечение (Для нарушителей делаем красным и размытым) -->
-    <div class="absolute -inset-1.5 rounded-[1.8rem] blur-md"
-         :class="partnerData?.ban_count > 0 ? 'bg-red-600/60 animate-pulse' : 'animate-[led-pulse_2s_ease-in-out_infinite]'"
-         :style="partnerData?.ban_count > 0 ? '' : { backgroundColor: partnerData?.gender === 'female' ? '#db277740' : '#2563eb40' }">
-    </div>
-
-    <button @click.stop.prevent="uiShowPartnerCard = !uiShowPartnerCard"
-            type="button"
-            class="relative w-full h-full rounded-[1.4rem] overflow-hidden border shadow-2xl transition-all duration-500 active:scale-90 group bg-black"
-            :class="partnerData?.ban_count > 0 ? 'border-red-500/50' : 'border-white/20'">
-        
-        <!-- ФЛАГ -->
-        <img :src="partnerData?.country_flag" 
-             class="w-full h-full object-cover transition-transform duration-1000"
-             :class="partnerData?.ban_count > 0 ? 'grayscale brightness-50 group-hover:grayscale-0 transition-all' : 'opacity-90 group-hover:scale-110'"
-             crossorigin="anonymous">
-        
-        <!-- Череп поверх флага для рецидивистов (Виден сразу!) -->
-        <template x-if="partnerData?.ban_count > 0">
-            <div class="absolute inset-0 flex items-center justify-center bg-red-950/20 backdrop-blur-[1px]">
-                <span class="text-xl filter drop-shadow-lg">💀</span>
-            </div>
-        </template>
-    </button>
-    <!-- 1. ИНДИКАТОР: СОБЕСЕДНИК СВЕРНУЛ ОКНО (AFK) -->
-    <div x-show="partnerState === 'away'" 
-         class="absolute -top-1 -right-1 w-6 h-6 bg-amber-500 rounded-full border-2 border-[#020202] flex items-center justify-center shadow-lg z-30 animate-pulse">
-        <span class="text-[9px]">🌙</span>
-    </div>
-
-    <!-- 2. ИНДИКАТОР: СЕТЬ ПРОПАЛА (DISCONNECTED) -->
-    <div x-show="partnerState === 'problem'" 
-         x-transition:enter="transition cubic-bezier(0.68, -0.55, 0.265, 1.55) duration-500"
-         x-transition:enter-start="scale-0 rotate-180"
-         class="absolute -top-1 -right-1 w-7 h-7 bg-red-600 rounded-full border-2 border-[#020202] flex items-center justify-center shadow-[0_0_20px_#ff0000] z-40 animate-bounce">
-        
-        <!-- Иконка "Разорванная вилка/питание" -->
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 10V3L4 14h7v7l9-11h-7z" />
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 6L6 18M6 6l12 12" class="text-red-200 opacity-80" />
-        </svg>
-    </div>
-</div>
-
-    <!-- EXPANDABLE PROFILE CARD (Responsive Adaptation) -->
-    <!-- На мобильных: fixed по центру, на десктопе: absolute сбоку -->
-    <div x-show="uiShowPartnerCard"
-         x-cloak 
-         @click.stop=""
-         @click.away="uiShowPartnerCard = false"
-         x-transition:enter="transition cubic-bezier(0.34, 1.56, 0.64, 1) duration-500"
-         x-transition:enter-start="opacity-0 translate-y-8 md:translate-y-0 md:-translate-x-8 blur-xl scale-95"
-         x-transition:enter-end="opacity-100 translate-y-0 md:translate-x-0 blur-0 scale-100"
-         class="pointer-events-auto fixed md:absolute top-36 md:top-0 left-4 md:left-20 right-4 md:right-auto 
-                md:w-[320px] bg-[#0a0a0a]/95 backdrop-blur-3xl p-5 md:p-6 rounded-[2rem] md:rounded-[2.5rem] 
-                border border-white/10 shadow-[0_30px_100px_rgba(0,0,0,0.9)] overflow-hidden z-[2000]">
-        
-        <!-- Фоновое свечение -->
-        <div class="absolute -top-24 -right-24 w-48 h-48 rounded-full blur-[80px] opacity-20 pointer-events-none"
-             :style="{ backgroundColor: partnerData?.gender === 'female' ? '#db2777' : '#2563eb' }"></div>
-
-        <div class="relative z-10 flex flex-col gap-5">
-            
-            <!-- HEADER -->
-            <div class="flex justify-between items-start">
-                <div class="flex flex-col gap-1">
-                    <div class="flex items-center flex-wrap gap-2">
-                        <h3 class="text-xl md:text-2xl font-black uppercase italic tracking-tighter text-white" x-text="partnerData?.name"></h3>
-                            <!-- КРАСНЫЙ ТЭГ ДЛЯ НАРУШИТЕЛЕЙ -->
-                        <template x-if="partnerData?.ban_count > 0">
-                            <span class="px-2 py-0.5 rounded bg-red-600 text-white text-[7px] font-black uppercase tracking-tighter animate-bounce">
-                                {{ __('chatroulette.Recidivist') }}
-                            </span>
-                        </template>
-                            <template x-if="partnerData?.vpn">
-                                <span class="px-2 py-0.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-500 text-[8px] font-black uppercase tracking-widest flex items-center gap-1 shadow-[0_0_10px_rgba(245,158,11,0.2)]">
-                                    <span class="animate-pulse">🛡️</span> Masked IP
-                                </span>
-                            </template>
-                        <span class="px-2 py-0.5 rounded-lg text-[8px] md:text-[9px] font-black uppercase tracking-widest border"
-                              :class="partnerData?.gender === 'female' ? 'bg-pink-500/10 text-pink-500 border-pink-500/20' : 'bg-blue-500/10 text-blue-500 border-blue-500/20'"
-                              x-text="partnerData?.gender === 'female' ? '{{ __('chatroulette.Female') }}' : '{{ __('chatroulette.Male') }}'"></span>
-                    </div>
+                <!-- PARTNER INFO WIDGET (Engine v3.8 - Mobile Shield Edition) -->
+                <div x-show="state === 'connected' && partnerData" 
+                     class="absolute top-6 left-6 z-[1000] flex items-start pointer-events-none"
+                     x-cloak>
                     
-                    <div class="flex items-center gap-3">
-                        <span class="text-[8px] md:text-[9px] font-black uppercase tracking-[0.3em] text-gray-500" x-text="partnerData?.rank_name"></span>
-                        <div class="h-1 w-1 rounded-full bg-white/20"></div>
-                        <span class="text-[9px] md:text-[10px] font-bold text-gray-300" x-text="partnerData?.age + ' {{ __('chatroulette.Years_Old') }}'"></span>
-                    </div>
-                        <!-- НОВОЕ: ЭЛЕГАНТНАЯ СТРОКА ЛОКАЦИИ -->
-                        <div class="flex items-center gap-1.5 mt-0.5 opacity-60">
-                            <span class="text-[7px] text-brand-indigo">📍</span>
-                            <span class="text-[9px] font-black uppercase tracking-[0.2em] text-gray-400 italic" 
-                                x-text="countryNames[partnerData?.country_code]?.replace(/.[^\s]*\s/, '') || '{{ __('chatroulette.Unknown_Location') }}'">
-                            </span>
+                    <!-- TRIGGER BUTTON (Оптимизировано для iOS) -->
+                    <div class="relative w-14 h-14 md:w-16 md:h-16 shrink-0 pointer-events-auto block z-10" style="transform: translateZ(0);">
+                        
+                        <!-- ИНДИКАТОР VPN НАД ФЛАГОМ -->
+                        <div x-show="partnerData?.vpn" 
+                             x-cloak
+                             class="absolute -top-5 left-1/2 -translate-x-1/2 z-[60] whitespace-nowrap transform-gpu">
+                            <div class="flex items-center gap-1 px-2 py-0.5 bg-amber-500/95 rounded-md border border-white/20 shadow-[0_0_15px_rgba(245,158,11,0.5)] animate-bounce">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-2.5 w-2.5 text-black" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zM10 5a1 1 0 011 1v3a1 1 0 11-2 0V6a1 1 0 011-1zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd" />
+                                </svg>
+                                <span class="text-[7px] font-black uppercase tracking-tighter text-black">Masked IP</span>
+                            </div>
                         </div>
-                </div>
 
-                <button @click="uiShowPartnerCard = false" class="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center hover:bg-white/10 transition-colors">
-                    <svg class="w-3.5 h-3.5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12"></path></svg>
-                </button>
-            </div>
+                        <!-- LED ГРАДИЕНТ -->
+                        <div class="absolute -inset-1.5 rounded-[1.8rem] opacity-70 transform-gpu"
+                             :class="partnerData?.ban_count > 0 ? 'led-toxic' : 'animate-[led-rotate_4s_linear_infinite]'"
+                             :style="partnerData?.ban_count > 0 ? '' : { 
+                                background: partnerData?.gender === 'female' 
+                                    ? 'conic-gradient(from 0deg, transparent, #db2777, transparent, #db2777, transparent)' 
+                                    : 'conic-gradient(from 0deg, transparent, #2563eb, transparent, #6366f1, transparent)' 
+                             }">
+                        </div>
+                        
+                        <!-- Halo Свечение -->
+                        <div class="absolute -inset-1.5 rounded-[1.8rem] blur-md transform-gpu"
+                             :class="partnerData?.ban_count > 0 ? 'bg-red-600/60 animate-pulse' : 'animate-[led-pulse_2s_ease-in-out_infinite]'"
+                             :style="partnerData?.ban_count > 0 ? '' : { backgroundColor: partnerData?.gender === 'female' ? '#db277740' : '#2563eb40' }">
+                        </div>
 
-            <!-- TRUST & STATS -->
-            <div class="grid grid-cols-3 gap-2">
-                <div class="bg-white/[0.03] border border-white/[0.06] py-3 px-1 rounded-2xl flex flex-col items-center gap-1">
-                    <span class="text-[6px] md:text-[7px] font-black uppercase text-gray-500">{{ __('chatroulette.Karma') }}</span>
-                    <span class="text-xs font-black text-amber-500" x-text="partnerData?.karma"></span>
-                </div>
+                        <!-- Кнопка -->
+                        <button @click.stop.prevent="uiShowPartnerCard = !uiShowPartnerCard"
+                                type="button"
+                                class="relative w-full h-full rounded-[1.4rem] overflow-hidden border shadow-2xl transition-all duration-300 active:scale-95 group bg-black focus:outline-none z-20"
+                                :class="partnerData?.ban_count > 0 ? 'border-red-500/50' : 'border-white/20'"
+                                style="-webkit-tap-highlight-color: transparent; touch-action: manipulation;">
+                            
+                            <!-- ФЛАГ -->
+                            <img :src="partnerData?.country_flag" 
+                                 class="w-full h-full object-cover transition-transform duration-700"
+                                 :class="partnerData?.ban_count > 0 ? 'grayscale brightness-50 group-hover:grayscale-0' : 'opacity-90 group-hover:scale-105'"
+                                 style="backface-visibility: hidden; transform: translateZ(0);"
+                                 crossorigin="anonymous">
+                            
+                            <!-- Череп (Замена x-if на x-show) -->
+                            <div x-show="partnerData?.ban_count > 0" 
+                                 x-cloak
+                                 class="absolute inset-0 flex items-center justify-center bg-red-950/40">
+                                <span class="text-xl filter drop-shadow-md">💀</span>
+                            </div>
+                        </button>
 
-                <div class="bg-white/[0.03] border border-white/[0.06] py-3 px-1 rounded-2xl flex flex-col items-center gap-1">
-                    <span class="text-[6px] md:text-[7px] font-black uppercase text-gray-500">{{ __('chatroulette.Level') }}</span>
-                    <span class="text-xs font-black text-white" x-text="partnerData?.level"></span>
-                </div>
+                        <!-- 1. ИНДИКАТОР AFK -->
+                        <div x-show="partnerState === 'away'" 
+                             x-cloak
+                             class="absolute -top-1 -right-1 w-6 h-6 bg-amber-500 rounded-full border-2 border-[#020202] flex items-center justify-center shadow-lg z-30 animate-pulse transform-gpu">
+                            <span class="text-[9px]">🌙</span>
+                        </div>
 
-                <div class="bg-white/[0.03] border border-white/[0.06] py-3 px-1 rounded-2xl flex flex-col items-center gap-1">
-                    <span class="text-[6px] md:text-[7px] font-black uppercase text-gray-500">{{ __('chatroulette.Reports') }}</span>
-                    <div class="flex items-center gap-1">
-                        <span class="text-[10px]">🚩</span>
-                        <span class="text-xs font-black text-red-500" x-text="partnerData?.blocked_count || 0"></span>
+                        <!-- 2. ИНДИКАТОР ПРОБЛЕМЫ -->
+                        <div x-show="partnerState === 'problem'" 
+                             x-cloak
+                             x-transition:enter="transition ease-out duration-300"
+                             x-transition:enter-start="scale-0"
+                             x-transition:enter-end="scale-100"
+                             class="absolute -top-1 -right-1 w-7 h-7 bg-red-600 rounded-full border-2 border-[#020202] flex items-center justify-center shadow-[0_0_20px_#ff0000] z-40 animate-bounce transform-gpu">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 6L6 18M6 6l12 12" class="text-red-200 opacity-80" />
+                            </svg>
+                        </div>
                     </div>
                 </div>
-            </div>
-
-            <template x-if="partnerData?.ban_count > 0">
-                <div class="mt-4 px-4 py-2 bg-red-950/30 border border-red-500/20 rounded-xl flex items-center justify-between">
-                    <div class="flex items-center gap-2">
-                        <span class="text-xs">⚠️</span>
-                        <span class="text-[8px] font-black uppercase tracking-widest text-red-400">{{ __('chatroulette.Past_Violations') }}</span>
-                    </div>
-                    <span class="text-[10px] font-black text-red-500" x-text="partnerData.ban_count + ' BANS'"></span>
-                </div>
-            </template>
-
-            <!-- PRESTIGE FOOTER -->
-            <template x-if="partnerData?.badge">
-                <div class="pt-4 border-t border-white/5 flex items-center justify-between">
-                    <span class="text-[7px] md:text-[8px] font-black uppercase tracking-[0.25em] text-gray-600">{{ __('chatroulette.Prestige_Status') }}</span>
-                    <div class="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/[0.02] border border-white/10 shadow-inner"
-                         :style="{ borderColor: partnerData.badge.color + '30' }">
-                        <span class="text-sm" x-text="partnerData.badge.icon"></span>
-                        <span class="text-[9px] font-black uppercase tracking-widest" 
-                              :style="{ color: partnerData.badge.color, 'text-shadow': '0 0 10px ' + partnerData.badge.color + '40' }" 
-                              x-text="partnerData.badge.name"></span>
-                    </div>
-                </div>
-            </template>
-
-        </div>
-    </div>
-</div>
 
                 <!-- DYNAMIC STATUS HUD (v3.9 - Context Aware) -->
                 <div x-show="state === 'connected'" 
@@ -330,7 +226,6 @@
             </div>
 
             <!-- MY CONTAINER (LOCAL) -->
-             <!-- MY CONTAINER (LOCAL) -->
     <div @click="toggleFocus('local')"
         :class="{
             'blitz-hell-logic': isBlitzActive,
@@ -355,8 +250,7 @@
              class="absolute inset-0 bg-red-900/40 mix-blend-color-burn pointer-events-none z-20 animate-pulse" 
              x-cloak></div>
 
-                <!-- MY INFO TAG -->
-<!-- MY INFO & ACTIVE FILTERS TAG -->
+                <!-- MY INFO & ACTIVE FILTERS TAG -->
                 <div class="absolute top-6 left-6 z-40" x-data="{ expanded: false }" @click.away="expanded = false">
                     <!-- Свернутая кнопка -->
                     <button @click.stop="expanded = !expanded" 
@@ -674,136 +568,266 @@
                 </div>
             </div>
         </div>
+        
+        <!-- FILTER MODAL -->
         <div x-show="filterModalOpen" 
-     class="fixed inset-0 z-[2000] flex items-center justify-center p-6 bg-black/95 backdrop-blur-3xl" 
-     x-cloak 
-     x-transition:enter="transition ease-out duration-300"
-     x-transition:enter-start="opacity-0 scale-95"
-     x-transition:enter-end="opacity-100 scale-100"
-     x-transition:leave="transition ease-in duration-200"
-     x-transition:leave-end="opacity-0 scale-95">
-    
-    <div class="bg-[#080808] border border-white/10 w-full max-w-sm rounded-[3rem] p-10 shadow-[0_0_100px_rgba(99,102,241,0.1)]" 
-         @click.away="filterModalOpen = false">
+             class="fixed inset-0 z-[2000] flex items-center justify-center p-6 bg-black/95 backdrop-blur-3xl" 
+             x-cloak 
+             x-transition:enter="transition ease-out duration-300"
+             x-transition:enter-start="opacity-0 scale-95"
+             x-transition:enter-end="opacity-100 scale-100"
+             x-transition:leave="transition ease-in duration-200"
+             x-transition:leave-end="opacity-0 scale-95">
+            
+            <div class="bg-[#080808] border border-white/10 w-full max-w-sm rounded-[3rem] p-10 shadow-[0_0_100px_rgba(99,102,241,0.1)]" 
+                 @click.away="filterModalOpen = false">
+                
+                <div class="flex items-center gap-4 mb-10">
+                    <div class="w-12 h-12 bg-brand-indigo/10 rounded-2xl flex items-center justify-center text-xl border border-brand-indigo/20">🎯</div>
+                    <h3 class="text-xl font-black uppercase italic tracking-tighter text-white">{{ __('chatroulette.Matching') }}</h3>
+                </div>
+
+                <div class="space-y-10">
+                    <!-- Gender Selector -->
+                    <div class="space-y-4">
+                        <label class="text-[9px] font-black uppercase text-gray-500 tracking-[0.3em] ml-2">
+                            {{ __('chatroulette.Looking_For') }}
+                        </label>
+                        
+                        <div class="grid grid-cols-3 gap-2">
+                            <template x-for="g in ['male', 'female', 'all']">
+                                <button @click="targetGender = g" 
+                                        :class="targetGender === g 
+                                            ? 'bg-brand-indigo text-white border-brand-indigo shadow-[0_0_15px_rgba(99,102,241,0.4)]' 
+                                            : 'bg-white/5 text-gray-500 border-white/5'"
+                                        class="py-3 rounded-xl border font-black text-[9px] uppercase tracking-widest transition-all"
+                                        x-text="t(g)">
+                                </button>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- Age Range -->
+                    <div class="space-y-6">
+                        <div class="flex justify-between items-center ml-2">
+                            <label class="text-[9px] font-black uppercase text-gray-500 tracking-[0.3em]">{{ __('chatroulette.Partner_Age') }}</label>
+                            <div class="flex items-center gap-2">
+                                <span class="text-[10px] font-black text-brand-indigo" x-text="targetAgeMin"></span>
+                                <span class="text-gray-700">—</span>
+                                <span class="text-[10px] font-black text-brand-indigo" x-text="targetAgeMax"></span>
+                            </div>
+                        </div>
+                        
+                        <div class="px-2 space-y-8">
+                            <!-- Min Age Slider -->
+                            <div class="relative">
+                                <input type="range" min="18" max="99" x-model="targetAgeMin" 
+                                       class="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-brand-indigo">
+                                <p class="text-[7px] font-black uppercase mt-3 text-gray-600 tracking-widest">{{ __('chatroulette.Minimum_Age') }}</p>
+                            </div>
+                            <!-- Max Age Slider -->
+                            <div class="relative">
+                                <input type="range" min="18" max="99" x-model="targetAgeMax" 
+                                       class="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-brand-indigo">
+                                <p class="text-[7px] font-black uppercase mt-3 text-gray-600 tracking-widest">{{ __('chatroulette.Maximum_Age') }}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="grid grid-cols-2 gap-4 mt-12">
+                    <button @click="filterModalOpen = false" class="py-5 rounded-2xl font-black text-[10px] uppercase tracking-widest text-gray-500 hover:text-white transition-all">
+                        {{ __('chatroulette.Cancel') }}
+                    </button>
+                    <button @click="applyFilters()" class="bg-brand-indigo py-5 rounded-2xl font-black text-[10px] uppercase tracking-widest text-white shadow-xl shadow-brand-indigo/20 hover:scale-105 active:scale-95 transition-all">
+                        {{ __('chatroulette.Apply') }} 🎯
+                    </button>
+                </div>
+            </div>
+        </div>
         
-        <div class="flex items-center gap-4 mb-10">
-            <div class="w-12 h-12 bg-brand-indigo/10 rounded-2xl flex items-center justify-center text-xl border border-brand-indigo/20">🎯</div>
-            <h3 class="text-xl font-black uppercase italic tracking-tighter text-white">{{ __('chatroulette.Matching') }}</h3>
-        </div>
-
-        <div class="space-y-10">
-            <!-- Gender Selector -->
-            <div class="space-y-4">
-                <label class="text-[9px] font-black uppercase text-gray-500 tracking-[0.3em] ml-2">
-                    {{ __('chatroulette.Looking_For') }}
-                </label>
-                
-                <div class="grid grid-cols-3 gap-2">
-                    <template x-for="g in ['male', 'female', 'all']">
-                        <button @click="targetGender = g" 
-                                :class="targetGender === g 
-                                    ? 'bg-brand-indigo text-white border-brand-indigo shadow-[0_0_15px_rgba(99,102,241,0.4)]' 
-                                    : 'bg-white/5 text-gray-500 border-white/5'"
-                                class="py-3 rounded-xl border font-black text-[9px] uppercase tracking-widest transition-all"
-                                x-text="t(g)">
-                        </button>
-                    </template>
-                </div>
-            </div>
-
-            <!-- Age Range -->
-            <div class="space-y-6">
-                <div class="flex justify-between items-center ml-2">
-                    <label class="text-[9px] font-black uppercase text-gray-500 tracking-[0.3em]">{{ __('chatroulette.Partner_Age') }}</label>
-                    <div class="flex items-center gap-2">
-                        <span class="text-[10px] font-black text-brand-indigo" x-text="targetAgeMin"></span>
-                        <span class="text-gray-700">—</span>
-                        <span class="text-[10px] font-black text-brand-indigo" x-text="targetAgeMax"></span>
-                    </div>
-                </div>
-                
-                <div class="px-2 space-y-8">
-                    <!-- Min Age Slider -->
-                    <div class="relative">
-                        <input type="range" min="18" max="99" x-model="targetAgeMin" 
-                               class="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-brand-indigo">
-                        <p class="text-[7px] font-black uppercase mt-3 text-gray-600 tracking-widest">{{ __('chatroulette.Minimum_Age') }}</p>
-                    </div>
-                    <!-- Max Age Slider -->
-                    <div class="relative">
-                        <input type="range" min="18" max="99" x-model="targetAgeMax" 
-                               class="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-brand-indigo">
-                        <p class="text-[7px] font-black uppercase mt-3 text-gray-600 tracking-widest">{{ __('chatroulette.Maximum_Age') }}</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Action Buttons -->
-        <div class="grid grid-cols-2 gap-4 mt-12">
-            <button @click="filterModalOpen = false" class="py-5 rounded-2xl font-black text-[10px] uppercase tracking-widest text-gray-500 hover:text-white transition-all">
-                {{ __('chatroulette.Cancel') }}
-            </button>
-            <button @click="applyFilters()" class="bg-brand-indigo py-5 rounded-2xl font-black text-[10px] uppercase tracking-widest text-white shadow-xl shadow-brand-indigo/20 hover:scale-105 active:scale-95 transition-all">
-                {{ __('chatroulette.Apply') }} 🎯
-            </button>
-        </div>
     </div>
-</div>
-    </div>
+    <!-- КОНЕЦ VIDEO ECOSYSTEM -->
+    
     <!-- ICEBREAKER PREMIUM OVERLAY (v4.0 - Ethereal Prompt) -->
-<div x-show="showIcebreakerOverlay" 
-     x-transition:enter="transition cubic-bezier(0.34, 1.56, 0.64, 1) duration-600"
-     x-transition:enter-start="opacity-0 scale-75 translate-y-20 blur-xl"
-     x-transition:enter-end="opacity-100 scale-100 translate-y-0 blur-0"
-     x-transition:leave="transition ease-in duration-400"
-     x-transition:leave-end="opacity-0 scale-90 blur-lg"
-     class="fixed bottom-44 left-1/2 -translate-x-1/2 z-[1500] w-full max-w-xl px-6 pointer-events-none"
-     x-cloak>
-    
-    <div class="pointer-events-auto relative group">
-        <!-- Анимированное свечение сзади -->
-        <div class="absolute -inset-1 bg-gradient-to-r from-brand-indigo/50 via-purple-500/50 to-brand-cyan/50 rounded-[2.5rem] blur opacity-30 group-hover:opacity-100 transition duration-1000 group-hover:duration-200"></div>
+    <div x-show="showIcebreakerOverlay" 
+         x-transition:enter="transition cubic-bezier(0.34, 1.56, 0.64, 1) duration-600"
+         x-transition:enter-start="opacity-0 scale-75 translate-y-20 blur-xl"
+         x-transition:enter-end="opacity-100 scale-100 translate-y-0 blur-0"
+         x-transition:leave="transition ease-in duration-400"
+         x-transition:leave-end="opacity-0 scale-90 blur-lg"
+         class="fixed bottom-44 left-1/2 -translate-x-1/2 z-[1500] w-full max-w-xl px-6 pointer-events-none"
+         x-cloak>
         
-        <div class="relative caspian-glass rounded-[2rem] p-1 border-white/10 shadow-[0_32px_64px_rgba(0,0,0,0.8)] overflow-hidden">
-            <div class="bg-[#050505]/90 rounded-[1.8rem] p-6 md:p-8 flex flex-col items-center text-center gap-4">
-                
-                <!-- Верхняя пометка -->
-                <div class="flex items-center gap-3">
-                    <div class="h-px w-8 bg-brand-indigo/30"></div>
-                    <span class="text-[9px] font-black uppercase tracking-[0.4em] text-brand-indigo animate-pulse">🎲 System Icebreaker</span>
-                    <div class="h-px w-8 bg-brand-indigo/30"></div>
-                </div>
-
-                <!-- Текст вопроса (Элегантный и крупный) -->
-                <h2 class="text-lg md:text-2xl font-black italic tracking-tight text-white/95 leading-tight" 
-                    x-text="icebreakerQuestion">
-                </h2>
-
-                <!-- Таймер-полоска снизу (визуально показывает сколько осталось) -->
-                <div class="w-full h-0.5 bg-white/5 rounded-full mt-2 overflow-hidden">
-                    <div class="h-full bg-brand-indigo shadow-[0_0_10px_#6366f1]"
-                         x-show="showIcebreakerOverlay"
-                         x-transition:enter="transition-all linear duration-[12000ms]"
-                         x-transition:enter-start="w-full"
-                         x-transition:enter-end="w-0">
+        <div class="pointer-events-auto relative group">
+            <!-- Анимированное свечение сзади -->
+            <div class="absolute -inset-1 bg-gradient-to-r from-brand-indigo/50 via-purple-500/50 to-brand-cyan/50 rounded-[2.5rem] blur opacity-30 group-hover:opacity-100 transition duration-1000 group-hover:duration-200"></div>
+            
+            <div class="relative caspian-glass rounded-[2rem] p-1 border-white/10 shadow-[0_32px_64px_rgba(0,0,0,0.8)] overflow-hidden">
+                <div class="bg-[#050505]/90 rounded-[1.8rem] p-6 md:p-8 flex flex-col items-center text-center gap-4">
+                    
+                    <!-- Верхняя пометка -->
+                    <div class="flex items-center gap-3">
+                        <div class="h-px w-8 bg-brand-indigo/30"></div>
+                        <span class="text-[9px] font-black uppercase tracking-[0.4em] text-brand-indigo animate-pulse">🎲 System Icebreaker</span>
+                        <div class="h-px w-8 bg-brand-indigo/30"></div>
                     </div>
-                </div>
 
-                <!-- Кнопка быстрого закрытия -->
-                <button @click="showIcebreakerOverlay = false" 
-                        class="absolute top-4 right-4 text-gray-600 hover:text-white transition-colors">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12"></path>
-                    </svg>
-                </button>
+                    <!-- Текст вопроса (Элегантный и крупный) -->
+                    <h2 class="text-lg md:text-2xl font-black italic tracking-tight text-white/95 leading-tight" 
+                        x-text="icebreakerQuestion">
+                    </h2>
+
+                    <!-- Таймер-полоска снизу (визуально показывает сколько осталось) -->
+                    <div class="w-full h-0.5 bg-white/5 rounded-full mt-2 overflow-hidden">
+                        <div class="h-full bg-brand-indigo shadow-[0_0_10px_#6366f1]"
+                             x-show="showIcebreakerOverlay"
+                             x-transition:enter="transition-all linear duration-[12000ms]"
+                             x-transition:enter-start="w-full"
+                             x-transition:enter-end="w-0">
+                        </div>
+                    </div>
+
+                    <!-- Кнопка быстрого закрытия -->
+                    <button @click="showIcebreakerOverlay = false" 
+                            class="absolute top-4 right-4 text-gray-600 hover:text-white transition-colors">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
             </div>
         </div>
     </div>
-</div>
+    
+    <!-- 🌟 СЮДА ВЫНЕСЕНА КАРТОЧКА ПРОФИЛЯ: ПОВЕРХ ВСЕГО И ВНЕ СТРОГОГО КОНТЕЙНЕРА ИЗ-ЗА iOS 🌟 -->
+    <div x-show="uiShowPartnerCard"
+         x-cloak 
+         class="fixed inset-0 z-[3000] pointer-events-none flex items-start justify-center md:items-start md:justify-start"
+         style="transform: translateZ(0);">
+         
+         <!-- Невидимый слой для закрытия по клику вне карточки (Только для мобилок) -->
+         <div class="absolute inset-0 bg-black/40 backdrop-blur-sm pointer-events-auto md:hidden" 
+              x-show="uiShowPartnerCard" 
+              x-transition.opacity 
+              @click="uiShowPartnerCard = false"></div>
+
+         <!-- Сама карточка -->
+         <div @click.stop=""
+              x-transition:enter="transition cubic-bezier(0.34, 1.56, 0.64, 1) duration-500"
+              x-transition:enter-start="opacity-0 translate-y-8 md:translate-y-0 md:-translate-x-8 blur-xl scale-95"
+              x-transition:enter-end="opacity-100 translate-y-0 md:translate-x-0 blur-0 scale-100"
+              x-transition:leave="transition ease-in duration-300"
+              x-transition:leave-start="opacity-100 translate-y-0 scale-100"
+              x-transition:leave-end="opacity-0 translate-y-8 scale-95"
+              class="pointer-events-auto relative md:absolute mt-36 md:mt-0 md:top-24 left-4 right-4 md:left-24 md:right-auto 
+                     md:w-[320px] bg-[#0a0a0a]/95 backdrop-blur-3xl p-5 md:p-6 rounded-[2rem] md:rounded-[2.5rem] 
+                     border border-white/10 shadow-[0_30px_100px_rgba(0,0,0,0.9)] overflow-hidden">
+            
+            <!-- Фоновое свечение -->
+            <div class="absolute -top-24 -right-24 w-48 h-48 rounded-full blur-[80px] opacity-20 pointer-events-none"
+                 :style="{ backgroundColor: partnerData?.gender === 'female' ? '#db2777' : '#2563eb' }"></div>
+
+            <div class="relative z-10 flex flex-col gap-5">
+                
+                <!-- HEADER -->
+                <div class="flex justify-between items-start">
+                    <div class="flex flex-col gap-1">
+                        <div class="flex items-center flex-wrap gap-2">
+                            <h3 class="text-xl md:text-2xl font-black uppercase italic tracking-tighter text-white" x-text="partnerData?.name"></h3>
+                            
+                            <!-- КРАСНЫЙ ТЭГ ДЛЯ НАРУШИТЕЛЕЙ -->
+                            <template x-if="partnerData?.ban_count > 0">
+                                <span class="px-2 py-0.5 rounded bg-red-600 text-white text-[7px] font-black uppercase tracking-tighter animate-bounce">
+                                    {{ __('chatroulette.Recidivist') }}
+                                </span>
+                            </template>
+                            
+                            <template x-if="partnerData?.vpn">
+                                <span class="px-2 py-0.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-500 text-[8px] font-black uppercase tracking-widest flex items-center gap-1 shadow-[0_0_10px_rgba(245,158,11,0.2)]">
+                                    <span class="animate-pulse">🛡️</span> Masked IP
+                                </span>
+                            </template>
+                            
+                            <span class="px-2 py-0.5 rounded-lg text-[8px] md:text-[9px] font-black uppercase tracking-widest border"
+                                  :class="partnerData?.gender === 'female' ? 'bg-pink-500/10 text-pink-500 border-pink-500/20' : 'bg-blue-500/10 text-blue-500 border-blue-500/20'"
+                                  x-text="partnerData?.gender === 'female' ? '{{ __('chatroulette.Female') }}' : '{{ __('chatroulette.Male') }}'"></span>
+                        </div>
+                        
+                        <div class="flex items-center gap-3">
+                            <span class="text-[8px] md:text-[9px] font-black uppercase tracking-[0.3em] text-gray-500" x-text="partnerData?.rank_name"></span>
+                            <div class="h-1 w-1 rounded-full bg-white/20"></div>
+                            <span class="text-[9px] md:text-[10px] font-bold text-gray-300" x-text="partnerData?.age + ' {{ __('chatroulette.Years_Old') }}'"></span>
+                        </div>
+                        
+                        <!-- ЭЛЕГАНТНАЯ СТРОКА ЛОКАЦИИ -->
+                        <div class="flex items-center gap-1.5 mt-0.5 opacity-60">
+                            <span class="text-[7px] text-brand-indigo">📍</span>
+                            <span class="text-[9px] font-black uppercase tracking-[0.2em] text-gray-400 italic" 
+                                  x-text="countryNames[partnerData?.country_code]?.replace(/.[^\s]*\s/, '') || '{{ __('chatroulette.Unknown_Location') }}'">
+                            </span>
+                        </div>
+                    </div>
+
+                    <button @click="uiShowPartnerCard = false" class="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center hover:bg-white/10 transition-colors">
+                        <svg class="w-3.5 h-3.5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    </button>
+                </div>
+
+                <!-- TRUST & STATS -->
+                <div class="grid grid-cols-3 gap-2">
+                    <div class="bg-white/[0.03] border border-white/[0.06] py-3 px-1 rounded-2xl flex flex-col items-center gap-1">
+                        <span class="text-[6px] md:text-[7px] font-black uppercase text-gray-500">{{ __('chatroulette.Karma') }}</span>
+                        <span class="text-xs font-black text-amber-500" x-text="partnerData?.karma"></span>
+                    </div>
+
+                    <div class="bg-white/[0.03] border border-white/[0.06] py-3 px-1 rounded-2xl flex flex-col items-center gap-1">
+                        <span class="text-[6px] md:text-[7px] font-black uppercase text-gray-500">{{ __('chatroulette.Level') }}</span>
+                        <span class="text-xs font-black text-white" x-text="partnerData?.level"></span>
+                    </div>
+
+                    <div class="bg-white/[0.03] border border-white/[0.06] py-3 px-1 rounded-2xl flex flex-col items-center gap-1">
+                        <span class="text-[6px] md:text-[7px] font-black uppercase text-gray-500">{{ __('chatroulette.Reports') }}</span>
+                        <div class="flex items-center gap-1">
+                            <span class="text-[10px]">🚩</span>
+                            <span class="text-xs font-black text-red-500" x-text="partnerData?.blocked_count || 0"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <template x-if="partnerData?.ban_count > 0">
+                    <div class="mt-4 px-4 py-2 bg-red-950/30 border border-red-500/20 rounded-xl flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs">⚠️</span>
+                            <span class="text-[8px] font-black uppercase tracking-widest text-red-400">{{ __('chatroulette.Past_Violations') }}</span>
+                        </div>
+                        <span class="text-[10px] font-black text-red-500" x-text="partnerData.ban_count + ' BANS'"></span>
+                    </div>
+                </template>
+
+                <!-- PRESTIGE FOOTER -->
+                <template x-if="partnerData?.badge">
+                    <div class="pt-4 border-t border-white/5 flex items-center justify-between">
+                        <span class="text-[7px] md:text-[8px] font-black uppercase tracking-[0.25em] text-gray-600">{{ __('chatroulette.Prestige_Status') }}</span>
+                        <div class="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/[0.02] border border-white/10 shadow-inner"
+                             :style="{ borderColor: partnerData.badge.color + '30' }">
+                            <span class="text-sm" x-text="partnerData.badge.icon"></span>
+                            <span class="text-[9px] font-black uppercase tracking-widest" 
+                                  :style="{ color: partnerData.badge.color, 'text-shadow': '0 0 10px ' + partnerData.badge.color + '40' }" 
+                                  x-text="partnerData.badge.name"></span>
+                        </div>
+                    </div>
+                </template>
+
+            </div>
+         </div>
+    </div>
+
 </x-app-layout>
+
 <style>
-        /* 1. Глобальный глитч-шум (накладывается поверх видео) */
+    /* 1. Глобальный глитч-шум (накладывается поверх видео) */
     /* Дьявольская 3D деформация контейнера */
     @keyframes blitz-hell-warp {
         0%, 100% { transform: perspective(1000px) rotateX(0deg) rotateY(0deg) scale(1); }

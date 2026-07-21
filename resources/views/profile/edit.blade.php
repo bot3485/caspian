@@ -26,10 +26,11 @@
 
                 <!-- Forms -->
                 <div class="lg:col-span-8 space-y-6">
-                    <div class="bg-[#0a0a0a] border border-white/5 rounded-[3rem] p-8 md:p-12 shadow-2xl">
-                        @include('profile.partials.update-profile-information-form')
+                    <div class="led-frame rounded-[3rem]">
+                        <div class="led-content bg-[#0a0a0a] border border-white/5 rounded-[3rem] p-8 md:p-12 shadow-2xl">
+                            @include('profile.partials.update-profile-information-form')
+                        </div>
                     </div>
-
                     <div class="bg-[#0a0a0a] border border-white/5 rounded-[2.5rem] p-8 md:p-12 shadow-2xl">
                         @include('profile.partials.update-password-form')
                     </div>

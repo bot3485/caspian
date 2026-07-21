@@ -28,7 +28,7 @@ class ChatController extends Controller
         if (!$request->has('accept_call') && !$request->has('call_to')) {
             $this->leaveChatAction->execute(Auth::id());
         }
-        return view('chat');
+        return view('roulette.index');
     }
 
     public function startSearching(Request $request): JsonResponse

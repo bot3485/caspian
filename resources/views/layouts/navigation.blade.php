@@ -1,47 +1,53 @@
-<nav class="sticky top-0 z-[300] bg-[#020202]/70 backdrop-blur-3xl border-b border-white/[0.04] supports-[backdrop-filter]:bg-[#020202]/50">
-    <!-- Тонкая градиентная линия снизу для эффекта премиального свечения -->
-    <div class="absolute inset-x-0 -bottom-px h-px bg-gradient-to-r from-transparent via-brand-indigo/30 to-transparent"></div>
+<nav class="sticky top-0 z-[300] bg-[#020202]/70 backdrop-blur-3xl border-b border-white/[0.04]"
+     x-data="{ 
+         init() {
+            // Синхронизируем класс на body для всех страниц
+            if (this.ledsActive) document.body.classList.add('leds-on');
+            else document.body.classList.remove('leds-on');
+         },
+         ledsActive: localStorage.getItem('caspian_leds') !== 'false',
+         toggleLeds() {
+             this.ledsActive = !this.ledsActive;
+             localStorage.setItem('caspian_leds', this.ledsActive);
+             if (this.ledsActive) document.body.classList.add('leds-on');
+             else document.body.classList.remove('leds-on');
+         }
+     }">
     
+    <!-- ВЕРХНЯЯ LED-ЛЕНТА -->
+    <div class="absolute top-0 inset-x-0 h-[2px] transition-all duration-1000 z-50"
+         :class="ledsActive ? 'led-top-line' : 'bg-white/5 shadow-none'"></div>
+
     <div class="max-w-[1600px] mx-auto px-4 sm:px-6">
         <div class="flex justify-between h-[72px] items-center">
             
-            <!-- Left: Logo & Navigation -->
-            <div class="flex items-center gap-6 sm:gap-8">
-                
-                <!-- Logo -->
+            <div class="flex items-center gap-8">
                 <a href="{{ route('dashboard') }}" class="flex items-center gap-3 group">
-                    <div class="relative flex items-center justify-center w-10 h-10 rounded-xl bg-white/[0.03] border border-white/10 overflow-hidden group-hover:border-brand-indigo/50 transition-all duration-500 shadow-[0_0_15px_rgba(0,0,0,0.5)]">
-                        <img src="{{ asset('roulette.jpg') }}" class="w-full h-full object-cover opacity-90 group-hover:scale-110 group-hover:opacity-100 transition-transform duration-700" alt="Caspian">
+                    <div class="w-10 h-10 rounded-xl overflow-hidden border border-white/10"
+                         :class="ledsActive ? 'shadow-[0_0_15px_#6366f1]' : ''">
+                        <img src="{{ asset('roulette.jpg') }}" class="w-full h-full object-cover">
                     </div>
-                    <span class="text-lg font-black tracking-tighter uppercase text-white/90 group-hover:text-white transition-colors hidden md:block" style="font-style: oblique 10deg;">
-                        Caspian
-                    </span>
+                    <span class="text-lg font-black tracking-tighter uppercase italic">Caspian</span>
                 </a>
-
-                <!-- Desktop Nav (Elegant Pills with Glow) -->
-                <div class="hidden md:flex items-center gap-1 p-1 bg-white/[0.02] border border-white/[0.05] rounded-2xl">
-                    <a href="{{ route('chat') }}" 
-                       class="relative px-5 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-[0.2em] transition-all duration-300 {{ request()->routeIs('chat') ? 'text-white bg-white/10 shadow-inner' : 'text-gray-500 hover:text-white hover:bg-white/5' }}">
-                       {{ __('navigation.Roulette') }}
-                       @if(request()->routeIs('chat'))
-                           <!-- Светящаяся точка активного раздела -->
-                           <div class="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-[2px] bg-brand-indigo rounded-full shadow-[0_0_8px_rgba(99,102,241,0.9)]"></div>
-                       @endif
-                    </a>
-                    <a href="{{ route('rooms.index') }}" 
-                       class="relative px-5 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-[0.2em] transition-all duration-300 {{ request()->routeIs('rooms.*') ? 'text-white bg-white/10 shadow-inner' : 'text-gray-500 hover:text-white hover:bg-white/5' }}">
-                       {{ __('navigation.Rooms') }}
-                       @if(request()->routeIs('rooms.*'))
-                           <div class="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-[2px] bg-brand-indigo rounded-full shadow-[0_0_8px_rgba(99,102,241,0.9)]"></div>
-                       @endif
-                    </a>
-                </div>
             </div>
 
-            <!-- Right: Controls -->
-            <div class="flex items-center gap-2 sm:gap-4">
+            <!-- ПРАВАЯ ЧАСТЬ С РУБИЛЬНИКОМ -->
+            <div class="flex items-center gap-4">
                 
-                <!-- Online Status (Updated for Mobile & Desktop) -->
+                <!-- КИБЕР-РУБИЛЬНИК -->
+                <div class="flex items-center gap-3 px-4 py-2 bg-white/[0.03] border border-white/10 rounded-2xl">
+                    <span class="text-[8px] font-black uppercase tracking-widest text-gray-500">Power</span>
+                    <button @click="toggleLeds()" 
+                            class="relative w-10 h-6 rounded-full transition-all duration-500 border shadow-inner"
+                            :class="ledsActive ? 'bg-brand-indigo/30 border-brand-indigo/50' : 'bg-gray-800 border-white/10'">
+                        <div class="absolute top-1 transition-all duration-500 w-4 h-4 rounded-full shadow-lg"
+                             :class="ledsActive ? 'left-5 bg-white shadow-[0_0_10px_#fff]' : 'left-1 bg-gray-500'"></div>
+                    </button>
+                    <span class="text-[9px] font-black uppercase tracking-widest transition-colors duration-500"
+                          :class="ledsActive ? 'text-brand-cyan animate-pulse' : 'text-gray-700'">LED</span>
+                </div>
+
+                <!-- Online Status -->
                 <div class="flex items-center gap-2 px-2.5 py-1.5 sm:px-3 rounded-full bg-white/[0.02] border border-white/[0.05]"
                     x-data="{ online: 0 }" 
                     x-init="window.Echo.join('online-status').here(u => online = u.length).joining(u => online++).leaving(u => online--)">
@@ -49,13 +55,12 @@
                         <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
                         <span class="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-500 shadow-[0_0_8px_#22c55e]"></span>
                     </div>
-                    <!-- На мобильных показываем только число, на десктопе добавляем 'ON' -->
                     <span class="text-[9px] font-black text-gray-300 tracking-widest font-mono">
                         <span x-text="online"></span><span class="hidden sm:inline"> ON</span>
                     </span>
                 </div>
 
-                <!-- Language Selector (Refined Dropdown) -->
+                <!-- Language Selector -->
                 <div class="relative" x-data="{ langOpen: false }">
                     <button @click="langOpen = !langOpen" 
                             class="h-10 px-3 rounded-xl bg-transparent hover:bg-white/5 border border-transparent hover:border-white/10 flex items-center justify-center gap-1.5 transition-all duration-300 group">
@@ -92,7 +97,7 @@
                     </div>
                 </div>
 
-                <!-- Chat Toggle (Sleek SVG instead of emoji) -->
+                <!-- Chat Toggle -->
                 <button @click="globalSidebarOpen = !globalSidebarOpen" 
                     class="relative w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-500 group border"
                     :class="{
@@ -101,41 +106,34 @@
                         'bg-white/[0.03] border-white/[0.08] hover:bg-white/10': !hasUnread()
                     }">
                 
-                <!-- Иконка: белая и пульсирующая при наличии сообщений -->
-                <svg class="w-4 h-4 transition-all duration-500" 
-                    :class="hasUnread() ? 'text-white animate-pulse scale-110' : 'text-gray-400 group-hover:text-white'" 
-                    fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                </svg>
+                    <svg class="w-4 h-4 transition-all duration-500" 
+                        :class="hasUnread() ? 'text-white animate-pulse scale-110' : 'text-gray-400 group-hover:text-white'" 
+                        fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                    </svg>
 
-                <!-- Иконка нового запроса / сообщения (Появляется над кнопкой) -->
-                <template x-if="hasNewNotification">
-                    <div class="absolute -top-1.5 -right-1.5 z-10 flex items-center justify-center">
-                        <!-- Внешнее свечение (Halo) -->
-                        <span class="animate-ping absolute inline-flex h-4 w-4 rounded-full bg-brand-indigo opacity-75"></span>
-                        
-                        <!-- Сама иконка -->
-                        <div class="relative bg-brand-indigo text-white w-5 h-5 rounded-full flex items-center justify-center shadow-[0_0_15px_rgba(99,102,241,1)] border-2 border-[#020202]">
-                            <!-- Иконка человечка с плюсом (User Plus) -->
-                            <svg class="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-                            </svg>
+                    <template x-if="hasNewNotification">
+                        <div class="absolute -top-1.5 -right-1.5 z-10 flex items-center justify-center">
+                            <span class="animate-ping absolute inline-flex h-4 w-4 rounded-full bg-brand-indigo opacity-75"></span>
+                            <div class="relative bg-brand-indigo text-white w-5 h-5 rounded-full flex items-center justify-center shadow-[0_0_15px_rgba(99,102,241,1)] border-2 border-[#020202]">
+                                <svg class="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                                </svg>
+                            </div>
                         </div>
-                    </div>
-                </template>
+                    </template>
 
-                <!-- Точка-индикатор с «ореолом» (Ping) -->
-                <template x-if="hasUnread()">
-                    <span class="absolute -top-1 -right-1 flex h-3 w-3">
-                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75"
-                            :class="hasUnreadFriends() ? 'bg-brand-indigo' : 'bg-amber-500'"></span>
-                        <span class="relative inline-flex rounded-full h-3 w-3 border-2 border-[#020202]"
-                            :class="hasUnreadFriends() ? 'bg-brand-indigo' : 'bg-amber-500'"></span>
-                    </span>
-                </template>
-            </button>
+                    <template x-if="hasUnread()">
+                        <span class="absolute -top-1 -right-1 flex h-3 w-3">
+                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75"
+                                :class="hasUnreadFriends() ? 'bg-brand-indigo' : 'bg-amber-500'"></span>
+                            <span class="relative inline-flex rounded-full h-3 w-3 border-2 border-[#020202]"
+                                :class="hasUnreadFriends() ? 'bg-brand-indigo' : 'bg-amber-500'"></span>
+                        </span>
+                    </template>
+                </button>
 
-                <!-- User Dropdown (Premium Avatar) -->
+                <!-- User Dropdown -->
                 <div class="pl-2 sm:pl-4 ml-1 sm:ml-2 border-l border-white/[0.08]">
                     <x-dropdown align="right" width="48">
                         <x-slot name="trigger">
@@ -154,7 +152,6 @@
 
                         <x-slot name="content">
                             <div class="bg-[#0a0a0a]/95 backdrop-blur-3xl border border-white/10 rounded-2xl p-1.5 shadow-[0_30px_60px_rgba(0,0,0,0.7)]">
-                                <!-- Profile Mini-Header -->
                                 <div class="px-3 py-2 mb-1 border-b border-white/[0.05]">
                                     <p class="text-[8px] font-black uppercase tracking-[0.2em] text-gray-500">{{ App::getLocale() === 'ru' ? 'Вы вошли как' : 'Logged in as' }}</p>
                                     <p class="text-[11px] font-bold text-white truncate mt-0.5">{{ Auth::user()->name }}</p>

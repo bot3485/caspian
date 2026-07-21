@@ -7,66 +7,79 @@
   --radius-card: 2.5rem;
 }
 
-@layer base {
-  /* Оптимизация для iOS Safari */
-  @supports (-webkit-backdrop-filter: blur(1px)) {
-    .caspian-glass, 
-    .backdrop-blur-xl, 
-    .backdrop-blur-2xl, 
-    .backdrop-blur-3xl {
-      /* На айфонах отключаем тяжелый блюр для плавности, оставляем полупрозрачность */
-      backdrop-filter: none !important;
-      -webkit-backdrop-filter: none !important;
-      background-color: rgba(10, 10, 10, 0.9) !important;
-    }
-    
-    /* Оставляем блюр только для маленьких плашек (HUD, Тосты) */
-    .z-\[1000\], .z-\[110\], .fixed.top-24 {
-        -webkit-backdrop-filter: blur(15px) !important;
-        background-color: rgba(99, 102, 241, 0.8) !important;
-    }
-  }
+/* --- LIGHTING ENGINE v4.0 --- */
+@keyframes led-rotate {
+  /* Обязательно translate(-50%, -50%), чтобы вращалось идеально из центра */
+  from { transform: translate(-50%, -50%) rotate(0deg); }
+  to { transform: translate(-50%, -50%) rotate(360deg); }
 }
 
-/* Принудительная GPU акселерация для видео (убирает лаги картинки) */
-video {
-    -webkit-transform: translateZ(0);
-    transform: translateZ(0);
-    -webkit-backface-visibility: hidden;
-    backface-visibility: hidden;
+@keyframes led-pulse {
+  0%, 100% { opacity: 1; filter: brightness(1); }
+  50% { opacity: 0.8; filter: brightness(1.5) drop-shadow(0 0 15px var(--color-brand-indigo)); }
 }
 
-@layer components {
-  .caspian-glass {
-    @apply bg-white/[0.03] backdrop-blur-2xl border border-white/[0.08] shadow-[0_8px_32px_rgba(0,0,0,0.4)];
-  }
-  
-  .btn-primary {
-    @apply relative overflow-hidden px-6 py-3 rounded-2xl font-black uppercase tracking-widest text-[10px] 
-           bg-indigo-600 text-white transition-all hover:scale-105 active:scale-95 hover:shadow-[0_0_20px_rgba(99,102,241,0.4)];
-  }
-
-  .neon-glow {
-    filter: drop-shadow(0 0 10px rgba(99, 102, 241, 0.4));
-  }
-}
-@layer utilities {
-  /* Адаптивная высота с учетом мобильных браузеров */
-  .h-screen-dynamic {
-    height: 100svh;
-  }
-  
-  /* Фильтры */
-  .filter-beauty { filter: saturate(1.2) contrast(1.1) brightness(1.1) blur(0.4px); }
-  .filter-cinema { filter: grayscale(1) contrast(1.5) brightness(0.9); }
-  .filter-both { filter: grayscale(1) contrast(1.5) brightness(0.9) blur(0.4px); }
+/* 2. Базовый класс для любого блока, который должен светиться */
+.led-frame {
+  position: relative;
+  overflow: hidden; /* Чтобы градиент не вылезал за границы */
+  transition: box-shadow 0.5s ease;
 }
 
-/* Предотвращение накладывания на челки и системные полоски */
-body {
-  min-height: 100dvh; 
-  padding-top: env(safe-area-inset-top);
-  padding-bottom: env(safe-area-inset-bottom);
-  padding-left: env(safe-area-inset-left);
-  padding-right: env(safe-area-inset-right);
+/* 3. Сама "лента" (скрыта по умолчанию) */
+.led-frame::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 250%; /* Сделано чуть больше (250%), чтобы углы не обрезались при вращении */
+  height: 250%;
+  background: conic-gradient(
+    transparent, 
+    #6366f1, /* Indigo */
+    #06b6d4, /* Cyan */
+    #ec4899, /* Pink */
+    transparent 30%
+  );
+  animation: led-rotate 4s linear infinite;
+  z-index: 0;
+  opacity: 0; /* Выключено */
+  transition: opacity 0.8s ease;
+  pointer-events: none; /* Защита от перекрытия кликов */
+}
+
+/* 4. Включаем свет, если на body есть класс .leds-on */
+.leds-on .led-frame::before {
+  opacity: 1;
+}
+
+/* 5. Внутренний контейнер, который перекрывает центр градиента, оставляя только рамку */
+.led-content {
+  position: relative;
+  z-index: 1;
+  background-color: #050505; /* Заменено background на background-color, чтобы не ломать Tailwind bg-паттерны */
+  margin: 2px; /* ТОЛЩИНА ЛЕНТЫ (можешь менять) */
+  height: calc(100% - 4px);
+  width: calc(100% - 4px);
+  box-sizing: border-box;
+  border-radius: inherit; /* Автоматически подстраивается под скругление родителя */
+}
+
+/* Глобальная полоска на самом верху сайта */
+.led-top-line {
+  height: 2px;
+  width: 100%;
+  background: linear-gradient(90deg, #6366f1, #06b6d4, #ec4899, #6366f1);
+  background-size: 300% 300%;
+  animation: led-flow 5s linear infinite;
+  opacity: 0;
+  transition: opacity 0.8s ease;
+  box-shadow: 0 0 12px 1px rgba(99, 102, 241, 0.6); /* Добавлено красивое свечение */
+}
+
+.leds-on .led-top-line { opacity: 1; }
+
+@keyframes led-flow {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 100% 50%; }
 }

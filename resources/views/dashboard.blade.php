@@ -10,9 +10,9 @@
             <div class="grid grid-cols-1 md:grid-cols-12 gap-6 auto-rows-min">
                 
                 <!-- 1. VIDEO ROULETTE (Одинаковый крупный размер) -->
-                <a href="{{ route('chat') }}" class="md:col-span-6 group relative min-h-[350px] rounded-[2.5rem] overflow-hidden bg-brand-indigo p-8 flex flex-col justify-between transition-all duration-500 hover:shadow-[0_20px_80px_rgba(99,102,241,0.2)] border border-white/10">
+                <a href="{{ route('chat') }}" class="md:col-span-6 group relative min-h-[350px] led-frame rounded-[2.5rem] overflow-hidden bg-brand-indigo p-8 flex flex-col justify-between transition-all duration-500 hover:shadow-[0_20px_80px_rgba(99,102,241,0.2)] border border-white/10">
                     <!-- Subtle Carbon Texture Overlay -->
-                    <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10 pointer-events-none"></div>
+                    <div class="absolute led-content inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10 pointer-events-none"></div>
                     
                     <div class="relative z-10">
                         <div class="flex items-center gap-4 mb-6">

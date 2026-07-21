@@ -123,6 +123,9 @@ window.caspianApp = function(myId, myInterests, iceServers) {
         currentLevel: {{ auth()->user()->level }},
         totalXp: {{ auth()->user()->xp }},
         hasNewNotification: false,
+        callDuration: 0,
+        callTimer: null,
+        timerExpanded: false, // по умолчанию свернут
         // --- PARTNER DATA ---
         partnerId: null, partnerData: null, isFriend: false, partnerState: 'active',
         isPartnerTyping: false, typingPartnerName: '', ping: 0, 
@@ -234,6 +237,33 @@ async removeContact(contactId) {
     } catch (e) {
         console.error("Error removing contact:", e);
     }
+},
+
+
+startCallTimer() {
+    this.stopCallTimer();
+    this.callDuration = 0;
+    this.callTimer = setInterval(() => {
+        if (this.state === 'connected') {
+            this.callDuration++;
+        } else {
+            this.stopCallTimer();
+        }
+    }, 1000);
+},
+
+stopCallTimer() {
+    if (this.callTimer) {
+        clearInterval(this.callTimer);
+        this.callTimer = null;
+    }
+    this.callDuration = 0;
+},
+
+formatCallTime() {
+    const mins = Math.floor(this.callDuration / 60);
+    const secs = this.callDuration % 60;
+    return (mins < 10 ? '0' + mins : mins) + ":" + (secs < 10 ? '0' + secs : secs);
 },
 
 async sendIcebreaker() {
@@ -836,6 +866,7 @@ async handleSignal(e) {
 if (m.type === 'call-accepted') { 
     console.log("[WebRTC] Partner is ready. Initiating handshake...");
     this.state = 'connected'; 
+    this.startCallTimer();
     if (!this.pc) this.initPC(); 
     
     // Принудительно загоняем треки перед созданием оффера
@@ -943,6 +974,7 @@ if (m.type === 'call-accepted') {
         console.error("[WebRTC] Signal Handling Critical Error:", err);
         this.isProcessingSignal = false;
     }
+
 },
 
         // --- CALLS LOGIC ---
@@ -1020,6 +1052,8 @@ async handleMatch(e) {
             if (myId < this.partnerId) {
                 setTimeout(() => this.sendOffer(), 1200);
             }
+
+            this.startCallTimer();
         },
 // Находим функцию setupPersonalCall и заменяем её на улучшенную версию
 async setupPersonalCall(id, isAccepted) {
@@ -1180,6 +1214,7 @@ stopRingtone() {
 
 reset() {
     this.ringtone.pause();
+    this.stopCallTimer();
     this.isPartnerProfileOpen = false;
     this.uiShowPartnerCard = false;
     if (this.pc) { this.pc.close(); this.pc = null; }
@@ -1606,3 +1641,4 @@ async handleFriendRequest(senderId, action) {
 </div>
 </body>
 </html>
+<style>

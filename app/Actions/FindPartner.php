@@ -38,23 +38,32 @@ class FindPartner
                 continue; 
             }
 
-            // Пропускаем себя или уже проверенных в этом цикле
             if ($tempId === $userId || in_array($tempId, $skippedIds)) continue;
 
-            // --- ЗАЩИТА ОТ RACE CONDITION ---
             $lockKey = "match_lock:{$tempId}";
             if (!Redis::set($lockKey, "1", "EX", 2, "NX")) {
-                continue; // Кто-то другой уже "забронировал" этого пользователя
+                continue; 
             }
 
             $partnerUser = User::find($tempId);
-            if (!$partnerUser) {
+
+            // --- КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ ТУТ ---
+            // Сначала проверяем, жива ли запись в БД в принципе (Heartbeat)
+            $dbEntry = Matchmaking::where('user_id', $tempId)
+                ->where('status', MatchmakingStatus::Searching)
+                ->where('updated_at', '>=', now()->subSeconds(35)) // Чуть больше запас, чем в кроне
+                ->exists();
+
+            if (!$partnerUser || !$dbEntry) {
+                // Если юзера нет или он "протух" в БД - удаляем замок и НЕ добавляем в skippedIds
+                // Он просто вылетает из Redis (так как мы уже сделали lpop)
                 Redis::del($lockKey);
                 continue;
             }
 
-            // 2. ПРОВЕРКА СОВМЕСТИМОСТИ (Пол / Возраст / ЧС / Статус в БД)
+            // Теперь проверяем фильтры (пол, возраст, ЧС)
             if (!$this->isCompatible($user, $partnerUser)) {
+                // Если он живой, но не подходит нам по полу/возрасту - запоминаем, чтобы вернуть в очередь в конце
                 $skippedIds[] = $tempId;
                 Redis::del($lockKey); 
                 continue;

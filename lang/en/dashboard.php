@@ -15,6 +15,6 @@ return [
 'Level'=>                    'Level',
 'Progress'=>                 'Progress',
 'Conference_Enclaves'=>      'Conference Enclaves',
-'Good_Luck'=>                'Good_Luck',
+'Good_Luck'=>                'Good Luck',
 'Total_Online'=>             'Time In System',
 ];

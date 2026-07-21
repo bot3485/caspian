@@ -171,6 +171,34 @@
                     </div>
                 </div>
 
+            <!-- SESSION CHRONOMETER (v4.0 - Bubble Protected) -->
+            <div x-show="state === 'connected'" 
+                class="absolute top-20 right-6 z-[120] flex items-center pointer-events-auto"
+                x-cloak>
+                
+                <!-- @click.stop предотвращает срабатывание toggleFocus родительского окна -->
+                <div @click.stop="timerExpanded = !timerExpanded"
+                    class="group flex items-center gap-3 px-3 py-2 rounded-2xl border border-white/[0.05] bg-black/60 backdrop-blur-2xl cursor-pointer transition-all duration-500 hover:border-brand-indigo/40 shadow-2xl"
+                    :class="timerExpanded ? 'max-w-[150px] pr-4' : 'max-w-[44px] pr-3'">
+                    
+                    <!-- Иконка Часов -->
+                    <div class="relative flex shrink-0">
+                        <span class="text-xs transition-transform duration-500" :class="timerExpanded ? 'rotate-12 scale-110' : ''">⏱️</span>
+                        <span class="absolute -top-1 -right-1 w-1.5 h-1.5 bg-brand-indigo rounded-full shadow-[0_0_8px_#6366f1] animate-pulse"></span>
+                    </div>
+
+                    <!-- Само Время -->
+                    <div x-show="timerExpanded" 
+                        x-transition:enter="transition ease-out duration-300"
+                        x-transition:enter-start="opacity-0 -translate-x-4"
+                        x-transition:enter-end="opacity-100 translate-x-0"
+                        class="flex flex-col">
+                        <span class="text-[10px] font-black font-mono tracking-widest text-white/90 leading-none" 
+                            x-text="formatCallTime()"></span>
+                        <span class="text-[6px] font-black uppercase tracking-[0.2em] text-gray-500 mt-1">Duration</span>
+                    </div>
+                </div>
+            </div>
                 <!-- DYNAMIC STATUS HUD (v3.9 - Context Aware) -->
                 <div x-show="state === 'connected'" 
                     class="absolute top-6 right-6 px-4 py-2 flex items-center gap-3 rounded-2xl border transition-all duration-500 backdrop-blur-xl shadow-2xl z-[110]"

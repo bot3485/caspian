@@ -3,28 +3,18 @@
      class="fixed inset-0 z-[3000] pointer-events-none flex items-start justify-center md:items-start md:justify-start"
      style="transform: translateZ(0);">
      
-     <!-- Невидимый слой для закрытия по клику вне карточки (Только для мобилок) -->
      <div class="absolute inset-0 bg-black/40 backdrop-blur-sm pointer-events-auto md:hidden" 
           x-show="uiShowPartnerCard" 
           x-transition.opacity 
           @click="uiShowPartnerCard = false"></div>
 
-     <!-- Сама карточка -->
+     <!-- КАРТОЧКА С МЯГКИМ LED БОРДЕРОМ -->
      <div @click.stop=""
-          x-transition:enter="transition cubic-bezier(0.34, 1.56, 0.64, 1) duration-500"
-          x-transition:enter-start="opacity-0 translate-y-8 md:translate-y-0 md:-translate-x-8 blur-xl scale-95"
-          x-transition:enter-end="opacity-100 translate-y-0 md:translate-x-0 blur-0 scale-100"
-          x-transition:leave="transition ease-in duration-300"
-          x-transition:leave-start="opacity-100 translate-y-0 scale-100"
-          x-transition:leave-end="opacity-0 translate-y-8 scale-95"
           class="pointer-events-auto relative md:absolute mt-36 md:mt-0 md:top-24 left-4 right-4 md:left-24 md:right-auto 
                  md:w-[320px] bg-[#0a0a0a]/95 backdrop-blur-3xl p-5 md:p-6 rounded-[2rem] md:rounded-[2.5rem] 
-                 border border-white/10 shadow-[0_30px_100px_rgba(0,0,0,0.9)] overflow-hidden">
+                 elegant-led-border shadow-[0_30px_100px_rgba(0,0,0,0.9)] overflow-hidden">
          
          <div class="relative z-10 flex flex-col gap-5">
-             
-             <div class="absolute -inset-1 rounded-[1.8rem] blur-[30px] opacity-40 pointer-events-none transition-colors duration-500 -z-10"
-         :style="{ backgroundColor: partnerData?.gender === 'female' ? '#db2777' : '#2563eb' }"></div>
              
              <!-- HEADER -->
              <div class="flex justify-between items-start">
@@ -103,7 +93,7 @@
              <template x-if="partnerData?.badge">
                  <div class="pt-4 border-t border-white/5 flex items-center justify-between">
                      <span class="text-[7px] md:text-[8px] font-black uppercase tracking-[0.25em] text-gray-600">{{ __('chatroulette.Prestige_Status') }}</span>
-                     <div class="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/[0.02] border border-white/10 shadow-inner"
+                     <div class="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/[0.02] rgb-led-border border-transparent shadow-inner"
                           :style="{ borderColor: partnerData.badge.color + '30' }">
                          <span class="text-sm" x-text="partnerData.badge.icon"></span>
                          <span class="text-[9px] font-black uppercase tracking-widest" 

@@ -52,7 +52,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::middleware([ClearChatState::class])->group(function () {
         
         Route::get('/dashboard', function () {
-            return view('dashboard');
+            return view('dashboard.index');
         })->name('dashboard');
 
         Route::get('/leaderboard', [ChatController::class, 'leaderboard'])->name('leaderboard');

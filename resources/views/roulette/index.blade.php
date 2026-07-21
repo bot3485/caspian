@@ -1,8 +1,9 @@
 <x-app-layout>
-
     <div class="fixed top-[120px] bottom-0 left-0 right-0 w-full bg-[#020202] overflow-hidden px-3 pt-4 pb-40 md:p-6 overscroll-none" 
          style="height: calc(100dvh - 120px - env(safe-area-inset-bottom));">
             
+        <!-- Глобальные кислотные ленты удалены для чистоты интерфейса -->
+
         <!-- 1. VIDEO ECOSYSTEM -->
         @include('roulette.partials.video.ecosystem')
         
@@ -18,10 +19,9 @@
         
     </div>
     
-    <!-- КАРТОЧКА ПРОФИЛЯ (Вынесена за пределы fixed контейнера для iOS) -->
+    <!-- КАРТОЧКА ПРОФИЛЯ -->
     @include('roulette.partials.ui.partner-card')
 
     <!-- СТИЛИ -->
     @include('roulette.partials.styles')
-
 </x-app-layout>

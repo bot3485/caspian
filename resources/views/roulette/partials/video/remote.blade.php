@@ -5,14 +5,13 @@
          'h-[70%] md:h-full md:w-[75%] z-10': layoutFocus === 'remote',
          'h-[30%] md:h-full md:w-[25%] opacity-50 grayscale-[30%] hover:opacity-80': layoutFocus === 'local'
      }"
-     class="led-box-frame relative rounded-[2.5rem] transition-all duration-700 ease-[cubic-bezier(0.25,1,0.5,1)] cursor-pointer group bg-[#080808] overflow-hidden shadow-2xl">
-
+     class="elegant-glass led-container-fx relative rounded-[2.5rem] transition-all duration-700 ease-[cubic-bezier(0.25,1,0.5,1)] cursor-pointer group overflow-hidden">
     <!-- Внутренний контейнер видео -->
-    <div class="relative led-frame w-full h-full rounded-[2.4rem] overflow-hidden bg-[#050505] shadow-[inset_0_0_30px_rgba(0,0,0,0.8)] z-10">
+    <div class="relative w-full h-full rounded-[2.4rem] overflow-hidden bg-[#050505] shadow-[inset_0_0_30px_rgba(0,0,0,0.8)] z-10">
         
         <video x-ref="remoteVideo" id="remoteVideo" autoplay playsinline webkit-playsinline 
             :class="[getFilterClass('remote'), { 'blitz-hell-video': isBlitzActive, 'opacity-30 blur-xl scale-110': isRemoteBlurred && !isBlitzActive }]"
-            class="absolute led-content inset-0 w-full h-full object-cover transition-all duration-1000 bg-[#050505] z-0">
+            class="absolute inset-0 w-full h-full object-cover transition-all duration-1000 bg-[#050505] z-0">
         </video>
 
         <div x-show="isBlitzActive" class="absolute inset-0 bg-red-900/40 mix-blend-color-burn pointer-events-none z-10 animate-pulse" x-cloak></div>
@@ -38,11 +37,11 @@
 
         <!-- ИНТЕРФЕЙСНЫЕ ВИДЖЕТЫ -->
         <div x-show="state === 'idle' || state === 'searching'" class="absolute top-5 right-5 md:top-6 md:right-6 z-40 pointer-events-auto" x-data="{ countryDropdown: false }">
-            <button @click.stop="countryDropdown = !countryDropdown" class="px-4 py-2.5 bg-black/70 backdrop-blur-2xl border border-white/10 rounded-2xl flex items-center gap-2 text-[10px] font-black uppercase tracking-wider hover:border-brand-indigo/50 hover:bg-brand-indigo/10 transition-all shadow-2xl">
+            <button @click.stop="countryDropdown = !countryDropdown" class="px-4 py-2.5 bg-black/70 backdrop-blur-2xl rgb-led-border border-transparent rounded-2xl flex items-center gap-2 text-[10px] font-black uppercase tracking-wider hover:border-brand-indigo/50 hover:bg-brand-indigo/10 transition-all shadow-2xl">
                 <span x-text="countryNames[targetCountry] || '🌍 {{__('chatroulette.Global_Match')}}'"></span>
                 <span class="text-[7px] text-gray-500 transition-transform duration-300" :class="countryDropdown ? 'rotate-180 text-brand-indigo' : ''">▼</span>
             </button>
-            <div x-show="countryDropdown" @click.away="countryDropdown = false" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 translate-y-2 scale-95" x-transition:enter-end="opacity-100 translate-y-0 scale-100" class="absolute right-0 mt-3 bg-[#0a0a0a]/95 backdrop-blur-3xl border border-white/10 rounded-[1.5rem] p-2 space-y-1 shadow-[0_30px_60px_rgba(0,0,0,0.8)] z-50 max-h-64 overflow-y-auto custom-scrollbar min-w-[160px]">
+            <div x-show="countryDropdown" @click.away="countryDropdown = false" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 translate-y-2 scale-95" x-transition:enter-end="opacity-100 translate-y-0 scale-100" class="absolute right-0 mt-3 bg-[#0a0a0a]/95 backdrop-blur-3xl rgb-led-border border-transparent rounded-[1.5rem] p-2 space-y-1 shadow-[0_30px_60px_rgba(0,0,0,0.8)] z-50 max-h-64 overflow-y-auto custom-scrollbar min-w-[160px]">
                 <button @click.stop="updateTargetCountry('global'); countryDropdown = false;" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-brand-indigo/90 text-[9px] font-black uppercase tracking-widest transition-all text-gray-400 hover:text-white">
                     <img src="https://cdnjs.cloudflare.com/ajax/libs/twemoji/14.0.2/svg/1f30e.svg" class="w-4 h-3.5 object-cover" crossorigin="anonymous" loading="lazy" alt="global"> {{__('chatroulette.Global_Match')}}
                 </button>
@@ -57,21 +56,26 @@
         </div>
 
         <div x-show="state === 'connected' && partnerData" class="absolute top-5 left-5 md:top-6 md:left-6 z-40 flex items-start pointer-events-none" x-cloak>
-            <div class="relative w-14 h-14 md:w-16 md:h-16 shrink-0 pointer-events-auto block z-10 hover:scale-105 transition-transform duration-300" style="transform: translateZ(0);">
-                <div x-show="partnerData?.vpn" x-cloak class="absolute -top-4 left-1/2 -translate-x-1/2 z-[60] whitespace-nowrap transform-gpu">
-                    <div class="flex items-center gap-1 px-2.5 py-1 bg-amber-500 rounded-lg border border-amber-300/50 shadow-[0_5px_15px_rgba(245,158,11,0.5)] animate-bounce">
-                        <span class="text-[8px] font-black uppercase tracking-widest text-black">Masked</span>
-                    </div>
-                </div>
-                <div class="absolute -inset-1.5 rounded-[1.8rem] opacity-70 transform-gpu" :class="partnerData?.ban_count > 0 ? 'led-toxic' : 'animate-[led-rotate_4s_linear_infinite]'" :style="partnerData?.ban_count > 0 ? '' : { background: partnerData?.gender === 'female' ? 'conic-gradient(from 0deg, transparent, #db2777, transparent, #db2777, transparent)' : 'conic-gradient(from 0deg, transparent, #2563eb, transparent, #6366f1, transparent)' }"></div>
-                <button @click.stop.prevent="uiShowPartnerCard = !uiShowPartnerCard" type="button" class="relative w-full h-full rounded-[1.4rem] overflow-hidden border-2 shadow-2xl transition-all duration-300 active:scale-95 group bg-[#020202] focus:outline-none z-20" :class="partnerData?.ban_count > 0 ? 'border-red-500/80' : 'border-white/20'">
-                    <img :src="partnerData?.country_flag" class="w-full h-full object-cover transition-all duration-700 opacity-90 group-hover:scale-110 group-hover:opacity-100" :class="partnerData?.ban_count > 0 ? 'grayscale brightness-50 group-hover:grayscale-0' : ''" crossorigin="anonymous">
-                    <div x-show="partnerData?.ban_count > 0" x-cloak class="absolute inset-0 flex items-center justify-center bg-red-950/60 backdrop-blur-sm"><span class="text-xl filter drop-shadow-[0_0_10px_rgba(255,0,0,0.8)]">💀</span></div>
-                </button>
-                <div x-show="partnerState === 'away'" x-cloak class="absolute -bottom-1 -right-1 w-6 h-6 bg-amber-500 rounded-full border-[3px] border-[#020202] flex items-center justify-center shadow-lg z-30 animate-pulse"><span class="text-[9px]">🌙</span></div>
-                <div x-show="partnerState === 'problem'" x-cloak class="absolute -bottom-1 -right-1 w-7 h-7 bg-red-600 rounded-full border-[3px] border-[#020202] flex items-center justify-center shadow-[0_0_20px_#ff0000] z-40 animate-bounce"><span class="text-[12px]">⚠️</span></div>
-            </div>
+    <div class="relative w-14 h-14 md:w-16 md:h-16 shrink-0 pointer-events-auto block z-10 hover:scale-105 transition-transform duration-300" style="transform: translateZ(0);">
+        
+        <!-- Аура реагирует на leds-on -->
+        <div x-show="partnerData" class="absolute -inset-3 rounded-full blur-[15px] pointer-events-none z-0 gender-aura"
+             :style="{ backgroundColor: partnerData?.ban_count > 0 ? '#ef4444' : (partnerData?.gender === 'female' ? '#ec4899' : '#3b82f6') }"></div>
+
+        <!-- Кольцо реагирует на leds-on -->
+        <div class="gender-ring-wrapper">
+            <div class="gender-ring"
+                 :style="partnerData?.ban_count > 0 ? { background: 'conic-gradient(from 0deg, transparent, #ef4444, transparent)' } : { background: partnerData?.gender === 'female' ? 'conic-gradient(from 0deg, transparent, rgba(236,72,153,0.8), transparent)' : 'conic-gradient(from 0deg, transparent, rgba(59,130,246,0.8), transparent)' }"></div>
         </div>
+        
+        <!-- САМ ФЛАГ -->
+        <button @click.stop.prevent="uiShowPartnerCard = !uiShowPartnerCard" type="button" class="relative w-full h-full rounded-[1.4rem] overflow-hidden border border-white/10 shadow-xl transition-all duration-300 active:scale-95 group bg-[#020202] focus:outline-none z-20">
+            <div class="absolute inset-0 bg-black/20 group-hover:bg-transparent transition-colors z-10"></div>
+            <img :src="partnerData?.country_flag" class="w-full h-full object-cover transition-all duration-700 opacity-90 group-hover:scale-110 group-hover:opacity-100" crossorigin="anonymous">
+        </button>
+        
+    </div>
+</div>
 
         <div x-show="state === 'connected'" class="absolute top-24 right-5 md:top-24 md:right-6 z-40 flex items-center pointer-events-none" x-cloak>
             <div @click.stop="timerExpanded = !timerExpanded" class="group flex items-center gap-3 px-3 py-2.5 rounded-2xl border border-white/[0.05] bg-black/60 backdrop-blur-2xl cursor-pointer transition-all duration-500 hover:bg-white/10 hover:border-white/20 shadow-xl pointer-events-auto" :class="timerExpanded ? 'max-w-[150px] pr-5' : 'max-w-[48px] pr-3.5'">

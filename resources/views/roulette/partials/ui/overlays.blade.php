@@ -39,7 +39,7 @@
 
         <div class="flex flex-wrap justify-center gap-2 mt-2">
             <template x-for="tag in commonInterests" :key="tag">
-                <span class="px-4 py-1.5 bg-white/10 border border-white/10 rounded-full text-[9px] font-black uppercase tracking-widest text-indigo-300" 
+                <span class="px-4 py-1.5 bg-white/10 rgb-led-border border-transparent rounded-full text-[9px] font-black uppercase tracking-widest text-indigo-300" 
                       x-text="'#' + tag"></span>
             </template>
         </div>

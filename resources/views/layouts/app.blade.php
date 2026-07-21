@@ -104,7 +104,7 @@
                 <h2 class="text-[10px] font-black uppercase tracking-[0.5em] text-gray-500">{{ __('app.Personal_Messenger') }}</h2>
                 <button @click="globalSidebarOpen = false" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/5 transition-colors">✕</button>
             </div>
-            @include('partials.messenger-content')
+            @include('messenger.index')
         </div>
     </div>
 

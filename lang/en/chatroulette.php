@@ -51,4 +51,7 @@ return [
 'Prestige_Status'=>         'Prestige Status',
 'Past_Violations'=>         'Past Violations',
 'Latency'=>                 'Latency',
+'Snapshot'=>                'SnapShot',
+'Deafen'=>                  'Deafen',
+'PiP'=>                     'PiP',
 ];

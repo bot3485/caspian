@@ -12,6 +12,14 @@
                 <span class="text-xl group-hover:scale-110 transition-transform">⚙️</span>
                 <span class="text-[7px] font-black uppercase tracking-widest text-gray-400 group-hover:text-white">{{ __('chatroulette.Hardware') }}</span>
             </button>
+            <button @click="filterModalOpen = true" class="btn-glass flex flex-col items-center justify-center gap-2 h-20 w-full group">
+                <span class="text-xl group-hover:scale-110 transition-transform">🎯</span>
+                <span class="text-[7px] font-black uppercase tracking-widest text-gray-400 group-hover:text-white">{{ __('chatroulette.Target') }}</span>
+            </button>
+            <button @click="togglePiP()" class="btn-glass flex flex-col items-center justify-center gap-2 h-20 w-full group">
+                <span class="text-xl group-hover:scale-110 transition-transform">🔲</span>
+                <span class="text-[7px] font-black uppercase tracking-widest text-gray-400 group-hover:text-white">{{ __('chatroulette.PiP') ?? 'PiP' }}</span>
+            </button>
             <button @click="toggleMic()" :class="micEnabled ? 'btn-glass' : 'btn-glass btn-glass-danger'" class="flex flex-col items-center justify-center gap-2 h-20 w-full group">
                 <span class="text-xl group-hover:scale-110 transition-transform" x-text="micEnabled ? '🎤' : '🔇'"></span>
                 <span class="text-[7px] font-black uppercase tracking-widest opacity-80" :class="!micEnabled ? 'text-red-400' : 'text-gray-400'">{{ __('chatroulette.Mute') }}</span>
@@ -20,10 +28,9 @@
                 <span class="text-xl group-hover:scale-110 transition-transform" x-text="camEnabled ? '📷' : '🚫'"></span>
                 <span class="text-[7px] font-black uppercase tracking-widest opacity-80" :class="!camEnabled ? 'text-red-400' : 'text-gray-400'">{{ __('chatroulette.Hide_Yourself') }}</span>
             </button>
-            
-            <button @click="filterModalOpen = true" class="btn-glass flex flex-col items-center justify-center gap-2 h-20 w-full group">
-                <span class="text-xl group-hover:scale-110 transition-transform">🎯</span>
-                <span class="text-[7px] font-black uppercase tracking-widest text-gray-400 group-hover:text-white">{{ __('chatroulette.Target') }}</span>
+            <button @click="toggleRemoteAudio()" :class="remoteMuted ? 'btn-glass shadow-[0_0_15px_rgba(239,68,68,0.3)] border-red-500/30' : 'btn-glass'" class="flex flex-col items-center justify-center gap-2 h-20 w-full group">
+                <span class="text-xl group-hover:scale-110 transition-transform" x-text="remoteMuted ? '🔕' : '🔔'"></span>
+                <span class="text-[7px] font-black uppercase tracking-widest opacity-80" :class="remoteMuted ? 'text-red-400' : 'text-gray-400'">{{ __('chatroulette.Deafen') ?? 'Mute' }}</span>
             </button>
             <button @click="toggleBeauty()" :class="beautyFilter ? 'btn-glass shadow-[0_0_15px_rgba(219,39,119,0.3)] border-pink-500/30' : 'btn-glass'" class="flex flex-col items-center justify-center gap-1.5 h-16 w-full group">
                 <span class="text-lg">✨</span>
@@ -33,20 +40,21 @@
                 <span class="text-lg">🎬</span>
                 <span class="text-[7px] font-black uppercase tracking-widest opacity-60 text-gray-400">{{ __('chatroulette.Monochrome') }}</span>
             </button>
-            
             <button @click="isRemoteBlurred = !isRemoteBlurred" :class="isRemoteBlurred ? 'btn-glass border-brand-indigo/40' : 'btn-glass'" class="flex flex-col items-center justify-center gap-2 h-20 w-full group">
                 <span class="text-xl group-hover:scale-110 transition-transform">🙈</span>
                 <span class="text-[7px] font-black uppercase tracking-widest opacity-80" :class="isRemoteBlurred ? 'text-brand-indigo' : 'text-gray-400'">{{ __('chatroulette.Hide_Interlocutor') }}</span>
             </button>
-            
             <button @click="sendIcebreaker()" :disabled="icebreakerCooldown > 0 || state !== 'connected'" class="btn-glass flex flex-col items-center justify-center gap-2 h-20 w-full group" :class="icebreakerCooldown > 0 ? 'opacity-40 cursor-not-allowed' : ''">
                 <span class="text-xl" :class="icebreakerCooldown > 0 ? '' : 'group-hover:animate-spin'" x-text="icebreakerCooldown > 0 ? '⏳' : '🎲'"></span>
                 <span class="text-[7px] font-black uppercase tracking-widest" :class="icebreakerCooldown > 0 ? 'text-gray-600' : 'text-gray-400 group-hover:text-brand-indigo'" x-text="icebreakerCooldown > 0 ? icebreakerCooldown + 's' : '{{ __('chatroulette.Cube') }}'"></span>
             </button>
-
             <button @click="triggerBlitz()" :disabled="blitzCooldown > 0 || isBlitzActive || state !== 'connected'" class="btn-glass flex flex-col items-center justify-center gap-2 h-20 w-full group" :class="isBlitzActive ? 'btn-glass-danger animate-[pulse_0.5s_infinite]' : ''">
                 <span class="text-xl" :class="blitzCooldown > 0 ? 'opacity-40' : 'group-hover:scale-[1.3] transition-transform'" x-text="blitzCooldown > 0 ? '⌛' : '⚡'"></span>
                 <span class="text-[7px] font-black uppercase tracking-widest" :class="blitzCooldown > 0 ? 'text-gray-600' : 'text-gray-400 group-hover:text-yellow-500'" x-text="blitzCooldown > 0 ? blitzCooldown + 's' : '{{ __('chatroulette.Tension') }}'"></span>
+            </button>
+            <button @click="takeSnapshot()" class="btn-glass flex flex-col items-center justify-center gap-2 h-20 w-full group">
+                <span class="text-xl group-hover:scale-110 transition-transform active:scale-95">📸</span>
+                <span class="text-[7px] font-black uppercase tracking-widest text-gray-400 group-hover:text-white">{{ __('chatroulette.Snapshot') ?? 'Snap' }}</span>
             </button>
 
             <template x-if="callContext !== 'personal'">

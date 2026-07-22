@@ -50,5 +50,8 @@ return [
 'No_Signal'=>              'Sinyal Yok',
 'Prestige_Status'=>        'Prestij',
 'Past_Violations'=>        'Geçmiş İhlaller',
-'Latency'=>                'Gecikme'
+'Latency'=>                'Gecikme',
+'Snapshot'=>                'SnapShot',
+'Deafen'=>                  'Deafen',
+'PiP'=>                     'PiP',
 ];

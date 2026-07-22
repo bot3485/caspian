@@ -21,6 +21,7 @@ export default (initData) => ({
     isPartnerProfileOpen: false,
     uiShowPartnerCard: false,
     showLevelUp: false,
+    remoteMuted: false, // Флаг для кнопки заглушения
     
     currentLevel: initData.currentLevel,
     totalXp: initData.totalXp,
@@ -72,6 +73,8 @@ export default (initData) => ({
     // --- WEBRTC ---
     pc: null, 
     localStream: null,
+    partnerCamEnabled: true, // НОВОЕ: Знает ли собеседник, что мы включили камеру
+    partnerMicEnabled: true, // НОВОЕ: Знает ли собеседник, что мы включили микрофон
     partnerFilters: { beauty: false, cinema: false },
     rtcConfig: { iceServers: initData.iceServers, bundlePolicy: "balanced", iceCandidatePoolSize: 10 },
 
@@ -93,6 +96,81 @@ export default (initData) => ({
         'ua': '🇺🇦 Ukraine', 'tr': '🇹🇷 Turkey', 'de': '🇩🇪 Germany',
         'es': '🇪🇸 Spain', 'pl': '🇵🇱 Poland', 'us': '🇺🇸 USA',
         'ca': '🇨🇦 Canada', 'fr': '🇫🇷 France', 'it': '🇮🇹 Italy', 'gb': '🇬🇧 UK'
+    },
+
+    async togglePiP() {
+        const video = document.getElementById('remoteVideo');
+        if (!video) return;
+        
+        try {
+            if (document.pictureInPictureElement) {
+                await document.exitPictureInPicture();
+            } else if (document.pictureInPictureEnabled) {
+                await video.requestPictureInPicture();
+            }
+        } catch (error) {
+            console.error("PiP Error:", error);
+            this.toast('PiP не поддерживается вашим браузером');
+        }
+    },
+
+    // 2. Логика заглушения собеседника
+    toggleRemoteAudio() {
+        const video = document.getElementById('remoteVideo');
+        if (!video) return;
+        
+        this.remoteMuted = !this.remoteMuted;
+        video.muted = this.remoteMuted;
+        
+        if (this.remoteMuted) {
+            this.toast('Собеседник заглушен 🔕');
+        } else {
+            this.toast('Звук включен 🔔');
+        }
+    },
+
+    // 3. Логика Скриншота (Canvas)
+    takeSnapshot() {
+        const video = document.getElementById('remoteVideo');
+        if (!video || video.readyState < 2 || this.state !== 'connected') {
+            this.toast('Нет активного видео для снимка');
+            return;
+        }
+        
+        try {
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext('2d');
+            
+            // Если включен Ч/Б фильтр, применяем его и на скриншот
+            if (this.partnerFilters?.cinema || this.cinemaFilter) {
+                ctx.filter = 'grayscale(100%) contrast(125%)';
+            }
+            
+            // Рисуем текущий кадр
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            
+            // Скачиваем
+            const link = document.createElement('a');
+            link.download = `Caspian_Snap_${new Date().getTime()}.jpeg`;
+            link.href = canvas.toDataURL('image/jpeg', 0.9);
+            link.click();
+            
+            // Тактильная и визуальная отдача
+            this.vibrate(50);
+            this.toast('📸 Снимок сохранен!');
+            
+            // Эффект белой вспышки на экране (опционально)
+            const flash = document.createElement('div');
+            flash.className = 'fixed inset-0 bg-white z-[9999] pointer-events-none transition-opacity duration-300 opacity-100';
+            document.body.appendChild(flash);
+            setTimeout(() => flash.classList.replace('opacity-100', 'opacity-0'), 50);
+            setTimeout(() => flash.remove(), 400);
+
+        } catch (error) {
+            console.error("Snapshot Error:", error);
+        }
     },
 
     async updateTargetCountry(country) {
@@ -493,8 +571,27 @@ export default (initData) => ({
         if (this.state !== 'connected') return;
         this.layoutFocus = (this.layoutFocus === target) ? 'split' : target;
     },
-    toggleMic() { this.micEnabled = !this.micEnabled; if(this.localStream) this.localStream.getAudioTracks()[0].enabled = this.micEnabled; },
-    toggleCam() { this.camEnabled = !this.camEnabled; if(this.localStream) this.localStream.getVideoTracks()[0].enabled = this.camEnabled; },
+    toggleMic() { 
+            this.micEnabled = !this.micEnabled; 
+            if(this.localStream) this.localStream.getAudioTracks()[0].enabled = this.micEnabled; 
+            this.syncMediaState(); // Отправляем статус
+        },
+    toggleCam() { 
+        this.camEnabled = !this.camEnabled; 
+        if(this.localStream) this.localStream.getVideoTracks()[0].enabled = this.camEnabled; 
+        this.syncMediaState(); // Отправляем статус
+    },
+
+    // Метод отправки нашего статуса партнеру
+    syncMediaState() {
+        if (this.state === 'connected') {
+            this.signal({ 
+                type: 'media-state', 
+                cam: this.camEnabled, 
+                mic: this.micEnabled 
+            });
+        }
+    },
     toggleBeauty() {
         this.beautyFilter = !this.beautyFilter;
         this.syncFilters();
@@ -649,6 +746,12 @@ export default (initData) => ({
         if (window.location.pathname.includes('/rooms/') && 
             ['offer', 'answer', 'ice'].includes(m.type)) {
             return; 
+        }
+
+        if (m.type === 'media-state') {
+            this.partnerCamEnabled = m.cam;
+            this.partnerMicEnabled = m.mic;
+            return;
         }
 
         if (m.type === 'you-are-blocked') { 
@@ -1043,6 +1146,8 @@ export default (initData) => ({
         if (this.blitzTimer) { clearInterval(this.blitzTimer); this.blitzTimer = null; }
         this.icebreakerCooldown = 0;
         this.blitzCooldown = 0;
+        this.partnerCamEnabled = true; 
+        this.partnerMicEnabled = true;
     },
 
     async toggleContact() {

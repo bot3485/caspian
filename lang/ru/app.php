@@ -19,11 +19,13 @@ return [
 'Update_Failed'=>              'Обновление не удалось',
 'Target_Country_Updated'=>     'Целевая страна обновлена',
 'Target'=>                     'Цель',
-'Target_Gender_Updated'=>      'Пол_тегеря_обновлен',
+'Target_Gender_Updated'=>      'Пол цели обновлен',
 'Save_Failed'=>                'Сохранение не удалось',
 'System_Overload'=>            'Системная перегрузка',
 'User_Is_Busy'=>               'Пользователь занят',
 'Calling'=>                    'Звонок',
 'Call_Ended'=>                 'Вызов завершен',
-'Protocol_Already_Active'=>    'Протокол уже активен'
+'Protocol_Already_Active'=>    'Протокол уже активен',
+'Request_Terminated'=>         'Запрос Отклонён',
+'Identity_Verified'=>          'Запрос Принят',
 ];

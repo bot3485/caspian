@@ -5,6 +5,7 @@ return [
 'Change_Password'=>       'Parolayı Değiştir',
 'Password_Changed'=>      'Parola Güncellendi',
 'Select_Your_Interests'=> 'İlgi Alanlarınızı Seçin',
+'Interests_Matrix'=>      'İlgi Matrisi',
 'Pesronal_Information'=>  'Kişisel Bilgiler',
 'Update_name_and_email'=> 'Profil adınızı ve e-posta adresinizi güncelleyin',
 'Save_Changes'=>          'Değişiklikleri Kaydet',
@@ -20,5 +21,10 @@ return [
 'Are_You_Sure'=>          'Hesabınızı silmek istediğinizden emin misiniz?',
 'Delete_Account_Desc2'=>  'Hesabınız silindiğinde, tüm kaynakları ve verileri kalıcı olarak silinecektir. Hesabınızı silmeden önce, saklamak istediğiniz tüm verileri veya bilgileri lütfen indirin',
 'Your_Profile'=>          'Profiliniz',
-'Settings'=>              'Ayarlar'
+'Settings'=>              'Ayarlar',
+'Gender'=>                'Cinsiyet',
+'Age'=>                   'Yaş',
+'Male'=>                  'Erkek',
+'Female'=>                'Kadın',
+'Update_Tags'=>           'Etiketleri Güncelle'
 ];

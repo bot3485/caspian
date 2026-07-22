@@ -199,4 +199,44 @@
         background: rgba(245, 158, 11, 0.15) !important;
         border-color: rgba(245, 158, 11, 0.4) !important;
     }
+
+    .inner-video-ring {
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+        pointer-events: none;
+        z-index: 15; /* Располагаем над видео, но под оверлеями */
+        transition: box-shadow 0.6s ease;
+    }
+
+    /* Внутреннее неоновое свечение на стекле при включении */
+    body.leds-on .inner-video-ring {
+        box-shadow: inset 0 0 25px rgba(99, 102, 241, 0.25);
+    }
+
+    /* Анимированная градиентная LED-лента (Толщина 2px) */
+    .inner-video-ring::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        padding: 2px; /* Это ширина светящейся линии */
+        background: linear-gradient(135deg, rgba(99,102,241,0.9), rgba(6,182,212,0.6), rgba(236,72,153,0.6), rgba(99,102,241,0.9));
+        background-size: 200% 200%;
+        animation: elegant-led-flow 4s ease infinite;
+        
+        /* Mask скрывает заливку внутри, оставляя только "border" равный padding */
+        -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+        -webkit-mask-composite: xor;
+        mask-composite: exclude;
+        
+        opacity: 0; /* ВЫКЛЮЧЕНО ПО УМОЛЧАНИЮ */
+        transition: opacity 0.6s ease;
+    }
+
+    /* Состояние: ВКЛЮЧЕНО */
+    body.leds-on .inner-video-ring::before {
+        opacity: 0.9;
+    }
 </style>

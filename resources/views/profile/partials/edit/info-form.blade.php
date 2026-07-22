@@ -25,22 +25,22 @@
 
             <!-- Gender -->
             <div class="space-y-2">
-                <label class="text-[9px] font-black uppercase text-gray-400 tracking-widest ml-2">Gender</label>
+                <label class="text-[9px] font-black uppercase text-gray-400 tracking-widest ml-2">{{ __('settings.Gender') }}</label>
                 <div class="flex gap-2">
                     <label class="flex-1 cursor-pointer">
-                        <input type="radio" name="gender" value="male" class="sr-only peer" {{ $user->gender === 'male' ? 'checked' : '' }}>
-                        <div class="py-4 text-center rounded-xl bg-white/5 border border-white/10 text-[9px] font-black uppercase peer-checked:bg-brand-indigo transition-all">Male</div>
+                        <input type="radio" name="gender" value="{{ __('settings.Male') }}" class="sr-only peer" {{ $user->gender === 'male' ? 'checked' : '' }}>
+                        <div class="py-4 text-center rounded-xl bg-white/5 border border-white/10 text-[9px] font-black uppercase peer-checked:bg-brand-indigo transition-all">{{ __('settings.Male') }}</div>
                     </label>
                     <label class="flex-1 cursor-pointer">
-                        <input type="radio" name="gender" value="female" class="sr-only peer" {{ $user->gender === 'female' ? 'checked' : '' }}>
-                        <div class="py-4 text-center rounded-xl bg-white/5 border border-white/10 text-[9px] font-black uppercase peer-checked:bg-brand-indigo transition-all">Female</div>
+                        <input type="radio" name="gender" value="{{ __('settings.Female') }}" class="sr-only peer" {{ $user->gender === 'female' ? 'checked' : '' }}>
+                        <div class="py-4 text-center rounded-xl bg-white/5 border border-white/10 text-[9px] font-black uppercase peer-checked:bg-brand-indigo transition-all">{{ __('settings.Female') }}</div>
                     </label>
                 </div>
             </div>
 
             <!-- Age -->
             <div class="space-y-2">
-                <label class="text-[9px] font-black uppercase text-gray-400 tracking-widest ml-2">Age</label>
+                <label class="text-[9px] font-black uppercase text-gray-400 tracking-widest ml-2">{{ __('settings.Age') }}</label>
                 <input type="number" name="age" value="{{ old('age', $user->age) }}" min="18" max="99"
                        class="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-white focus:ring-2 focus:ring-brand-indigo outline-none transition-all">
             </div>

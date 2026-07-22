@@ -27,11 +27,11 @@
             </button>
             <button @click="toggleBeauty()" :class="beautyFilter ? 'btn-glass shadow-[0_0_15px_rgba(219,39,119,0.3)] border-pink-500/30' : 'btn-glass'" class="flex flex-col items-center justify-center gap-1.5 h-16 w-full group">
                 <span class="text-lg">✨</span>
-                <span class="text-[7px] font-black uppercase tracking-widest opacity-60 text-gray-400">Контраст</span>
+                <span class="text-[7px] font-black uppercase tracking-widest opacity-60 text-gray-400">{{ __('chatroulette.Contrast') }}</span>
             </button>
             <button @click="toggleCinema()" :class="cinemaFilter ? 'btn-glass shadow-[0_0_15px_rgba(217,119,6,0.3)] border-amber-500/30' : 'btn-glass'" class="flex flex-col items-center justify-center gap-1.5 h-16 w-full group">
                 <span class="text-lg">🎬</span>
-                <span class="text-[7px] font-black uppercase tracking-widest opacity-60 text-gray-400">Ч/Б</span>
+                <span class="text-[7px] font-black uppercase tracking-widest opacity-60 text-gray-400">{{ __('chatroulette.Monochrome') }}</span>
             </button>
             
             <button @click="isRemoteBlurred = !isRemoteBlurred" :class="isRemoteBlurred ? 'btn-glass border-brand-indigo/40' : 'btn-glass'" class="flex flex-col items-center justify-center gap-2 h-20 w-full group">
@@ -51,13 +51,17 @@
 
             <template x-if="callContext !== 'personal'">
                 <div class="col-span-3 grid grid-cols-4 gap-2.5 mt-2 pt-3 border-t border-white/10">
-                    <button @click="toggleContact()" :class="isFriend ? 'btn-glass btn-glass-danger' : 'btn-glass'" class="col-span-3 h-14 font-black text-[9px] md:text-[10px] uppercase tracking-[0.25em] flex items-center justify-center gap-2">
-                        <span x-text="isFriend ? '✕  {{__('chatroulette.Remove_Friend')}} ' : '+  {{__('chatroulette.Add_Friend')}} '"></span>
+                    <button @click="toggleContact()" 
+                            :disabled="isProcessingContact"
+                            :class="isFriend ? 'btn-glass btn-glass-danger' : 'btn-glass'" 
+                            class="col-span-3 h-14 font-black text-[9px] md:text-[10px] uppercase tracking-[0.25em] flex items-center justify-center gap-2 disabled:opacity-50 transition-all">
+                        <span x-text="isFriend ? '✕  {{ __('chatroulette.Remove_Friend') }}' : '+  {{ __('chatroulette.Add_Friend') }}'"></span>
                     </button>
                     <button @click="reportPartner()" class="col-span-1 h-14 btn-glass btn-glass-danger flex items-center justify-center text-lg group">
                         <span class="group-hover:scale-110 transition-transform">🚩</span>
                     </button>
                 </div>
+            </template>
             </template>
         </div>
     </div>

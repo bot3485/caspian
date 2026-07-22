@@ -126,6 +126,7 @@ window.caspianApp = function(myId, myInterests, iceServers) {
         callDuration: 0,
         callTimer: null,
         timerExpanded: false, // по умолчанию свернут
+        isProcessingContact: false,
         // --- PARTNER DATA ---
         partnerId: null, partnerData: null, isFriend: false, partnerState: 'active',
         isPartnerTyping: false, typingPartnerName: '', ping: 0, 
@@ -220,25 +221,33 @@ async applyFilters() {
 },
 
 async removeContact(contactId) {
-    if (!confirm('{{ __('app.Remove_Friend_Sure') }}')) return;
+    if (!confirm('{{ __("app.Remove_Friend_Sure") }}')) return;
     
     try {
         await window.axios.post('/chat/contact/remove', { contactId });
         
-        // Обновляем список друзей локально
+        // 1. Обновляем список друзей локально в сайдбаре
         this.loadFriends();
         
-        // Если был открыт чат с этим человеком, закрываем его
+        // 2. Если был открыт текстовый чат с этим человеком — закрываем
         if (this.activeFriend && Number(this.activeFriend.id) === Number(contactId)) {
             this.activeFriend = null;
         }
+
+        // 3. Уведомляем другие Alpine-компоненты (например, плашку управления вызовом), 
+        // чтобы кнопка "Remove Friend" мгновенно превратилась обратно в "Add Friend"
+        window.dispatchEvent(new CustomEvent('contact-removed', { 
+            detail: { contactId: Number(contactId) } 
+        }));
         
-        window.dispatchEvent(new CustomEvent('toast', { detail: { msg: '{{ __("app.Contact_Unlinked") }} ✕' } }));
+        // 4. Показываем тост
+        window.dispatchEvent(new CustomEvent('toast', { 
+            detail: { msg: '{{ __("app.Contact_Unlinked") }} ✕' } 
+        }));
     } catch (e) {
         console.error("Error removing contact:", e);
     }
 },
-
 
 startCallTimer() {
     this.stopCallTimer();
@@ -538,6 +547,12 @@ async changeAudioDevice() {
                 .listen('.MessageSentEvent', (e) => self.handleIncomingMsg(e))
                 .listen('.UserTypingEvent', (e) => self.handleTyping(e));
 
+                window.addEventListener('contact-removed', (e) => {
+                    if (Number(this.partnerId) === Number(e.detail.contactId)) {
+                        this.isFriend = false;
+                    }
+                });
+
                 if (window.location.pathname === '/chat') {
                     this.$nextTick(async () => {
                         await self.initMedia();
@@ -647,13 +662,23 @@ async initMedia() {
             });
         },
         
-        getFilterClass(target) {
-            const f = (target === 'local') ? { b: this.beautyFilter, c: this.cinemaFilter } : { b: this.partnerFilters.beauty, c: this.partnerFilters.cinema };
-            if (f.b && f.c) return 'filter-both';
-            if (f.b) return 'filter-beauty';
-            if (f.c) return 'filter-cinema';
-            return '';
-        },
+    getFilterClass(target) {
+        const f = (target === 'local') 
+            ? { b: this.beautyFilter, c: this.cinemaFilter } 
+            : { b: this.partnerFilters.beauty, c: this.partnerFilters.cinema };
+        
+        // Комбинация обоих фильтров (Ч/Б + Контраст)
+        if (f.b && f.c) return 'grayscale contrast-[1.3] brightness-110 transition-all duration-700';
+        
+        // Beauty / Контраст (Повышенная насыщенность, яркость и контраст + легкое сглаживание)
+        if (f.b) return 'contrast-[1.15] saturate-[1.3] brightness-110 transition-all duration-700';
+        
+        // Cinema / Ч/Б (Оттенки серого, повышенный контраст и легкая сепия для "киношности")
+        if (f.c) return 'grayscale contrast-125 sepia-[.15] transition-all duration-700';
+        
+        // По умолчанию (плавный возврат в норму)
+        return 'transition-all duration-700';
+    },
 
         // --- WebRTC HANDLERS ---
 
@@ -1239,29 +1264,51 @@ reset() {
 
         // --- MESSENGER & DATA ---
 
-async toggleContact() {
-    if (!this.partnerId) return;
-    try {
-        const res = await window.axios.post('/chat/contact/add', { contactId: this.partnerId });
-        
-        if (res.data.action === 'requested') {
-            window.dispatchEvent(new CustomEvent('toast', { detail: { msg: '{{ __('app.Request_Encryted_And_Send') }} 📡' } }));
-            this.isFriend = false; 
-            // Это сообщение создало в базе SYSTEM_FRIEND_REQUEST, 
-            // которое сразу отобразится в чате
-        } else if (res.data.action === 'exists') {
-             window.dispatchEvent(new CustomEvent('toast', { detail: { msg: '{{ __('app.Protocol_Already_Active') }}' } }));
+    async toggleContact() {
+        if (!this.partnerId) return;
+
+        try {
+            if (this.isFriend) {
+                // Если уже друзья — отправляем запрос на удаление
+                const res = await window.axios.post('/chat/contact/remove', { contactId: this.partnerId });
+
+                if (res.data.success || res.data.action === 'removed') {
+                    this.isFriend = false;
+                    window.dispatchEvent(new CustomEvent('toast', { 
+                        detail: { msg: '{{ __("app.Contact_Removed") }} 🗑️' } 
+                    }));
+                }
+            } else {
+                // Если не друзья — отправляем заявку на добавление
+                const res = await window.axios.post('/chat/contact/add', { contactId: this.partnerId });
+
+                if (res.data.action === 'requested') {
+                    this.isFriend = false; // ждем подтверждения
+                    window.dispatchEvent(new CustomEvent('toast', { 
+                        detail: { msg: '{{ __("app.Request_Encryted_And_Send") }} 📡' } 
+                    }));
+                } else if (res.data.action === 'added') {
+                    this.isFriend = true;
+                    window.dispatchEvent(new CustomEvent('toast', { 
+                        detail: { msg: '{{ __("app.Contact_Added") }} 🤝' } 
+                    }));
+                } else if (res.data.action === 'exists') {
+                    this.isFriend = true; // синхронизируем UI, если на сервере он уже друг
+                    window.dispatchEvent(new CustomEvent('toast', { 
+                        detail: { msg: '{{ __("app.Protocol_Already_Active") }}' } 
+                    }));
+                }
+            }
+        } catch (e) {
+            console.error('Toggle contact error:', e);
         }
-    } catch (e) {
-        console.error(e);
-    }
-},
+    },
 
 async handleFriendRequest(senderId, action) {
     try {
         if (action === 'accept') {
             await window.axios.post('/chat/contact/accept', { senderId });
-            window.dispatchEvent(new CustomEvent('toast', { detail: { msg: '{{ __('app.Identyty_Verified') }} ✓' } }));
+            window.dispatchEvent(new CustomEvent('toast', { detail: { msg: '{{ __('app.Identity_Verified') }} ✓' } }));
         } else {
             await window.axios.post('/chat/contact/decline', { senderId });
             window.dispatchEvent(new CustomEvent('toast', { detail: { msg: '{{ __('app.Request_Terminated') }}' } }));

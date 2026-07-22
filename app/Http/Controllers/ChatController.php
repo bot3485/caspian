@@ -545,7 +545,11 @@ public function removeContact(Request $request): JsonResponse
         })
         ->delete();
 
-    return response()->json(['status' => 'success']);
+    return response()->json([
+        'success' => true,
+        'action' => 'removed',
+        'status' => 'success'
+    ]);
 }
 
 public function clearChat(Request $request): JsonResponse

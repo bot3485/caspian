@@ -1,5 +1,6 @@
 <?php
 return [
-'Roulette'=> 'Rulet',
-'Rooms'=>    'Odalar',
+'Settings'=> 'Ayarlar',
+'Exit'=>    'Çikiş',
+'Logged_In'=> 'Oturum Açık',
 ];

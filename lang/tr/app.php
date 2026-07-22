@@ -26,4 +26,6 @@ return [
 'Calling'=>                    'Aranıyor',
 'Call_Ended'=>                 'Çağrı Sonlandı',
 'Protocol_Already_Active'=>    'Protokol Zaten Aktif',
+'Request_Terminated'=>         'Talep Reddedildi',
+'Identity_Verified'=>          'Talep Kabul Edildi',
 ];

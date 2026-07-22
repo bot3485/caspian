@@ -26,4 +26,6 @@ return [
 'Calling'=>                    'Calling',
 'Call_Ended'=>                 'Call Ended',
 'Protocol_Already_Active'=>    'Protocol Already Active',
+'Request_Terminated'=>         'Request Terminated',
+'Identity_Verified'=>          'Identity Verified',
 ];

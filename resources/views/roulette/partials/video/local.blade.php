@@ -6,8 +6,12 @@
          'h-[30%] md:h-full md:w-[25%] opacity-50 grayscale-[30%] hover:opacity-80': layoutFocus === 'remote'
      }"
      class="elegant-glass led-container-fx relative rounded-[2.5rem] transition-all duration-700 ease-[cubic-bezier(0.25,1,0.5,1)] cursor-pointer group overflow-hidden">
+    
     <!-- Внутренний контейнер видео -->
     <div class="relative w-full h-full rounded-[2.4rem] overflow-hidden bg-[#050505] shadow-[inset_0_0_30px_rgba(0,0,0,0.8)] z-10">
+        
+        <!-- НОВОЕ: Внутреннее контурное LED кольцо -->
+        <div class="inner-video-ring"></div>
         
         <video x-ref="localVideo" id="localVideo" autoplay muted playsinline webkit-playsinline
             :class="[getFilterClass('local'), { 'blitz-hell-video': isBlitzActive, 'scale-x-[-1]': true }]"
@@ -24,6 +28,7 @@
                 <span class="text-[8px] text-gray-500 transition-transform duration-300" :class="expanded ? 'rotate-180 text-brand-indigo' : ''">▼</span>
             </button>
 
+            <!-- Модальное окно фильтров и т.д. -->
             <div x-show="expanded" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 -translate-y-4 scale-95" x-transition:enter-end="opacity-100 translate-y-0 scale-100" x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100 translate-y-0 scale-100" x-transition:leave-end="opacity-0 -translate-y-2 scale-95" class="absolute top-full left-0 mt-3 p-5 bg-[#0a0a0a]/95 backdrop-blur-3xl rgb-led-border border-transparent rounded-[1.5rem] shadow-[0_30px_60px_rgba(0,0,0,0.8)] min-w-[220px] pointer-events-auto flex flex-col gap-4" @click.stop="" x-cloak>
                 <div class="text-[8px] font-black uppercase tracking-[0.4em] text-gray-500 border-b border-white/5 pb-2">{{ __('chatroulette.Target') }}</div>
                 <div class="flex justify-between items-center text-[10px] font-black uppercase tracking-widest">

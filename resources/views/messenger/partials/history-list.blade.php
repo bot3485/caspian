@@ -8,7 +8,7 @@
                     <div class="text-[8px] font-black text-gray-600 uppercase tracking-widest mt-1" x-text="h.last_met_diff"></div>
                 </div>
             </div>
-            <button @click="if(confirm('Block user?')) { window.axios.post('/chat/block', {userId: h.id}).then(() => loadHistory()) }" 
+            <button @click="if(confirm('{{ __('messenger.Block') }}')) { window.axios.post('/chat/block', {userId: h.id}).then(() => loadHistory()) }" 
                     class="w-9 h-9 flex items-center justify-center rounded-xl bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white transition-all">
                 🚩
             </button>

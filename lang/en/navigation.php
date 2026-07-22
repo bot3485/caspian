@@ -1,5 +1,6 @@
 <?php
 return [
-'Roulette'=> 'Roulette',
-'Rooms'=>    'Rooms',
+'Settings'=> 'Settings',
+'Exit'=>    'Exit',
+'Logged_In'=> 'Legged In',
 ];

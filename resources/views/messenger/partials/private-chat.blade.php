@@ -30,8 +30,8 @@
                     <div class="w-full flex flex-col items-center py-4 bg-brand-indigo/5 rounded-[2rem] border border-brand-indigo/10 my-2">
                         <span class="text-[9px] font-black uppercase tracking-[0.3em] text-brand-indigo mb-4">{{ __('messenger.Incoming_Protocol') }}</span>
                         <div class="flex gap-2" x-show="Number(msg.sender_id) !== Number({{ auth()->id() }})">
-                            <button @click="handleFriendRequest(msg.sender_id, 'accept')" class="px-6 py-2 bg-brand-indigo text-white rounded-lg text-[9px] font-black uppercase">{{ __('messenger.Unblock') }}</button>
-                            <button @click="handleFriendRequest(msg.sender_id, 'decline')" class="px-6 py-2 bg-white/5 text-gray-500 rounded-lg text-[9px] font-black uppercase">Term</button>
+                            <button @click="handleFriendRequest(msg.sender_id, 'accept')" class="px-6 py-2 bg-brand-indigo text-white rounded-lg text-[9px] font-black uppercase">{{ __('messenger.Accept') }}</button>
+                            <button @click="handleFriendRequest(msg.sender_id, 'decline')" class="px-6 py-2 bg-white/5 text-gray-500 rounded-lg text-[9px] font-black uppercase">{{ __('messenger.Decline') }}</button>
                         </div>
                     </div>
                 </template>

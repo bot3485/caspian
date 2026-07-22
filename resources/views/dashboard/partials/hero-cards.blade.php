@@ -1,7 +1,6 @@
 <div class="grid grid-cols-1 md:grid-cols-12 gap-6 auto-rows-min">
     <!-- VIDEO ROULETTE -->
     <a href="{{ route('chat') }}" class="md:col-span-6 group relative min-h-[350px] led-frame rounded-[2.5rem] overflow-hidden bg-brand-indigo p-8 flex flex-col justify-between transition-all duration-500 border border-white/10 shadow-2xl">
-        <div class="absolute led-content inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10 pointer-events-none"></div>
         <div class="relative z-10">
             <span class="px-4 py-1.5 rounded-full bg-white/15 backdrop-blur-md text-[8px] font-black uppercase tracking-widest border border-white/10 animate-pulse">{{ __('dashboard.Good_Luck') }}</span>
             <h2 class="text-4xl sm:text-6xl font-black tracking-tighter uppercase italic leading-[0.85] mt-6">{{ __('dashboard.Video') }}<br>{{ __('dashboard.Roulette') }}</h2>

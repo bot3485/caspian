@@ -6,9 +6,13 @@
          'h-[30%] md:h-full md:w-[25%] opacity-50 grayscale-[30%] hover:opacity-80': layoutFocus === 'local'
      }"
      class="elegant-glass led-container-fx relative rounded-[2.5rem] transition-all duration-700 ease-[cubic-bezier(0.25,1,0.5,1)] cursor-pointer group overflow-hidden">
+    
     <!-- Внутренний контейнер видео -->
     <div class="relative w-full h-full rounded-[2.4rem] overflow-hidden bg-[#050505] shadow-[inset_0_0_30px_rgba(0,0,0,0.8)] z-10">
         
+        <!-- НОВОЕ: Внутреннее контурное LED кольцо (Синхронизировано с body.leds-on) -->
+        <div class="inner-video-ring"></div>
+            
         <video x-ref="remoteVideo" id="remoteVideo" autoplay playsinline webkit-playsinline 
             :class="[getFilterClass('remote'), { 'blitz-hell-video': isBlitzActive, 'opacity-30 blur-xl scale-110': isRemoteBlurred && !isBlitzActive }]"
             class="absolute inset-0 w-full h-full object-cover transition-all duration-1000 bg-[#050505] z-0">
@@ -55,27 +59,28 @@
             </div>
         </div>
 
+        <!-- АВАТАР И ФЛАГ -->
         <div x-show="state === 'connected' && partnerData" class="absolute top-5 left-5 md:top-6 md:left-6 z-40 flex items-start pointer-events-none" x-cloak>
-    <div class="relative w-14 h-14 md:w-16 md:h-16 shrink-0 pointer-events-auto block z-10 hover:scale-105 transition-transform duration-300" style="transform: translateZ(0);">
-        
-        <!-- Аура реагирует на leds-on -->
-        <div x-show="partnerData" class="absolute -inset-3 rounded-full blur-[15px] pointer-events-none z-0 gender-aura"
-             :style="{ backgroundColor: partnerData?.ban_count > 0 ? '#ef4444' : (partnerData?.gender === 'female' ? '#ec4899' : '#3b82f6') }"></div>
+            <div class="relative w-14 h-14 md:w-16 md:h-16 shrink-0 pointer-events-auto block z-10 hover:scale-105 transition-transform duration-300" style="transform: translateZ(0);">
+                
+                <!-- Аура реагирует на leds-on -->
+                <div x-show="partnerData" class="absolute -inset-3 rounded-full blur-[15px] pointer-events-none z-0 gender-aura"
+                     :style="{ backgroundColor: partnerData?.ban_count > 0 ? '#ef4444' : (partnerData?.gender === 'female' ? '#ec4899' : '#3b82f6') }"></div>
 
-        <!-- Кольцо реагирует на leds-on -->
-        <div class="gender-ring-wrapper">
-            <div class="gender-ring"
-                 :style="partnerData?.ban_count > 0 ? { background: 'conic-gradient(from 0deg, transparent, #ef4444, transparent)' } : { background: partnerData?.gender === 'female' ? 'conic-gradient(from 0deg, transparent, rgba(236,72,153,0.8), transparent)' : 'conic-gradient(from 0deg, transparent, rgba(59,130,246,0.8), transparent)' }"></div>
+                <!-- Кольцо реагирует на leds-on -->
+                <div class="gender-ring-wrapper">
+                    <div class="gender-ring"
+                         :style="partnerData?.ban_count > 0 ? { background: 'conic-gradient(from 0deg, transparent, #ef4444, transparent)' } : { background: partnerData?.gender === 'female' ? 'conic-gradient(from 0deg, transparent, rgba(236,72,153,0.8), transparent)' : 'conic-gradient(from 0deg, transparent, rgba(59,130,246,0.8), transparent)' }"></div>
+                </div>
+                
+                <!-- САМ ФЛАГ -->
+                <button @click.stop.prevent="uiShowPartnerCard = !uiShowPartnerCard" type="button" class="relative w-full h-full rounded-[1.4rem] overflow-hidden border border-white/10 shadow-xl transition-all duration-300 active:scale-95 group bg-[#020202] focus:outline-none z-20">
+                    <div class="absolute inset-0 bg-black/20 group-hover:bg-transparent transition-colors z-10"></div>
+                    <img :src="partnerData?.country_flag" class="w-full h-full object-cover transition-all duration-700 opacity-90 group-hover:scale-110 group-hover:opacity-100" crossorigin="anonymous">
+                </button>
+                
+            </div>
         </div>
-        
-        <!-- САМ ФЛАГ -->
-        <button @click.stop.prevent="uiShowPartnerCard = !uiShowPartnerCard" type="button" class="relative w-full h-full rounded-[1.4rem] overflow-hidden border border-white/10 shadow-xl transition-all duration-300 active:scale-95 group bg-[#020202] focus:outline-none z-20">
-            <div class="absolute inset-0 bg-black/20 group-hover:bg-transparent transition-colors z-10"></div>
-            <img :src="partnerData?.country_flag" class="w-full h-full object-cover transition-all duration-700 opacity-90 group-hover:scale-110 group-hover:opacity-100" crossorigin="anonymous">
-        </button>
-        
-    </div>
-</div>
 
         <div x-show="state === 'connected'" class="absolute top-24 right-5 md:top-24 md:right-6 z-40 flex items-center pointer-events-none" x-cloak>
             <div @click.stop="timerExpanded = !timerExpanded" class="group flex items-center gap-3 px-3 py-2.5 rounded-2xl border border-white/[0.05] bg-black/60 backdrop-blur-2xl cursor-pointer transition-all duration-500 hover:bg-white/10 hover:border-white/20 shadow-xl pointer-events-auto" :class="timerExpanded ? 'max-w-[150px] pr-5' : 'max-w-[48px] pr-3.5'">

@@ -83,3 +83,48 @@
   0% { background-position: 0% 50%; }
   100% { background-position: 100% 50%; }
 }
+
+@layer utilities {
+  /* Базовое кибер-стекло */
+  .cyber-glass {
+    background: rgba(10, 10, 10, 0.6);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+  }
+
+  /* Дизайн кнопок мессенджера и рулетки */
+  .btn-glass {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    backdrop-filter: blur(10px);
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .btn-glass:hover {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.15);
+    transform: translateY(-2px);
+  }
+
+  /* Основная кнопка действия (Indigo-Purple) */
+  .btn-primary {
+    background: linear-gradient(135deg, rgba(99,102,241,0.8), rgba(168,85,247,0.8));
+    border: 1px solid rgba(255,255,255,0.2);
+    box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+    transition: all 0.4s ease;
+  }
+  .btn-primary:hover {
+    background: linear-gradient(135deg, rgba(99,102,241,0.9), rgba(168,85,247,0.9));
+    transform: scale(1.02);
+  }
+
+  /* Скроллбар для киберинтерфейса */
+  .custom-scrollbar::-webkit-scrollbar { 
+    width: 4px; 
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb { 
+    background: rgba(99, 102, 241, 0.3); 
+    border-radius: 10px; 
+  }
+}

@@ -50,5 +50,8 @@ return [
 'No_Signal'=>              'Нет сигнала',
 'Prestige_Status'=>        'Престиж',
 'Past_Violations'=>        'Прошлые Нарушения',
-'Latency'=>                'Задержка'
+'Latency'=>                'Задержка',
+'Snapshot'=>               'Скриншот',
+'Deafen'=>                 'Заглушить Собеседника',
+'PiP'=>                    'PiP',
 ];

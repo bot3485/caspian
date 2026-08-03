@@ -1,31 +1,73 @@
-*.log
-.DS_Store
+# --- ОСНОВНОЕ ---
+/node_modules
+/vendor
 .env
 .env.backup
 .env.production
-.phpactor.json
-.phpunit.result.cache
-/.codex
-/.cursor/
-/.idea
-/.nova
-/.phpunit.cache
-/.vscode
-/.zed
-/auth.json
-/node_modules
-/public/build
-/public/fonts-manifest.dev.json
-/public/hot
-/public/storage
-/storage/*.key
-/storage/pail
-/vendor
-_ide_helper.php
+auth.json
 Homestead.json
 Homestead.yaml
+.phpunit.result.cache
+/.phpunit.cache
+.serverless/
+/public/hot
+/public/storage
+/public/build
+
+# --- SECURITY: КРИТИЧЕСКИЕ ДЫРЫ ---
+# Удаляем скрипты, которые светят структуру папок и права доступа
+/public/test_write.php
+# Если Capacitor генерирует временный index.html в public, его тоже лучше скрыть
+/public/index.html
+
+# --- LARAVEL STORAGE ---
+/storage/*.key
+/storage/app/*
+!/storage/app/public
+/storage/framework/cache/data/*
+/storage/framework/sessions/*
+/storage/framework/testing/*
+/storage/framework/views/*
+/storage/pail
+/storage/debugbar
+/storage/logs/*
+*.log
+
+# --- EVIDENCE & REPORTS (Sentient Shield) ---
+# Строго блокируем все скриншоты нарушителей
+/storage/app/public/reports/*
+!/storage/app/public/reports/.gitignore
+
+# --- ANDROID & CAPACITOR (Твоего этого не было) ---
+/android/.gradle
+/android/app/build
+/android/app/src/main/assets/public
+/android/local.properties
+/android/app/google-services.json
+/android/app/src/main/res/raw/
+*.keystore
+*.jks
+*.apk
+*.aar
+
+# --- OCTANE & BINARIES ---
+.rr.yaml
+# Если используешь Swoole/Roadrunner, скрываем их бинарники, если они скачаны в корень
+rr
+
+# --- IDE & СИСТЕМА ---
+.DS_Store
 Thumbs.db
-.vscode-server/
+/.idea
+/.vscode
+/.vscode-server
+/.cursor/
+/.nova
+/.zed
+/.codex
 .local/
 .npm/
 .cache/
+_ide_helper.php
+_ide_helper_models.php
+.phpstorm.meta.php

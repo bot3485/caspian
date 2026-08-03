@@ -2,9 +2,11 @@ import './bootstrap';
 
 import Alpine from 'alpinejs';
 import axios from 'axios';
+import caspianCore from './components/caspian-core';
 
+
+Alpine.data('caspianApp', caspianCore);
 window.Alpine = Alpine;
-
 /**
  * Настройка Axios
  */

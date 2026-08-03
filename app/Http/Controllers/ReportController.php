@@ -3,80 +3,88 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\{Auth, DB};
-use App\Models\User;
-use Carbon\Carbon;
+use Illuminate\Support\Facades\{Auth, DB, Storage};
+use Illuminate\Support\Str;
 
 class ReportController extends Controller
 {
-    /**
-     * Обработка жалобы с автоматической блокировкой (ЧС).
-     */
-public function store(Request $request)
-{
-    $reporterId = Auth::id();
-    $reportedId = (int)$request->reported_id;
+    public function store(Request $request)
+    {
+        $reporterId = Auth::id();
+        $reportedId = (int)$request->reported_id;
 
-    return DB::transaction(function() use ($reporterId, $reportedId, $request) {
-        $user = \App\Models\User::lockForUpdate()->find($reportedId);
-        if (!$user) return response()->json(['error' => 'Not found'], 404);
+        return DB::transaction(function() use ($reporterId, $reportedId, $request) {
+            $user = \App\Models\User::lockForUpdate()->find($reportedId);
+            if (!$user) return response()->json(['error' => 'Not found'], 404);
 
-        // 1. ШТРАФ ЗА ЖАЛОБУ: -30 кармы сразу
-        $user->decrement('karma', 30);
-        if ($user->karma < 0) $user->update(['karma' => 0]);
+            // --- ОБРАБОТКА СКРИНШОТА (Evidence) ---
+            $evidencePath = null;
+            if ($request->filled('image')) {
+                try {
+                    $imageData = $request->input('image');
+                    // Убираем заголовок "data:image/jpeg;base64,"
+                    $image = str_replace('data:image/jpeg;base64,', '', $imageData);
+                    $image = str_replace(' ', '+', $image);
+                    
+                    // Генерируем уникальное имя файла
+                    $fileName = 'evidence_' . time() . '_' . Str::random(10) . '.jpg';
+                    $path = 'reports/' . $fileName;
 
-        // 2. ЗАПИСЬ ЖАЛОБЫ (в блоках и репортах)
-        DB::table('blocks')->updateOrInsert(
-            ['blocker_id' => $reporterId, 'blocked_id' => $reportedId],
-            ['created_at' => now(), 'updated_at' => now()]
-        );
+                    // Сохраняем в папку storage/app/local/reports
+                    Storage::disk('local')->put($path, base64_decode($image));
+                    $evidencePath = $path;
+                } catch (\Exception $e) {
+                    \Log::error("Failed to save report screenshot: " . $e->getMessage());
+                }
+            }
 
-        DB::table('reports')->insert([
-            'reporter_id' => $reporterId,
-            'reported_id' => $reportedId,
-            'reason' => $request->reason ?? 'general',
-            'created_at' => now()
-        ]);
-
-        // 3. СЧИТАЕМ НОВЫЕ ЖАЛОБЫ (только те, что прилетели после последнего бана)
-        // Если банов еще не было, считаем с момента регистрации
-        $sinceDate = $user->last_ban_at ?? $user->created_at;
-        $activeReportsCount = DB::table('reports')
-            ->where('reported_id', $reportedId)
-            ->where('created_at', '>', $sinceDate)
-            ->count();
-
-        // 4. ЛОГИКА БАНА (если набралось 5 новых жалоб)
-        if ($activeReportsCount >= 5) {
-            $user->increment('ban_count'); // Увеличиваем общий счетчик банов
-            $user->decrement('karma', 100); // Дополнительный штраф -100 за сам бан
+            // 1. ШТРАФ ЗА ЖАЛОБУ: -30 кармы
+            $user->decrement('karma', 30);
             if ($user->karma < 0) $user->update(['karma' => 0]);
 
-            // ОПРЕДЕЛЯЕМ ДЛИТЕЛЬНОСТЬ БАНА (Прогрессия)
-            $banDays = match ($user->ban_count) {
-                1 => 1,       // 1-й раз: день
-                2 => 7,       // 2-й раз: неделя
-                3 => 30,      // 3-й раз: месяц
-                default => 36500, // 4-й раз и далее: 100 лет (пермач)
-            };
+            // 2. ЗАПИСЬ ЖАЛОБЫ (включая путь к скриншоту)
+            DB::table('blocks')->updateOrInsert(
+                ['blocker_id' => $reporterId, 'blocked_id' => $reportedId],
+                ['created_at' => now(), 'updated_at' => now()]
+            );
 
-            $user->update([
-                'banned_until' => now()->addDays($banDays),
-                'last_ban_at' => now(), // Фиксируем время, чтобы обнулить отсчет жалоб
+            DB::table('reports')->insert([
+                'reporter_id' => $reporterId,
+                'reported_id' => $reportedId,
+                'reason' => $request->reason ?? 'general',
+                'evidence_path' => $evidencePath, // ТУТ ХРАНИМ ПУТЬ
+                'created_at' => now()
             ]);
 
-            // Выкидываем нарушителя из системы
-            broadcast(new \App\Events\WebRTCSignalEvent($reportedId, [
-                'type' => 'you-are-blocked',
-                'reason' => 'System ban level ' . $user->ban_count
-            ]));
-        }
+            // 3. ПРОВЕРКА НА БАН (как у тебя была)
+            $sinceDate = $user->last_ban_at ?? $user->created_at;
+            $activeReportsCount = DB::table('reports')
+                ->where('reported_id', $reportedId)
+                ->where('created_at', '>', $sinceDate)
+                ->count();
 
-        // Разрываем текущий матч в любом случае
-        broadcast(new \App\Events\WebRTCSignalEvent($reportedId, ['type' => 'peer-disconnected']));
-        \App\Models\Matchmaking::whereIn('user_id', [$reporterId, $reportedId])->delete();
+            if ($activeReportsCount >= 5) {
+                // Твоя логика бана (1 день, 7 дней и т.д.)
+                $user->increment('ban_count');
+                $banDays = match ($user->ban_count) {
+                    1 => 1, 2 => 7, 3 => 30, default => 36500,
+                };
 
-        return response()->json(['status' => 'success', 'ban_level' => $user->ban_count]);
-    });
-}
+                $user->update([
+                    'banned_until' => now()->addDays($banDays),
+                    'last_ban_at' => now(),
+                ]);
+
+                broadcast(new \App\Events\WebRTCSignalEvent($reportedId, [
+                    'type' => 'you-are-blocked',
+                    'reason' => 'System ban level ' . $user->ban_count
+                ]));
+            }
+
+            broadcast(new \App\Events\WebRTCSignalEvent($reportedId, ['type' => 'peer-disconnected']));
+            \App\Models\Matchmaking::whereIn('user_id', [$reporterId, $reportedId])->delete();
+
+            return response()->json(['status' => 'success']);
+        });
+    }
 }

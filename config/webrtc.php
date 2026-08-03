@@ -20,8 +20,8 @@ return [
                 'turns:85.132.8.162:5349?transport=tcp',
                 'turns:chatroulette.linkpc.net:5349?transport=tcp',
             ],
-            'username' => 'turn_user',
-            'credential' => 'T1I0nE886NsvfIkYBA3w',
+        'username' => env('TURN_USERNAME'),
+        'credential' => env('TURN_CREDENTIAL'),
         ],
     ],
 ];

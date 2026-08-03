@@ -22,7 +22,7 @@
         <nav class="flex justify-between items-center px-6 md:px-12 h-24 max-w-7xl w-full mx-auto">
             <div class="flex items-center gap-3">
                 <img src="{{ asset('roulette.jpg') }}" class="w-9 h-9 rounded-xl border border-white/10 shadow-lg shadow-indigo-500/10" alt="C">
-                <span class="text-lg font-black tracking-tighter uppercase italic">Caspian <span class="text-indigo-500">3.1</span></span>
+                <span class="text-lg font-black tracking-tighter uppercase italic">Caspian <span class="text-indigo-500"></span></span>
             </div>
         </nav>
 

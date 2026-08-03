@@ -28,7 +28,7 @@ class ChatController extends Controller
         if (!$request->has('accept_call') && !$request->has('call_to')) {
             $this->leaveChatAction->execute(Auth::id());
         }
-        return view('chat');
+        return view('roulette.index');
     }
 
     public function startSearching(Request $request): JsonResponse
@@ -544,6 +544,25 @@ public function removeContact(Request $request): JsonResponse
             $q->where('user_id', $contactId)->where('contact_id', $userId);
         })
         ->delete();
+
+    return response()->json([
+        'success' => true,
+        'action' => 'removed',
+        'status' => 'success'
+    ]);
+}
+
+public function clearChat(Request $request): JsonResponse
+{
+    $userId = Auth::id();
+    $contactId = (int)$request->contactId;
+
+    // Удаляем все сообщения между пользователями
+    \App\Models\Message::where(function($q) use ($userId, $contactId) {
+        $q->where('sender_id', $userId)->where('receiver_id', $contactId);
+    })->orWhere(function($q) use ($userId, $contactId) {
+        $q->where('sender_id', $contactId)->where('receiver_id', $userId);
+    })->delete();
 
     return response()->json(['status' => 'success']);
 }

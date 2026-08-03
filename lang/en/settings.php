@@ -5,6 +5,7 @@ return [
 'Change_Password'=>       'Change Password',
 'Password_Changed'=>      'Password is Updated',
 'Select_Your_Interests'=> 'Select Your Interests',
+'Interests_Matrix'=>      'Interests Matrix',
 'Pesronal_Information'=>  'Pesronal Information',
 'Update_name_and_email'=> 'Update your profile name and email address',
 'Save_Changes'=>          'Save Changes',
@@ -20,5 +21,10 @@ return [
 'Are_You_Sure'=>          'Are you sure you want to delete your account?',
 'Delete_Account_Desc2'=>  'Once your account is deleted, all of its resources and data will be permanently deleted. Before deleting your account, please download any data or information that you wish to retain.',
 'Your_Profile'=>          'Your Profile',
-'Settings'=>              'Настройки'
+'Settings'=>              'Настройки',
+'Gender'=>                'Gender',
+'Age'=>                   'Age',
+'Male'=>                  'Male',
+'Female'=>                'Female',
+'Update_Tags'=>           'Update Tags'
 ];

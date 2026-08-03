@@ -52,7 +52,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::middleware([ClearChatState::class])->group(function () {
         
         Route::get('/dashboard', function () {
-            return view('dashboard');
+            return view('dashboard.index');
         })->name('dashboard');
 
         Route::get('/leaderboard', [ChatController::class, 'leaderboard'])->name('leaderboard');
@@ -113,6 +113,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::get('/blocked', 'getBlockedUsers')->name('chat.blocked');
             Route::post('/block', 'blockUser')->name('chat.block');
             Route::post('/unblock', 'unblockUser')->name('chat.unblock');
+            Route::post('/clear-messages', [ChatController::class, 'clearChat'])->name('chat.clear');
         });
     });
 });

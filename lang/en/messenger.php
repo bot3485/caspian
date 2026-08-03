@@ -13,5 +13,16 @@ return [
 'Logs'=>                   'Logs',
 'Contacts'=>               'Contacts',
 'Roulette_Chat'=>          'Roulette Chat',
-
+'Add_Friend'=>             'Add Friend',
+'Block_User_Confirm'=>     'Block and Report This User?',
+'Block_User'=>             'If you block a user, they wont be able to text you, call you, or be included in the roulette',
+'Chat_Will_Unlock'=>       'Chat will unlock once the protocol is accepted',
+'Connection_Pending'=>     'Connection is Pending',
+'Protocol_Friend'=>        'Protocol established. You are now friends',
+'Handshake_Waiting'=>      'Handshake initiated. Waiting',
+'Connection_requested'=>   'Connection requested by user',
+'Incoming_Protocol'=>      'Incoming Protocol',
+'Pending'=>                'Pending',
+'Accept'=>                 'Accept',
+'Decline'=>                'Decline',
 ];

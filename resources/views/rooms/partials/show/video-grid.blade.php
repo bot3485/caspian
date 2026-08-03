@@ -6,18 +6,20 @@
     
     <!-- 1. HOST VIDEO (ВЫ) -->
     <div x-show="!isMaximized || focusedId === 'me'"
-         x-transition:enter="transition ease-out duration-500" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100"
+         x-transition:enter="transition ease-out duration-500" 
+         x-transition:enter-start="opacity-0 scale-95" 
+         x-transition:enter-end="opacity-100 scale-100"
          @click="toggleFocus('me')"
          class="relative overflow-hidden transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)] cursor-pointer group shrink-0 flex items-center justify-center"
          :class="focusedId === 'me' ? 'border border-white/10 shadow-[0_30px_60px_rgba(0,0,0,0.8),_0_0_60px_rgba(99,102,241,0.15)] z-[50] bg-black' : 'border border-white/[0.05] hover:border-white/30 bg-[#050505] z-10 shadow-xl'"
          :style="getBoxStyle('me')">
         
         <video x-ref="localVideo" autoplay muted playsinline webkit-playsinline 
-               class="w-full h-full transition-all duration-700" 
+               class="w-full h-full transition-all duration-700 pointer-events-none" 
                :class="[isScreenSharing ? 'scale-x-100' : 'scale-x-[-1]', focusedId === 'me' ? 'object-contain' : 'object-cover']"></video>
         
         <button x-show="focusedId === 'me'" @click.stop="isMaximized = !isMaximized"
-                class="absolute top-4 right-4 z-[60] w-10 h-10 bg-black/50 backdrop-blur-xl rounded-full border border-white/10 flex items-center justify-center hover:bg-white/10 transition-all">
+                class="absolute top-4 right-4 z-[60] w-10 h-10 bg-black/50 backdrop-blur-xl rounded-full border border-white/10 flex items-center justify-center hover:bg-white/10 transition-all pointer-events-auto">
             <svg x-show="!isMaximized" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg>
             <svg x-show="isMaximized" x-cloak class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 14h6m0 0v6m0-6l-7 7m17-11h-6m0 0V4m0 6l7-7M4 10h6m0 0V4m0 6l-7-7m17 11h-6m0 0v6m0-6l7 7"></path></svg>
         </button>
@@ -35,12 +37,16 @@
              :class="focusedId === peer.id ? 'border border-white/10 shadow-[0_30px_60px_rgba(0,0,0,0.8),_0_0_60px_rgba(99,102,241,0.15)] z-[50] bg-black' : 'border border-white/[0.05] hover:border-white/30 bg-[#050505] z-10 shadow-xl'"
              :style="getBoxStyle(peer.id)">
             
-            <video :id="'video-' + peer.id" autoplay playsinline webkit-playsinline 
-                   class="w-full h-full transition-all duration-700"
-                   :class="focusedId === peer.id ? 'object-contain' : 'object-cover'"></video>
+        <video :id="'video-' + peer.id" 
+            autoplay 
+            playsinline 
+            webkit-playsinline 
+            class="w-full h-full transition-all duration-700 pointer-events-none"
+            :class="focusedId === peer.id ? 'object-contain' : 'object-cover'">
+        </video>
             
             <button x-show="focusedId === peer.id" @click.stop="isMaximized = !isMaximized"
-                    class="absolute top-4 right-4 z-[60] w-10 h-10 bg-black/50 backdrop-blur-xl rounded-full border border-white/10 flex items-center justify-center hover:bg-white/10 transition-all">
+                    class="absolute top-4 right-4 z-[60] w-10 h-10 bg-black/50 backdrop-blur-xl rounded-full border border-white/10 flex items-center justify-center hover:bg-white/10 transition-all pointer-events-auto">
                 <svg x-show="!isMaximized" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg>
                 <svg x-show="isMaximized" x-cloak class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 14h6m0 0v6m0-6l-7 7m17-11h-6m0 0V4m0 6l7-7M4 10h6m0 0V4m0 6l-7-7m17 11h-6m0 0v6m0-6l7 7"></path></svg>
             </button>

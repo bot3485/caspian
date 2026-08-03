@@ -80,22 +80,44 @@ getBoxStyle(id) {
                         navigator.sendBeacon(url, data);
                     });
                     const channel = window.Echo.join(`room.${roomUuid}`);
+
                     channel.here(users => {
                         this.currentCount = users.length;
                         this.syncOccupancy(users.length);
-                        users.forEach(u => { if (u.id !== myId) self.initiateConnection(u.id, u.name, true); });
+                        // Я зашел и вижу тех, кто уже в комнате. 
+                        // Я инициирую соединение со ВСЕМИ (isInitiator = true)
+                        users.forEach(u => { 
+                            if (u.id !== myId) {
+                                this.initiateConnection(u.id, u.name, true); 
+                            }
+                        });
                     }).joining(u => {
                         this.currentCount = channel.subscription.members.count;
                         this.syncOccupancy(this.currentCount);
-                        self.initiateConnection(u.id, u.name, true);
+                        // Кто-то зашел. Я его вижу, но я НЕ инициирую соединение.
+                        // Я просто готовлю "слушателя" (isInitiator = false)
+                        // Он сам мне пришлет offer, так как я у него в списке .here()
+                        this.initiateConnection(u.id, u.name, false); 
                     }).leaving(u => {
-                        self.removePeer(u.id);
+                        this.removePeer(u.id);
                         this.currentCount = Math.max(0, channel.subscription.members.count - 1);
                         this.syncOccupancy(this.currentCount);
                     });
                     window.Echo.private(`user.${myId}`).listen('.WebRTCSignalEvent', (e) => {
                         if (e.data.roomUuid === roomUuid) self.handleSignal(e.data);
                     });
+                    setInterval(() => {
+                        if (!window._peerStreams) return;
+                        this.peers.forEach(peer => {
+                            const videoEl = document.getElementById('video-' + peer.id);
+                            const stream = window._peerStreams[peer.id];
+                            
+                            if (videoEl && stream && videoEl.srcObject !== stream) {
+                                videoEl.srcObject = stream;
+                                videoEl.play().catch(()=>{});
+                            }
+                        });
+                    }, 1000);
                     setInterval(() => { if (this.currentCount >= 0) this.syncOccupancy(this.currentCount); }, 20000);
                 },
 
@@ -143,145 +165,245 @@ getBoxStyle(id) {
                     } catch (e) { console.error("Error changing devices", e); }
                 },
 
-                async initiateConnection(partnerId, partnerName, isInitiator) {
-                    if (this.peers.find(p => p.id === partnerId)) return;
-                    if (!this.localStream) { setTimeout(() => { this.initiateConnection(partnerId, partnerName, isInitiator); }, 300); return; }
+async initiateConnection(partnerId, partnerName, isInitiator) {
+    if (this.peers.find(p => p.id === partnerId)) return;
+    
+    if (!this.localStream) {
+        let wait = 0;
+        while (!this.localStream && wait < 20) {
+            await new Promise(r => setTimeout(r, 200));
+            wait++;
+        }
+    }
+    if (!this.localStream) return;
 
-                    const self = this;
-                    const pc = new RTCPeerConnection(this.rtcConfig);
-                    const peerObj = { id: partnerId, name: partnerName, pc: pc, iceQueue: [], connected: false };
-                    this.peers.push(peerObj);
-                    
-                    this.localStream.getTracks().forEach(t => pc.addTrack(t, this.localStream));
-                    pc.onicecandidate = e => { if (e.candidate) self.sendSignal(partnerId, { type: 'ice', candidate: e.candidate }); };
-                    
-                    pc.ontrack = e => { 
-                        this.$nextTick(() => {
-                            const v = document.getElementById('video-' + partnerId);
-                            if (v) { v.srcObject = e.streams[0]; v.play().catch(()=>{}); }
+    const self = this;
+    const pc = new RTCPeerConnection(this.rtcConfig);
+    
+    const peerObj = { 
+        id: partnerId, 
+        name: partnerName, 
+        pc: pc, 
+        iceQueue: [], 
+        signalQueue: [], 
+        isProcessingQueue: false, 
+        connected: false,
+        makingOffer: false,
+        stream: null // НОВОЕ СВОЙСТВО
+    };
+    this.peers.push(peerObj);
+    
+    this.localStream.getTracks().forEach(t => pc.addTrack(t, this.localStream));
+
+    pc.onicecandidate = e => { 
+        if (e.candidate) self.sendSignal(partnerId, { type: 'ice', candidate: e.candidate }); 
+    };
+    
+pc.ontrack = e => { 
+        const remoteStream = e.streams[0];
+        
+        // 1. Прячем поток от Alpine.js в глобальный объект
+        if (!window._peerStreams) window._peerStreams = {};
+        window._peerStreams[partnerId] = remoteStream;
+
+        const tryAttach = () => {
+            const videoEl = document.getElementById('video-' + partnerId);
+            if (videoEl) {
+                if (videoEl.srcObject !== remoteStream) {
+                    videoEl.srcObject = remoteStream;
+                }
+                
+                // 2. Трюк из Chatroulette: играем без звука, затем включаем звук
+                setTimeout(() => {
+                    const playPromise = videoEl.play();
+                    if (playPromise !== undefined) {
+                        playPromise.catch(err => {
+                            if (err.name === 'AbortError') return; 
+                            videoEl.muted = true;
+                            videoEl.play().then(() => {
+                                setTimeout(() => { videoEl.muted = false; }, 100);
+                            }).catch(() => {});
                         });
-                    };
-                    
-                    pc.oniceconnectionstatechange = () => {
-                        const p = self.peers.find(x => x.id === partnerId);
-                        if (p) p.connected = (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed');
-                    };
-                    
-                    if (isInitiator) {
-                        const offer = await pc.createOffer();
-                        await pc.setLocalDescription(offer);
-                        this.sendSignal(partnerId, { type: 'offer', sdp: pc.localDescription.sdp });
                     }
-                },
+                }, 150);
+            } else {
+                // Если Alpine еще не отрендерил сетку, пробуем снова
+                setTimeout(tryAttach, 500);
+            }
+        };
+
+        tryAttach();
+    };
+    
+    pc.oniceconnectionstatechange = () => {
+        const p = self.peers.find(x => x.id === partnerId);
+        if (p) p.connected = (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed');
+    };
+
+    if (isInitiator) {
+        try {
+            peerObj.makingOffer = true;
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+            this.sendSignal(partnerId, { type: 'offer', sdp: pc.localDescription.sdp });
+        } catch (e) { console.error("Offer error", e); }
+        finally { peerObj.makingOffer = false; }
+    }
+},
+
+async processSignalQueue(peer) {
+    if (peer.isProcessingQueue || peer.signalQueue.length === 0) return;
+
+    peer.isProcessingQueue = true;
+    const signal = peer.signalQueue.shift();
+    const pc = peer.pc;
+
+    try {
+        if (signal.type === 'offer') {
+            // ЛОГИКА ИЗ ЧАТРУЛЕТКИ (Collision Negotiation)
+            const offerCollision = (peer.makingOffer || pc.signalingState !== "stable");
+            const isPolite = Number(this.myId) < Number(peer.id); // Младший ID всегда уступает
+            
+            if (offerCollision && !isPolite) {
+                console.log(`[WebRTC] Игнорируем оффер от ${peer.id} (Я - главный)`);
+                return;
+            }
+
+            if (offerCollision && isPolite) {
+                console.log(`[WebRTC] Откат локального оффера для ${peer.id}`);
+                await pc.setLocalDescription({ type: "rollback" }).catch(() => {});
+            }
+
+            await pc.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp: this.normalizeSdp(signal.sdp) }));
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+            this.sendSignal(peer.id, { type: 'answer', sdp: pc.localDescription.sdp });
+
+        } else if (signal.type === 'answer') {
+            if (pc.signalingState === "have-local-offer") {
+                await pc.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp: this.normalizeSdp(signal.sdp) }));
+            }
+        } else if (signal.type === 'ice' && signal.candidate) {
+            if (pc.remoteDescription) {
+                await pc.addIceCandidate(new RTCIceCandidate(signal.candidate)).catch(() => {});
+            } else {
+                peer.iceQueue.push(signal.candidate);
+            }
+        }
+
+        if (pc.remoteDescription && peer.iceQueue.length > 0) {
+            while(peer.iceQueue.length) {
+                await pc.addIceCandidate(new RTCIceCandidate(peer.iceQueue.shift())).catch(()=>{});
+            }
+        }
+    } catch (e) {
+        console.error("Critical Signal Error:", e);
+    } finally {
+        peer.isProcessingQueue = false;
+        this.processSignalQueue(peer);
+    }
+},
+
+
+async processSignalQueue(peer) {
+    if (peer.isProcessingQueue || peer.signalQueue.length === 0) return;
+
+    peer.isProcessingQueue = true;
+    const signal = peer.signalQueue.shift();
+    const pc = peer.pc;
+
+    try {
+        if (signal.type === 'offer') {
+            // Решение конфликтов (Collision Negotiation)
+            const offerCollision = (pc.signalingState !== "stable");
+            const ignoreOffer = offerCollision && (Number(myId) > Number(signal.from));
+
+            if (ignoreOffer) {
+                console.warn("⚠️ Collision: Ignoring offer from lower ID");
+                return;
+            }
+
+            if (offerCollision) {
+                await pc.setLocalDescription({ type: "rollback" }).catch(() => {});
+            }
+
+            await pc.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp: this.normalizeSdp(signal.sdp) }));
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+            this.sendSignal(peer.id, { type: 'answer', sdp: pc.localDescription.sdp });
+
+        } else if (signal.type === 'answer') {
+            if (pc.signalingState === "have-local-offer") {
+                await pc.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp: this.normalizeSdp(signal.sdp) }));
+            }
+        } else if (signal.type === 'ice' && signal.candidate) {
+            try {
+                if (pc.remoteDescription && pc.remoteDescription.type) {
+                    await pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
+                } else {
+                    peer.iceQueue.push(signal.candidate);
+                }
+            } catch (e) {}
+        }
+
+        // Применяем отложенные ICE кандидаты, если описание установилось
+        if (pc.remoteDescription && pc.remoteDescription.type && peer.iceQueue.length > 0) {
+            while(peer.iceQueue.length) {
+                await pc.addIceCandidate(new RTCIceCandidate(peer.iceQueue.shift())).catch(()=>{});
+            }
+        }
+
+    } catch (e) {
+        console.error("Queue Error:", e);
+    } finally {
+        peer.isProcessingQueue = false;
+        // Рекурсивно проверяем, не пришло ли что-то еще пока мы работали
+        this.processSignalQueue(peer);
+    }
+},
 
 async handleSignal(data) {
-                    const signal = data.type ? data : data.data; 
-                    const fromId = Number(signal.from);
+    const signal = data.type ? data : data.data; 
+    const fromId = Number(signal.from);
 
-                    // 🛑 ЗАЩИТА 1: Уникальный ID конкретного сообщения (например, по типу и таймстампу/sdp)
-                    // Если у тебя в signal нет уникального ID, генерируем отпечаток из типа и кусочка sdp
-                    const signalId = signal.id || `${signal.type}_${signal.sdp ? signal.sdp.substring(0, 40) : Math.random()}`;
-                    
-                    if (!window._processedSignals) window._processedSignals = new Set();
-                    if (window._processedSignals.has(signalId)) {
-                        console.warn("🚫 Перехвачен дубль сигнала, игнорируем:", signalId);
-                        return;
-                    }
-                    // Запоминаем сигнал на 5 секунд, чтобы дубликаты отсекались
-                    window._processedSignals.add(signalId);
-                    setTimeout(() => window._processedSignals.delete(signalId), 5000);
+let signalId = signal.id;
 
-                    let peer = this.peers.find(p => p.id === fromId);
-                    
-                    if (!peer && signal.type === 'offer') {
-                        await this.initiateConnection(fromId, 'User ' + fromId, false);
-                        peer = this.peers.find(p => p.id === fromId);
-                    }
-                    if (!peer) return;
+if (!signalId) {
+    if (signal.type === 'ice' && signal.candidate) {
+        // Для ICE-кандидатов используем саму строку кандидата как уникальный ID
+        signalId = `ice_${fromId}_${signal.candidate.candidate}`;
+    } else {
+        // Для offer/answer используем длину SDP
+        signalId = `${signal.type}_${fromId}_${signal.sdp ? signal.sdp.length : 'none'}`;
+    }
+}
 
-                    const pc = peer.pc;
+if (!window._processedSignals) window._processedSignals = new Set();
+if (window._processedSignals.has(signalId)) return;
 
-                    // 🛑 ЗАЩИТА 2: Блокировка параллельного выполнения для этого пира (mutex)
-                    if (peer.isHandlingSignal) {
-                        console.warn("⏳ Пир занят обработкой предыдущего сигнала, ждем...");
-                        // Небольшая задержка, чтобы потоки не дрались за стейт-машину
-                        await new Promise(r => setTimeout(r, 100));
-                    }
-                    peer.isHandlingSignal = true;
+window._processedSignals.add(signalId);
+// Для ICE кэш можно очищать быстрее, так как их много
+setTimeout(() => window._processedSignals.delete(signalId), signal.type === 'ice' ? 2000 : 10000);
 
-                    try {
-                        if (signal.type === 'offer') {
-                            const offerCollision = (pc.signalingState === "have-local-offer" || pc.localDescription);
-                            
-                            if (offerCollision) {
-                                if (Number(myId) >= fromId) return;
-                                await pc.setLocalDescription({ type: "rollback" }).catch(() => {});
-                            }
+    // 2. Ищем пира или создаем его, если пришел Offer
+    let peer = this.peers.find(p => p.id === fromId);
+    
+    if (!peer && signal.type === 'offer') {
+        await this.initiateConnection(fromId, 'User ' + fromId, false);
+        peer = this.peers.find(p => p.id === fromId);
+    }
 
-                            // Если соединение уже stable (а оно стало stable после rollback или из-за дубля), 
-                            // а мы пытаемся принять оффер — проверяем стейт
-                            if (pc.signalingState !== "stable") {
-                                return;
-                            }
-
-                            await pc.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp: this.normalizeSdp(signal.sdp) }));
-                            
-                            if (pc.signalingState !== "have-remote-offer") {
-                                return;
-                            }
-
-                            const answer = await pc.createAnswer();
-
-                            if (pc.signalingState !== "have-remote-offer") {
-                                return;
-                            }
-
-                            await pc.setLocalDescription(answer);
-                            this.sendSignal(fromId, { type: 'answer', sdp: pc.localDescription.sdp });
-                            
-                            while(peer.iceQueue.length) { 
-                                await pc.addIceCandidate(peer.iceQueue.shift()).catch(()=>{}); 
-                            }
-
-                        } else if (signal.type === 'answer') {
-                            // 🛑 ГЛАВНЫЙ ФИКС ОШИБКИ: Если стейт уже stable, мы вообще не трогаем setRemoteDescription
-                            if (pc.signalingState === "stable") {
-                                console.warn("Игнорируем answer: соединение уже stable");
-                                return;
-                            }
-                            
-                            if (pc.signalingState !== "have-local-offer") {
-                                console.warn("Игнорируем answer: неверный стейт:", pc.signalingState);
-                                return;
-                            }
-
-                            await pc.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp: this.normalizeSdp(signal.sdp) }));
-                            
-                            while(peer.iceQueue.length) { 
-                                await pc.addIceCandidate(peer.iceQueue.shift()).catch(()=>{}); 
-                            }
-
-                        } else if (signal.type === 'ice') {
-                            if (signal.candidate) {
-                                const cand = new RTCIceCandidate(signal.candidate);
-                                if (pc.remoteDescription && pc.remoteDescription.type) {
-                                    await pc.addIceCandidate(cand).catch(()=>{});
-                                } else {
-                                    peer.iceQueue.push(cand);
-                                }
-                            }
-                        }
-                    } catch(e) { 
-                        console.error("Signal Error", e); 
-                    } finally {
-                        // Снимаем блокировку в любом случае (даже если была ошибка)
-                        peer.isHandlingSignal = false;
-                    }
-                },
+    // 3. Если пир существует, просто добавляем сигнал в его очередь и запускаем процессор
+    if (peer) {
+        peer.signalQueue.push(signal);
+        this.processSignalQueue(peer);
+    }
+},
 
                 normalizeSdp(sdp) { return sdp ? sdp.split('\n').map(l => l.trim()).filter(l => l.length > 0).join('\r\n') + '\r\n' : ''; },
                 sendSignal(to, payload) { window.axios.post('/chat/signal', { partnerId: to, data: { ...payload, from: myId, roomUuid: roomUuid } }); },
                 removePeer(id) {
+                    if (window._peerStreams) delete window._peerStreams[id]; // Очищаем поток
                     const p = this.peers.find(x => x.id === id);
                     if (p) { 
                         p.pc.close(); 
@@ -292,6 +414,7 @@ async handleSignal(data) {
                             this.isMaximized = false;
                         }
                     }
+                    
                 },
 
                 toggleMic() { this.micEnabled = !this.micEnabled; if(this.localStream) this.localStream.getAudioTracks()[0].enabled = this.micEnabled; },

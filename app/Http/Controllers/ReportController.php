@@ -30,8 +30,8 @@ class ReportController extends Controller
                     $fileName = 'evidence_' . time() . '_' . Str::random(10) . '.jpg';
                     $path = 'reports/' . $fileName;
 
-                    // Сохраняем в папку storage/app/public/reports
-                    Storage::disk('public')->put($path, base64_decode($image));
+                    // Сохраняем в папку storage/app/local/reports
+                    Storage::disk('local')->put($path, base64_decode($image));
                     $evidencePath = $path;
                 } catch (\Exception $e) {
                     \Log::error("Failed to save report screenshot: " . $e->getMessage());

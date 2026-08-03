@@ -174,9 +174,23 @@ getBoxStyle(id) {
                     }
                 },
 
-                async handleSignal(data) {
+async handleSignal(data) {
                     const signal = data.type ? data : data.data; 
                     const fromId = Number(signal.from);
+
+                    // 🛑 ЗАЩИТА 1: Уникальный ID конкретного сообщения (например, по типу и таймстампу/sdp)
+                    // Если у тебя в signal нет уникального ID, генерируем отпечаток из типа и кусочка sdp
+                    const signalId = signal.id || `${signal.type}_${signal.sdp ? signal.sdp.substring(0, 40) : Math.random()}`;
+                    
+                    if (!window._processedSignals) window._processedSignals = new Set();
+                    if (window._processedSignals.has(signalId)) {
+                        console.warn("🚫 Перехвачен дубль сигнала, игнорируем:", signalId);
+                        return;
+                    }
+                    // Запоминаем сигнал на 5 секунд, чтобы дубликаты отсекались
+                    window._processedSignals.add(signalId);
+                    setTimeout(() => window._processedSignals.delete(signalId), 5000);
+
                     let peer = this.peers.find(p => p.id === fromId);
                     
                     if (!peer && signal.type === 'offer') {
@@ -185,28 +199,84 @@ getBoxStyle(id) {
                     }
                     if (!peer) return;
 
+                    const pc = peer.pc;
+
+                    // 🛑 ЗАЩИТА 2: Блокировка параллельного выполнения для этого пира (mutex)
+                    if (peer.isHandlingSignal) {
+                        console.warn("⏳ Пир занят обработкой предыдущего сигнала, ждем...");
+                        // Небольшая задержка, чтобы потоки не дрались за стейт-машину
+                        await new Promise(r => setTimeout(r, 100));
+                    }
+                    peer.isHandlingSignal = true;
+
                     try {
                         if (signal.type === 'offer') {
-                            const pc = peer.pc;
-                            const offerCollision = (signal.type === "offer") && (pc.signalingState === "have-local-offer" || pc.localDescription);
-                            if (offerCollision && Number(myId) >= fromId) return;
-                            if (offerCollision && Number(myId) < fromId) await pc.setLocalDescription({ type: "rollback" }).catch(() => {});
+                            const offerCollision = (pc.signalingState === "have-local-offer" || pc.localDescription);
+                            
+                            if (offerCollision) {
+                                if (Number(myId) >= fromId) return;
+                                await pc.setLocalDescription({ type: "rollback" }).catch(() => {});
+                            }
+
+                            // Если соединение уже stable (а оно стало stable после rollback или из-за дубля), 
+                            // а мы пытаемся принять оффер — проверяем стейт
+                            if (pc.signalingState !== "stable") {
+                                return;
+                            }
 
                             await pc.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp: this.normalizeSdp(signal.sdp) }));
+                            
+                            if (pc.signalingState !== "have-remote-offer") {
+                                return;
+                            }
+
                             const answer = await pc.createAnswer();
+
+                            if (pc.signalingState !== "have-remote-offer") {
+                                return;
+                            }
+
                             await pc.setLocalDescription(answer);
                             this.sendSignal(fromId, { type: 'answer', sdp: pc.localDescription.sdp });
-                            while(peer.iceQueue.length) { await pc.addIceCandidate(peer.iceQueue.shift()).catch(()=>{}); }
+                            
+                            while(peer.iceQueue.length) { 
+                                await pc.addIceCandidate(peer.iceQueue.shift()).catch(()=>{}); 
+                            }
+
                         } else if (signal.type === 'answer') {
-                            if (peer.pc.signalingState === "stable") return;
-                            await peer.pc.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp: this.normalizeSdp(signal.sdp) }));
-                            while(peer.iceQueue.length) { await peer.pc.addIceCandidate(peer.iceQueue.shift()).catch(()=>{}); }
+                            // 🛑 ГЛАВНЫЙ ФИКС ОШИБКИ: Если стейт уже stable, мы вообще не трогаем setRemoteDescription
+                            if (pc.signalingState === "stable") {
+                                console.warn("Игнорируем answer: соединение уже stable");
+                                return;
+                            }
+                            
+                            if (pc.signalingState !== "have-local-offer") {
+                                console.warn("Игнорируем answer: неверный стейт:", pc.signalingState);
+                                return;
+                            }
+
+                            await pc.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp: this.normalizeSdp(signal.sdp) }));
+                            
+                            while(peer.iceQueue.length) { 
+                                await pc.addIceCandidate(peer.iceQueue.shift()).catch(()=>{}); 
+                            }
+
                         } else if (signal.type === 'ice') {
-                            const cand = new RTCIceCandidate(signal.candidate);
-                            if (peer.pc.remoteDescription && peer.pc.remoteDescription.type) await peer.pc.addIceCandidate(cand).catch(()=>{});
-                            else peer.iceQueue.push(cand);
+                            if (signal.candidate) {
+                                const cand = new RTCIceCandidate(signal.candidate);
+                                if (pc.remoteDescription && pc.remoteDescription.type) {
+                                    await pc.addIceCandidate(cand).catch(()=>{});
+                                } else {
+                                    peer.iceQueue.push(cand);
+                                }
+                            }
                         }
-                    } catch(e) { console.error("Signal Error", e); }
+                    } catch(e) { 
+                        console.error("Signal Error", e); 
+                    } finally {
+                        // Снимаем блокировку в любом случае (даже если была ошибка)
+                        peer.isHandlingSignal = false;
+                    }
                 },
 
                 normalizeSdp(sdp) { return sdp ? sdp.split('\n').map(l => l.trim()).filter(l => l.length > 0).join('\r\n') + '\r\n' : ''; },

@@ -22,13 +22,26 @@ class ChatController extends Controller
         protected FindPartner $findPartnerAction
     ) {}
 
-    public function index(Request $request)
+public function index(Request $request)
     {
-        // Если зашли просто так (не по звонку), выходим из старых очередей
         if (!$request->has('accept_call') && !$request->has('call_to')) {
             $this->leaveChatAction->execute(Auth::id());
         }
-        return view('roulette.index');
+
+        $initData = [
+            'myId' => Auth::id(),
+            'myInterests' => Auth::user()->interests ?? [],
+            'iceServers' => config('webrtc.ice_servers'), // <--- Подтягиваем из конфига
+            'translations' => __('chatroulette'),
+            'currentLevel' => Auth::user()->level ?? 1,
+            'totalXp' => Auth::user()->xp ?? 0,
+            'targetCountry' => Auth::user()->target_country ?? 'global',
+            'targetGender' => Auth::user()->target_gender ?? 'all',
+            'targetAgeMin' => Auth::user()->target_age_min ?? 18,
+            'targetAgeMax' => Auth::user()->target_age_max ?? 99,
+        ];
+
+        return view('roulette.index', compact('initData'));
     }
 
     public function startSearching(Request $request): JsonResponse

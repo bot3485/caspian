@@ -76,7 +76,11 @@ export default (initData) => ({
     partnerCamEnabled: true, // НОВОЕ: Знает ли собеседник, что мы включили камеру
     partnerMicEnabled: true, // НОВОЕ: Знает ли собеседник, что мы включили микрофон
     partnerFilters: { beauty: false, cinema: false },
-    rtcConfig: { iceServers: initData.iceServers, bundlePolicy: "balanced", iceCandidatePoolSize: 10 },
+    rtcConfig: { 
+        iceServers: initData.iceServers, 
+        bundlePolicy: "balanced", 
+        iceCandidatePoolSize: 10, // ВРЕМЕННО: Заставит трафик идти ТОЛЬКО через TURN
+    },
 
     // --- ЛОГИКА ТАРГЕТИНГА ---
     targetCountry: initData.targetCountry,
@@ -845,7 +849,7 @@ export default (initData) => ({
             return;
         }
 
-        if (m.type === 'roulette-chat') {
+if (m.type === 'roulette-chat') {
             if (this.audioUnlocked) this.msgSound.play().catch(()=>{});
             
             this.messages.push({
@@ -857,13 +861,31 @@ export default (initData) => ({
             return;
         }
 
-        if (this.isProcessingSignal) return;
-        
+        // 🛑 1. ЗАЩИТА ОТ ДВОЙНЫХ ПАКЕТОВ REVERB (Тот самый фикс из комнат)
+        let signalId = m.id;
+        if (!signalId) {
+            if (m.type === 'ice' && m.candidate) {
+                signalId = `ice_${m.from}_${m.candidate.candidate}`;
+            } else if (m.type === 'offer' || m.type === 'answer') {
+                signalId = `${m.type}_${m.from}_${m.sdp ? m.sdp.length : 'none'}`;
+            } else {
+                signalId = `${m.type}_${m.from}_${Date.now()}`;
+            }
+        }
+
+        if (!window._processedSignals) window._processedSignals = new Set();
+        if (window._processedSignals.has(signalId)) return;
+        window._processedSignals.add(signalId);
+        setTimeout(() => window._processedSignals.delete(signalId), m.type === 'ice' ? 2000 : 10000);
+
+
+        // 🛑 2. ГИБКАЯ БЛОКИРОВКА (Больше не убиваем ICE-кандидаты!)
         try {
             if (m.type === 'offer') {
+                if (this.isProcessingSignal) return; // Блокируем только двойные офферы
                 this.isProcessingSignal = true;
                 
-                const offerCollision = (this.makingOffer || this.pc.signalingState !== 'stable');
+                const offerCollision = (this.makingOffer || (this.pc && this.pc.signalingState !== 'stable'));
                 this.ignoreOffer = !this.isPolite() && offerCollision;
                 
                 if (this.ignoreOffer) {
@@ -890,13 +912,17 @@ export default (initData) => ({
                 const answer = await this.pc.createAnswer();
                 await this.pc.setLocalDescription(answer);
                 this.signal({ type: 'answer', sdp: this.pc.localDescription.sdp }); 
+                
+                // Применяем ICE, которые прилетели, пока мы думали над ответом
                 while(this.iceQueue.length) {
                     await this.pc.addIceCandidate(this.iceQueue.shift()).catch(e => {});
                 }
                 this.isProcessingSignal = false;
 
             } else if (m.type === 'answer') {
+                if (this.isProcessingSignal) return; // Блокируем двойные ансверы
                 this.isProcessingSignal = true;
+                
                 if (this.pc.signalingState === 'have-local-offer') {
                     await this.pc.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp: this.normalizeSdp(m.sdp) }));
                     while(this.iceQueue.length) {
@@ -906,10 +932,14 @@ export default (initData) => ({
                 this.isProcessingSignal = false;
 
             } else if (m.type === 'ice') {
+                // ICE обрабатываются ВСЕГДА, даже если isProcessingSignal === true
                 const candidate = new RTCIceCandidate(m.candidate);
+                
                 if (!this.pc || !this.pc.remoteDescription || !this.pc.remoteDescription.type) {
+                    // Если описание еще не готово — складываем в очередь
                     this.iceQueue.push(candidate);
                 } else {
+                    // Если готово — добавляем сразу
                     await this.pc.addIceCandidate(candidate).catch(e => {
                         if (!this.ignoreOffer) console.warn("[WebRTC] ICE Error", e);
                     });
@@ -919,7 +949,6 @@ export default (initData) => ({
             console.error("[WebRTC] Signal Handling Critical Error:", err);
             this.isProcessingSignal = false;
         }
-
     },
 
     async handleMatch(e) {

@@ -1,6 +1,7 @@
 export default (initData) => ({
     // --- ПЕРЕМЕННЫЕ ИЗ PHP ---
     myId: initData.myId,
+    myHashid: initData.myHashid,
     myInterests: initData.myInterests,
     iceServers: initData.iceServers,
     translations: initData.translations,
@@ -503,8 +504,8 @@ export default (initData) => ({
             this.$nextTick(async () => {
                 await self.initMedia();
                 const urlParams = new URLSearchParams(window.location.search);
-                if (urlParams.has('accept_call')) self.setupPersonalCall(parseInt(urlParams.get('accept_call')), true);
-                else if (urlParams.has('call_to')) self.setupPersonalCall(parseInt(urlParams.get('call_to')), false);
+                if (urlParams.has('accept_call')) self.setupPersonalCall(urlParams.get('accept_call'), true);
+                else if (urlParams.has('call_to')) self.setupPersonalCall(urlParams.get('call_to'), false);
                 setInterval(() => { this.refreshVideoTags(); }, 2000);
             });
         }
@@ -543,33 +544,50 @@ export default (initData) => ({
         return `${dateStr}, ${timeStr}`;
     },
 
-    async initMedia() {
-        if (this.localStream) {
-            if (this.$refs.localVideo) this.$refs.localVideo.srcObject = this.localStream;
-            return;
+async initMedia() {
+    // 1. Если поток уже инициализирован, просто проверяем привязку и выходим
+    if (this.localStream) {
+        const videoEl = this.$refs.localVideo || document.getElementById('localVideo');
+        if (videoEl && videoEl.srcObject !== this.localStream) {
+            videoEl.srcObject = this.localStream;
         }
-        try {
-            this.localStream = await navigator.mediaDevices.getUserMedia({ 
-                video: { width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { max: 30 } }, 
-                audio: true 
-            });
-            if (this.$refs.localVideo) {
-                this.$refs.localVideo.srcObject = this.localStream;
-                this.$refs.localVideo.play().catch(e => console.log("Auto-play blocked", e));
-            }
-        } catch (e) { 
-            this.toast(this.__('camera_denied')); 
-        }
-        if (this.$refs.localVideo) {
-            this.$refs.localVideo.srcObject = this.localStream;
+        return;
+    }
+
+    try {
+        // 2. Запрашиваем доступ к камере и микрофону
+        // Используем идеальные (ideal) значения, чтобы браузер сам подобрал ближайшее разрешение
+        this.localStream = await navigator.mediaDevices.getUserMedia({ 
+            video: { 
+                width: { ideal: 640 }, 
+                height: { ideal: 480 }, 
+                frameRate: { max: 30 } 
+            }, 
+            audio: true 
+        });
+
+        // 3. Ищем элемент видео (сначала через $refs, затем по ID как фолбэк)
+        const videoEl = this.$refs.localVideo || document.getElementById('localVideo');
+
+        if (videoEl) {
+            videoEl.srcObject = this.localStream;
             
-            try {
-                await this.$refs.localVideo.play();
-            } catch (e) {
-                console.log("iOS Autoplay prevented, waiting for user click");
-            }
+            // 4. Используем небольшую задержку перед play()
+            // Это решает проблему AbortError в Chrome и Safari при быстрой загрузке
+            setTimeout(() => {
+                videoEl.play().catch(e => {
+                    // Ошибку прерывания (AbortError) игнорируем, она не влияет на результат
+                    if (e.name !== 'AbortError') {
+                        console.warn("Autoplay interaction required or blocked:", e);
+                    }
+                });
+            }, 200);
         }
-    },
+    } catch (e) { 
+        console.error("Camera access error:", e);
+        this.toast(this.__('camera_denied')); 
+    }
+},
 
     toggleFocus(target) {
         if (this.state !== 'connected') return;
@@ -746,6 +764,7 @@ export default (initData) => ({
     async handleSignal(e) {
         const m = e.data;
         const self = this;
+        const fromHashid = String(m.from);
         
         if (window.location.pathname.includes('/rooms/') && 
             ['offer', 'answer', 'ice'].includes(m.type)) {
@@ -831,8 +850,8 @@ export default (initData) => ({
                 });
             }
 
-            if (Number(this.myId) < Number(this.partnerId)) {
-                console.log("[WebRTC] I am the leader, sending offer...");
+            if (String(this.myHashid) < String(this.partnerId)) {
+                console.log("[WebRTC] I am Lead, sending offer...");
                 setTimeout(() => { this.sendOffer(); }, 500); 
             }
             return; 
@@ -955,8 +974,8 @@ if (m.type === 'roulette-chat') {
         if (this.callContext === 'personal') return;
         this.isPartnerProfileOpen = false;
         this.uiShowPartnerCard = false;
-        const partner = e.partnerData || e || {};
-        const newPartnerId = partner.id ? Number(partner.id) : null;
+        const partner = e.partnerData || e; 
+        const newPartnerId = partner.id ? String(partner.id) : null;
         
         if (!newPartnerId) {
             console.error("[Caspian] Match received but partner ID is missing!", e);
@@ -989,7 +1008,7 @@ if (m.type === 'roulette-chat') {
             vpn: partner.vpn,
         };
         
-        this.isFriend = this.friendsList.some(f => Number(f.id) === this.partnerId);
+        this.isFriend = this.friendsList.some(f => String(f.id) === this.partnerId);
 
         let common = this.partnerData.common_interests;
         
@@ -1020,7 +1039,7 @@ if (m.type === 'roulette-chat') {
 
     async setupPersonalCall(id, isAccepted) {
         this.callContext = 'personal';
-        this.partnerId = id;
+        this.partnerId = String(id);
         this.state = 'connecting';
         this.micEnabled = true; 
         this.camEnabled = true; 
@@ -1232,6 +1251,7 @@ if (m.type === 'roulette-chat') {
 
     handleIncomingMsg(e) {
         const m = e.messageData;
+        const senderHashid = String(m.sender_id); 
         
         if (this.processedEvents && this.processedEvents.has('msg_' + m.id)) return;
         
@@ -1253,7 +1273,7 @@ if (m.type === 'roulette-chat') {
         const senderId = String(m.sender_id || (this.activeFriend ? this.activeFriend.id : ''));
         if (!senderId) return;
 
-        if (this.activeFriend && String(this.activeFriend.id) === senderId) { 
+        if (this.activeFriend && String(this.activeFriend.id) === senderHashid) { 
             this.friendMessages.push(m); 
             this.scrollFriendChat(); 
             return;

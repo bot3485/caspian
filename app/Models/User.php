@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Redis;
 use Carbon\Carbon;
 use Hashids\Hashids;
 
+
 class User extends Authenticatable
 {
     use HasFactory, Notifiable;

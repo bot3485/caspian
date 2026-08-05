@@ -51,7 +51,7 @@ public function index(Request $request)
     {
         $hashids = new Hashids(config('app.key'), 10);
         $decoded = $hashids->decode($hashid);
-        return empty($decoded) ? 0 : $decoded[0];
+        return empty($decoded) ? 0 : (int)$decoded[0];
     }
 
     public function startSearching(Request $request): JsonResponse
@@ -158,6 +158,7 @@ public function callContact(Request $request): JsonResponse
     public function getUserInfo(string $hashid): JsonResponse
     {
         $realId = $this->decodeId($hashid);
+        if ($realId === 0) abort(404);
         $user = User::findOrFail($realId);
         return response()->json([
             'id' => $user->hashid,
@@ -180,49 +181,51 @@ public function callContact(Request $request): JsonResponse
 
 public function sendSignal(Request $request): JsonResponse
 {
-    
     $validated = $request->validate([
-        'partnerId' => 'required|integer', 
+        'partnerId' => 'required|string', 
         'data' => 'required|array'
     ]);
     
     $senderId = (int)Auth::id();
-    $receiverRealId = $this->decodeId($request->partnerId); // Декодируем для сокета
+    $receiverRealId = $this->decodeId($request->partnerId);
     $data = $validated['data'];
 
-    // 1. Проверка: разрешен ли сигнал в Redis?
+    // 1. Быстрая проверка в Redis
     $isAllowed = Redis::exists("allow_signal:{$senderId}:{$receiverRealId}");
     
     if (!$isAllowed) {
-        // ФОЛБЭК (ИСПРАВЛЕНО): Проверяем связь в ОБЕ стороны!
-        // Потому что один юзер мог найти другого, и запись в БД может быть перевернута.
+        // 2. ФОЛБЭК: Проверяем в БД в ОБЕ стороны!
+        // Это важно, так как один юзер мог инициировать звонок, а другой — отправить первый сигнал
         $isAllowed = Matchmaking::where(function($q) use ($senderId, $receiverRealId) {
-            $q->where('user_id', $senderId)->where('partner_id', $receiverRealId);
-        })->orWhere(function($q) use ($senderId, $receiverRealId) {
-            $q->where('user_id', $receiverRealId)->where('partner_id', $senderId);
-        })->exists();
+                $q->where('user_id', $senderId)->where('partner_id', $receiverRealId);
+            })
+            ->orWhere(function($q) use ($senderId, $receiverRealId) {
+                $q->where('user_id', $receiverRealId)->where('partner_id', $senderId);
+            })
+            ->exists();
         
+        // 3. Если в БД нашли — восстанавливаем ключ в Redis на лету
         if ($isAllowed) {
-            // Разрешаем сразу в обе стороны, чтобы ускорить следующие запросы
             Redis::setex("allow_signal:{$senderId}:{$receiverRealId}", 3600, "1");
             Redis::setex("allow_signal:{$receiverRealId}:{$senderId}", 3600, "1");
         }
     }
 
-    // 2. Проверка: это групповая комната (Spaces)?
+    // 4. Проверка для комнат (Spaces)
     if (!$isAllowed && isset($data['roomUuid'])) {
         $isAllowed = Room::where('uuid', $data['roomUuid'])->exists();
     }
 
+    // Если всё равно нет — тогда 403
     if (!$isAllowed) {
-        \Illuminate\Support\Facades\Log::warning("WebRTC 403: Signal denied from {$senderId} to {$receiverRealId}");
-        return response()->json(['error' => 'Unauthorized'], 403);
+        \Log::warning("Signal Blocked: Sender {$senderId} to Receiver {$receiverRealId}. Logic check failed.");
+        return response()->json(['error' => 'Forbidden'], 403);
     }
 
-    $data['from'] = $senderId;
+    // Подменяем ID на хеш для фронтенда
+    $data['from'] = Auth::user()->hashid; 
     
-    // Отправляем сигнал получателю
-    broadcast(new WebRTCSignalEvent($receiverRealId, $data)); // Отправляем на числовой канал
+    broadcast(new WebRTCSignalEvent($receiverRealId, $data));
 
     return response()->json(['status' => 'signal_sent']);
 }
@@ -307,30 +310,34 @@ public function sendMessage(Request $request): JsonResponse
     ]);
 }
 
-    public function getChatHistory(int $contactId): JsonResponse
-    {
-        $userId = Auth::id();
-        
-        // 1. Сначала забираем 100 САМЫХ СВЕЖИХ сообщений (сортируем по убыванию id/created_at)
-        $messages = Message::where(function($q) use ($userId, $contactId) {
-                $q->where('sender_id', $userId)->where('receiver_id', $contactId);
-            })->orWhere(function($q) use ($userId, $contactId) {
-                $q->where('sender_id', $contactId)->where('receiver_id', $userId);
-            })
-            ->orderBy('id', 'desc') // Берем сначала самые новые
-            ->take(100)
-            ->get()
-            ->reverse() // Переворачиваем массив обратно, чтобы в чате они шли хронологически (сверху вниз)
-            ->values(); // Сбрасываем ключи массива для корректного JSON
+public function getChatHistory(string $hashid): JsonResponse
+{
+    $contactId = $this->decodeId($hashid);
+    $userId = Auth::id();
+    
+    $messages = Message::where(function($q) use ($userId, $contactId) {
+            $q->where('sender_id', $userId)->where('receiver_id', $contactId);
+        })->orWhere(function($q) use ($userId, $contactId) {
+            $q->where('sender_id', $contactId)->where('receiver_id', $userId);
+        })
+        ->orderBy('id', 'desc')
+        ->take(100)
+        ->get()
+        ->reverse()
+        ->values()
+        ->map(function($m) {
+            // Подменяем ID на Hashid для фронтенда
+            return [
+                'id' => $m->id,
+                'sender_id' => User::find($m->sender_id)->hashid,
+                'receiver_id' => User::find($m->receiver_id)->hashid,
+                'message' => $m->message,
+                'created_at' => $m->created_at
+            ];
+        });
 
-        // 2. Помечаем входящие от этого контакта как прочитанные
-        Message::where('sender_id', $contactId)
-            ->where('receiver_id', $userId)
-            ->where('is_read', false)
-            ->update(['is_read' => true]);
-
-        return response()->json(['messages' => $messages]);
-    }
+    return response()->json(['messages' => $messages]);
+}
 
     public function leaveChat(Request $request): JsonResponse
     {
@@ -340,10 +347,11 @@ public function sendMessage(Request $request): JsonResponse
 
 public function addContact(Request $request): JsonResponse 
 {
-    $contactId = (int)$request->contactId;
+    $request->validate(['contactId' => 'required|string']); // Валидация строки
+    $contactId = $this->decodeId($request->contactId); // Декодируем в число
     $userId = Auth::id();
 
-    if ($userId === $contactId) return response()->json(['error' => 'Self-addition'], 400);
+    if ($contactId === 0 || $userId === $contactId) return response()->json(['error' => 'Invalid ID'], 400);
 
     // Проверка на блок
     $isBlocked = DB::table('blocks')->where('blocker_id', $contactId)->where('blocked_id', $userId)->exists();
@@ -381,18 +389,9 @@ public function addContact(Request $request): JsonResponse
 public function getContacts(): JsonResponse 
 { 
     $userId = Auth::id();
+    $contactRows = DB::table('contacts')->where('user_id', $userId)->orWhere('contact_id', $userId)->get();
+    $targetIds = $contactRows->map(fn($row) => $row->user_id == $userId ? $row->contact_id : $row->user_id)->unique();
     
-    // 1. Находим ID всех людей, с которыми есть связь (в любую сторону)
-    $contactRows = DB::table('contacts')
-        ->where('user_id', $userId)
-        ->orWhere('contact_id', $userId)
-        ->get();
-
-    // Собираем уникальные ID партнеров
-    $targetIds = $contactRows->map(function($row) use ($userId) {
-        return $row->user_id == $userId ? $row->contact_id : $row->user_id;
-    })->unique();
-
     // 2. Получаем данные пользователей, исключая заблокированных
     $contacts = User::whereIn('id', $targetIds)
         ->whereNotIn('id', function($q) use ($userId) {
@@ -408,7 +407,7 @@ public function getContacts(): JsonResponse
                 ->first();
 
             return [
-                'id' => $u->id, 
+                'id' => $u->hashid, // МЕНЯЕМ НА HASHID
                 'name' => $u->name, 
                 'is_online' => $u->isOnline(), 
                 'last_seen_human' => $u->getLastSeenForHumans(),
@@ -426,16 +425,14 @@ public function getContacts(): JsonResponse
 
 public function sendTypingSignal(Request $request): JsonResponse 
 {
-    // Валидируем, чтобы receiver_id точно был
     $validated = $request->validate([
-        'receiver_id' => 'required|integer'
+        'receiver_id' => 'required|string' // Меняем на string
     ]);
 
-    $receiverId = (int) $validated['receiver_id'];
+    $receiverId = $this->decodeId($validated['receiver_id']);
     $senderId = (int) Auth::id();
 
-    // Отправляем событие
-    broadcast(new \App\Events\UserTypingEvent($receiverId, $senderId))->toOthers();
+    broadcast(new \App\Events\UserTypingEvent($receiverId, $senderId));
 
     return response()->json(['status' => 'ok']);
 }
@@ -481,7 +478,7 @@ public function getInteractionHistory(): JsonResponse
                 ->first();
 
             return [
-                'id' => $record->id,
+                'id' => $u->hashid, // МЕНЯЕМ НА HASHID
                 'name' => $record->name,
                 'is_online' => $u ? $u->isOnline() : false,
                 'last_seen_human' => $u ? $u->getLastSeenForHumans() : 'Давно',
@@ -519,9 +516,9 @@ public function unblockUser(Request $request): JsonResponse
 
     public function blockUser(Request $request): JsonResponse
 {
-    $request->validate(['userId' => 'required|integer|exists:users,id']);
+    $request->validate(['userId' => 'required|string']); // Ожидаем строку
     $blockerId = Auth::id();
-    $blockedId = (int)$request->userId;
+    $blockedId = $this->decodeId($request->userId); // Декодируем
 
     if ($blockerId === $blockedId) return response()->json(['error' => 'Self-block'], 400);
 
@@ -644,11 +641,11 @@ public function removeContact(Request $request): JsonResponse
 
 public function clearChat(Request $request): JsonResponse
 {
+    $request->validate(['contactId' => 'required|string']);
+    $contactId = $this->decodeId($request->contactId);
     $userId = Auth::id();
-    $contactId = (int)$request->contactId;
 
-    // Удаляем все сообщения между пользователями
-    \App\Models\Message::where(function($q) use ($userId, $contactId) {
+    Message::where(function($q) use ($userId, $contactId) {
         $q->where('sender_id', $userId)->where('receiver_id', $contactId);
     })->orWhere(function($q) use ($userId, $contactId) {
         $q->where('sender_id', $contactId)->where('receiver_id', $userId);

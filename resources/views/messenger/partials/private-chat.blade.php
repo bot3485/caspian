@@ -23,7 +23,7 @@
     <!-- Messages -->
     <div class="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 custom-scrollbar" x-ref="friendChatBox">
         <template x-for="msg in friendMessages" :key="msg.id || Math.random()">
-            <div :class="String(msg.sender_id) === String(myId) ? 'items-end' : 'items-start'" class="flex flex-col w-full group">
+            <div :class="String(msg.sender_id) === String(myHashid) ? 'items-end' : 'items-start'" class="flex flex-col w-full group">
                 
                 <!-- Handshake request -->
                 <template x-if="msg.message === 'SYSTEM_FRIEND_REQUEST'">

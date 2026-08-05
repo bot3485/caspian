@@ -10,8 +10,12 @@ class ReportController extends Controller
 {
     public function store(Request $request)
     {
-        $reporterId = Auth::id();
-        $reportedId = (int)$request->reported_id;
+    $reporterId = Auth::id();
+        
+        // ДЕКОДИРУЕМ ID НАРУШИТЕЛЯ
+        $hashids = new \Hashids\Hashids(config('app.key'), 10);
+        $decoded = $hashids->decode($request->reported_id);
+        $reportedId = empty($decoded) ? 0 : $decoded[0];
 
         return DB::transaction(function() use ($reporterId, $reportedId, $request) {
             $user = \App\Models\User::lockForUpdate()->find($reportedId);

@@ -14,6 +14,8 @@ use App\Events\MessageSentEvent;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\{Auth, Redis, DB};
+use Hashids\Hashids;
+
 
 class ChatController extends Controller
 {
@@ -44,6 +46,14 @@ public function index(Request $request)
         return view('roulette.index', compact('initData'));
     }
 
+        // Вспомогательная функция декодирования
+    private function decodeId(string $hashid): int
+    {
+        $hashids = new Hashids(config('app.key'), 10);
+        $decoded = $hashids->decode($hashid);
+        return empty($decoded) ? 0 : $decoded[0];
+    }
+
     public function startSearching(Request $request): JsonResponse
     {
         $userId = Auth::id();
@@ -59,19 +69,34 @@ public function index(Request $request)
 
 public function callContact(Request $request): JsonResponse
 {
-    // 1. Валидация входных данных
-    $request->validate(['contactId' => 'required|integer|exists:users,id']);
+    // 1. Валидация: теперь мы ожидаем строку (Hashid), а не число
+    $request->validate(['contactId' => 'required|string']);
     
-    // 2. Определение участников
-    $receiverId = (int)$request->contactId;
+    // 2. Декодирование Hashid в реальный ID
+    $receiverId = $this->decodeId($request->contactId);
     $senderId = (int)Auth::id();
 
-    // Защита от звонка самому себе
-    if ($senderId === $receiverId) {
-        return response()->json(['error' => 'Self-call'], 400);
+    // Проверка на корректность декодирования и звонок самому себе
+    if ($receiverId === 0 || $senderId === $receiverId) {
+        return response()->json(['error' => 'Invalid connection protocol or self-call'], 400);
     }
 
-    // 3. Проверка блокировок (Черный список)
+    // 3. ПРОВЕРКА ДРУЖБЫ: Звонить через мессенджер можно только друзьям
+    $isFriend = DB::table('contacts')
+        ->where(function($q) use ($senderId, $receiverId) {
+            $q->where('user_id', $senderId)->where('contact_id', $receiverId);
+        })
+        ->orWhere(function($q) use ($senderId, $receiverId) {
+            $q->where('user_id', $receiverId)->where('contact_id', $senderId);
+        })
+        ->where('status', 'accepted')
+        ->exists();
+
+    if (!$isFriend) {
+        return response()->json(['error' => 'Call restricted. Users are not linked.'], 403);
+    }
+
+    // 4. Проверка блокировок (Черный список)
     $isBlocked = DB::table('blocks')
         ->where(function($q) use ($senderId, $receiverId) {
             $q->where('blocker_id', $receiverId)->where('blocked_id', $senderId);
@@ -85,14 +110,14 @@ public function callContact(Request $request): JsonResponse
         return response()->json(['error' => 'Connection refused by security policy'], 403);
     }
 
-    // 4. ПРОВЕРКА: Занят ли собеседник (уже находится вMatched статусе)
+    // 5. ПРОВЕРКА: Занят ли собеседник
     $isBusy = Matchmaking::where('user_id', $receiverId)
         ->where('status', MatchmakingStatus::Matched)
         ->where('updated_at', '>=', now()->subSeconds(35)) 
         ->exists();
 
     if ($isBusy) {
-        // Опционально: создаем запись о пропущенном вызове в сообщениях
+        // Опционально: создаем запись о пропущенном вызове в сообщениях (используем реальные ID)
         Message::create([
             'sender_id' => $senderId,
             'receiver_id' => $receiverId,
@@ -103,16 +128,14 @@ public function callContact(Request $request): JsonResponse
         return response()->json(['status' => 'busy', 'message' => 'User is busy']);
     }
 
-    // 5. ПОДГОТОВКА: Выходим из текущих очередей рулетки, если они были
+    // 6. ПОДГОТОВКА: Выходим из текущих очередей рулетки
     $this->leaveChatAction->execute($senderId);
 
-    // 6. СИСТЕМНЫЙ ДОСТУП (Redis): Разрешаем сигналинг в ОБЕ стороны.
-    // Это критически важно сделать ДО отправки события, чтобы при получении оффера сервер уже знал, что это разрешено.
+    // 7. СИСТЕМНЫЙ ДОСТУП (Redis): Используем реальные Integer ID
     \Illuminate\Support\Facades\Redis::setex("allow_signal:{$senderId}:{$receiverId}", 3600, "1");
     \Illuminate\Support\Facades\Redis::setex("allow_signal:{$receiverId}:{$senderId}", 3600, "1");
 
-    // 7. СОСТОЯНИЕ В БД: Фиксируем статус звонка.
-    // Это служит фолбэком для метода sendSignal, если Redis по какой-то причине не сработает мгновенно.
+    // 8. СОСТОЯНИЕ В БД: Используем реальные Integer ID
     Matchmaking::updateOrCreate(
         ['user_id' => $senderId],
         [
@@ -122,21 +145,22 @@ public function callContact(Request $request): JsonResponse
         ]
     );
 
-    // 8. ОТПРАВКА СОБЫТИЯ: Уведомляем получателя о входящем вызове
+    // 9. ОТПРАВКА СОБЫТИЯ: Маскируем ID отправителя (передаем Hashid)
     broadcast(new WebRTCSignalEvent($receiverId, [
         'type' => 'incoming-call',
         'fromName' => Auth::user()->name,
-        'fromId' => $senderId
+        'fromId' => Auth::user()->hashid // ВАЖНО: Передаем Hashid, чтобы фронт опознал друга
     ]));
 
-    // 9. ОТВЕТ: Клиент (инициатор) получает статус 'calling' и запускает свою камеру/initPC
     return response()->json(['status' => 'calling']);
 }
 
-    public function getUserInfo(User $user): JsonResponse
+    public function getUserInfo(string $hashid): JsonResponse
     {
+        $realId = $this->decodeId($hashid);
+        $user = User::findOrFail($realId);
         return response()->json([
-            'id' => $user->id,
+            'id' => $user->hashid,
             'name' => $user->name,
             'level' => $user->level,
             'gender' => $user->gender, // ДОБАВЛЕНО
@@ -156,31 +180,32 @@ public function callContact(Request $request): JsonResponse
 
 public function sendSignal(Request $request): JsonResponse
 {
+    
     $validated = $request->validate([
         'partnerId' => 'required|integer', 
         'data' => 'required|array'
     ]);
     
     $senderId = (int)Auth::id();
-    $receiverId = (int)$validated['partnerId'];
+    $receiverRealId = $this->decodeId($request->partnerId); // Декодируем для сокета
     $data = $validated['data'];
 
     // 1. Проверка: разрешен ли сигнал в Redis?
-    $isAllowed = Redis::exists("allow_signal:{$senderId}:{$receiverId}");
-
+    $isAllowed = Redis::exists("allow_signal:{$senderId}:{$receiverRealId}");
+    
     if (!$isAllowed) {
         // ФОЛБЭК (ИСПРАВЛЕНО): Проверяем связь в ОБЕ стороны!
         // Потому что один юзер мог найти другого, и запись в БД может быть перевернута.
-        $isAllowed = Matchmaking::where(function($q) use ($senderId, $receiverId) {
-            $q->where('user_id', $senderId)->where('partner_id', $receiverId);
-        })->orWhere(function($q) use ($senderId, $receiverId) {
-            $q->where('user_id', $receiverId)->where('partner_id', $senderId);
+        $isAllowed = Matchmaking::where(function($q) use ($senderId, $receiverRealId) {
+            $q->where('user_id', $senderId)->where('partner_id', $receiverRealId);
+        })->orWhere(function($q) use ($senderId, $receiverRealId) {
+            $q->where('user_id', $receiverRealId)->where('partner_id', $senderId);
         })->exists();
         
         if ($isAllowed) {
             // Разрешаем сразу в обе стороны, чтобы ускорить следующие запросы
-            Redis::setex("allow_signal:{$senderId}:{$receiverId}", 3600, "1");
-            Redis::setex("allow_signal:{$receiverId}:{$senderId}", 3600, "1");
+            Redis::setex("allow_signal:{$senderId}:{$receiverRealId}", 3600, "1");
+            Redis::setex("allow_signal:{$receiverRealId}:{$senderId}", 3600, "1");
         }
     }
 
@@ -190,45 +215,97 @@ public function sendSignal(Request $request): JsonResponse
     }
 
     if (!$isAllowed) {
-        \Illuminate\Support\Facades\Log::warning("WebRTC 403: Signal denied from {$senderId} to {$receiverId}");
+        \Illuminate\Support\Facades\Log::warning("WebRTC 403: Signal denied from {$senderId} to {$receiverRealId}");
         return response()->json(['error' => 'Unauthorized'], 403);
     }
 
     $data['from'] = $senderId;
     
     // Отправляем сигнал получателю
-    broadcast(new WebRTCSignalEvent($receiverId, $data));
+    broadcast(new WebRTCSignalEvent($receiverRealId, $data)); // Отправляем на числовой канал
 
     return response()->json(['status' => 'signal_sent']);
 }
 
 
-    public function sendMessage(Request $request): JsonResponse
-    {
-        $validated = $request->validate([
-            'receiver_id' => 'required|integer', 
-            'message' => 'required|string'
-        ]);
+public function sendMessage(Request $request): JsonResponse 
+{
+    // 1. Декодируем входящий Hashid в реальный Integer ID
+    $realReceiverId = $this->decodeId($request->receiver_id);
 
-        // Принудительно пишем в лог, что пытаемся сохранить
-        \Illuminate\Support\Facades\Log::info("Сохраняем сообщение в БД:", [
-            'sender_id' => Auth::id(),
-            'receiver_id' => $validated['receiver_id'],
-            'message' => $validated['message']
-        ]);
+    // 2. Валидация входных данных
+    // Проверяем только сообщение, так как receiver_id мы валидируем вручную ниже
+    $request->validate([
+        'message' => 'required|string|max:5000'
+    ]);
 
-        $message = Message::create([
-            'sender_id' => Auth::id(),
-            'receiver_id' => $validated['receiver_id'],
-            'message' => $validated['message']
-        ]);
-
-        \Illuminate\Support\Facades\Log::info("Сообщение успешно сохранено с ID: " . $message->id);
-
-        broadcast(new MessageSentEvent($message->toArray()));
-
-        return response()->json(['status' => 'sent', 'message' => $message]);
+    // Если ID не удалось декодировать (пришел мусор вместо хеша)
+    if ($realReceiverId === 0) {
+        return response()->json(['error' => 'Invalid destination protocol.'], 422);
     }
+
+    $senderId = auth()->id();
+
+    // 3. Слой безопасности: Проверка разрешений на переписку
+    
+    // А. Проверяем, являются ли пользователи принятыми друзьями
+    // Проверка в обе стороны, так как запись может быть создана любым из них
+    $isFriend = DB::table('contacts')
+        ->where(function($q) use ($senderId, $realReceiverId) {
+            $q->where('user_id', $senderId)->where('contact_id', $realReceiverId);
+        })
+        ->orWhere(function($q) use ($senderId, $realReceiverId) {
+            $q->where('user_id', $realReceiverId)->where('contact_id', $senderId);
+        })
+        ->where('status', 'accepted')
+        ->exists();
+
+    // Б. Проверяем, находятся ли они в активном матче рулетки прямо сейчас
+    $isInMatch = \App\Models\Matchmaking::where(function($q) use ($senderId, $realReceiverId) {
+            $q->where('user_id', $senderId)->where('partner_id', $realReceiverId);
+        })
+        ->orWhere(function($q) use ($senderId, $realReceiverId) {
+            $q->where('user_id', $realReceiverId)->where('partner_id', $senderId);
+        })
+        ->exists();
+
+    // Если нет ни дружбы, ни матча — это попытка взлома через API
+    if (!$isFriend && !$isInMatch) {
+        \Log::warning("Unauthorized bridge attempt: User {$senderId} tried to message {$realReceiverId}");
+        return response()->json(['error' => 'Protocol violation. Connection not established.'], 403);
+    }
+
+    // 4. Сохранение в БД (используем только реальные integer ID)
+    $message = Message::create([
+        'sender_id' => $senderId,
+        'receiver_id' => $realReceiverId, 
+        'message' => $request->message
+    ]);
+
+    // 5. Трансляция события через сокеты (Маскируем ID обратно в Hashids)
+    // Это важно: получатель в JS будет искать сообщение по хешированному ID
+    $broadcastData = [
+        'id' => $message->id,
+        'sender_id' => auth()->user()->hashid, // Отправляем наш хеш
+        'receiver_id' => $request->receiver_id, // Возвращаем тот же хеш, что прислал фронт
+        'message' => $message->message,
+        'created_at' => $message->created_at->toIso8601String(),
+    ];
+
+    broadcast(new MessageSentEvent($broadcastData));
+
+    // 6. Ответ инициатору
+    return response()->json([
+        'status' => 'sent', 
+        'message' => [
+            'id' => $message->id,
+            'sender_id' => auth()->user()->hashid,
+            'receiver_id' => $request->receiver_id,
+            'message' => $message->message,
+            'created_at' => $message->created_at
+        ]
+    ]);
+}
 
     public function getChatHistory(int $contactId): JsonResponse
     {

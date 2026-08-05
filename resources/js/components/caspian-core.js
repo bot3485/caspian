@@ -1136,7 +1136,7 @@ if (m.type === 'roulette-chat') {
     acceptCall() {
         this.stopRingtone(); 
         const fromId = this.incomingCall.fromId;
-        window.location.href = `/chat?accept_call=${fromId}`;
+        window.location.href = `/chat?accept_call=${this.incomingCall.fromId}`; 
     },
 
     rejectCall() {
@@ -1250,16 +1250,16 @@ if (m.type === 'roulette-chat') {
 
         if (this.audioUnlocked) this.msgSound.play().catch(()=>{});
 
-        const senderIdNum = Number(m.sender_id || (this.activeFriend ? this.activeFriend.id : 0));
-        if (!senderIdNum) return;
+        const senderId = String(m.sender_id || (this.activeFriend ? this.activeFriend.id : ''));
+        if (!senderId) return;
 
-        if (this.activeFriend && Number(this.activeFriend.id) === senderIdNum) { 
+        if (this.activeFriend && String(this.activeFriend.id) === senderId) { 
             this.friendMessages.push(m); 
             this.scrollFriendChat(); 
             return;
         }
 
-        const friend = this.friendsList.find(f => Number(f.id) === senderIdNum);
+        const friend = this.friendsList.find(f => String(f.id) === senderId);
 
         if (friend) {
             friend.has_new_message = true; 
@@ -1267,7 +1267,7 @@ if (m.type === 'roulette-chat') {
             
             this.friendsList = [
                 friend,
-                ...this.friendsList.filter(f => Number(f.id) !== senderIdNum)
+                ...this.friendsList.filter(f => String(f.id) !== senderId)
             ];
         } else {
             this.loadFriends();
@@ -1278,9 +1278,10 @@ if (m.type === 'roulette-chat') {
     },
 
     handleTyping(e) {
-        if (e.senderId === this.partnerId || (this.activeFriend && e.senderId === this.activeFriend.id)) {
+        const senderId = String(e.senderId || e.fromId || '');
+        if (senderId === this.partnerId || (this.activeFriend && senderId === this.activeFriend.id)) {
             this.isPartnerTyping = true;
-            this.typingPartnerName = (this.partnerId === e.senderId) ? (this.partnerData?.name || 'Partner') : this.activeFriend.name;
+            this.typingPartnerName = (this.partnerId === senderId) ? (this.partnerData?.name || 'Partner') : this.activeFriend.name;
             
             if (this.typingTimer) clearTimeout(this.typingTimer);
             
@@ -1455,18 +1456,18 @@ if (m.type === 'roulette-chat') {
             return;
         }
 
-        const idNum = Number(friendId);
+        const id = String(friendId); // Теперь это хеш-строка
 
-        let target = this.friendsList.find(x => Number(x.id) === idNum);
+        let target = this.friendsList.find(x => String(x.id) === id);
         let isFriend = !!target;
 
         if (!target) {
-            target = this.historyList.find(x => Number(x.id) === idNum);
+            target = this.historyList.find(x => String(x.id) === id);
         }
 
         this.activeFriend = target 
             ? { ...target } 
-            : { id: idNum, name: 'User #' + idNum, status: 'none', is_online: false };
+            : { id: id, name: 'User #' + id, status: 'none', is_online: false };
 
         this.tab = isFriend ? 'friends' : 'history';
 
@@ -1476,7 +1477,7 @@ if (m.type === 'roulette-chat') {
         }
 
         this.friendMessages = []; 
-        window.axios.get(`/chat/history/${idNum}`)
+        window.axios.get(`/chat/history/${id}`)
             .then(res => { 
                 this.friendMessages = Array.isArray(res.data.messages) ? res.data.messages : []; 
                 this.scrollFriendChat(); 

@@ -2,7 +2,7 @@
     document.addEventListener('alpine:init', () => {
         window.caspianInitData = {
             // Данные пользователя
-            myId: {{ auth()->id() }},
+            myId: @js(auth()->user()->hashid),
             myInterests: @js(auth()->user()->interests ?? []),
             currentLevel: {{ auth()->user()->level ?? 1 }},
             totalXp: {{ auth()->user()->xp ?? 0 }},

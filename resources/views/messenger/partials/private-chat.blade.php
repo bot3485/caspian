@@ -23,13 +23,13 @@
     <!-- Messages -->
     <div class="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 custom-scrollbar" x-ref="friendChatBox">
         <template x-for="msg in friendMessages" :key="msg.id || Math.random()">
-            <div :class="Number(msg.sender_id) === Number({{ auth()->id() }}) ? 'items-end' : 'items-start'" class="flex flex-col w-full group">
+            <div :class="String(msg.sender_id) === String(myId) ? 'items-end' : 'items-start'" class="flex flex-col w-full group">
                 
                 <!-- Handshake request -->
                 <template x-if="msg.message === 'SYSTEM_FRIEND_REQUEST'">
                     <div class="w-full flex flex-col items-center py-4 bg-brand-indigo/5 rounded-[2rem] border border-brand-indigo/10 my-2">
                         <span class="text-[9px] font-black uppercase tracking-[0.3em] text-brand-indigo mb-4">{{ __('messenger.Incoming_Protocol') }}</span>
-                        <div class="flex gap-2" x-show="Number(msg.sender_id) !== Number({{ auth()->id() }})">
+                        <div class="flex gap-2" x-show="String(msg.sender_id) !== String({{ auth()->id() }})">
                             <button @click="handleFriendRequest(msg.sender_id, 'accept')" class="px-6 py-2 bg-brand-indigo text-white rounded-lg text-[9px] font-black uppercase">{{ __('messenger.Accept') }}</button>
                             <button @click="handleFriendRequest(msg.sender_id, 'decline')" class="px-6 py-2 bg-white/5 text-gray-500 rounded-lg text-[9px] font-black uppercase">{{ __('messenger.Decline') }}</button>
                         </div>
@@ -37,7 +37,7 @@
                 </template>
 
                 <template x-if="!msg.message.startsWith('SYSTEM_')">
-                    <div :class="Number(msg.sender_id) === Number({{ auth()->id() }}) 
+                    <div :class="String(msg.sender_id) === String({{ auth()->id() }}) 
                             ? 'bg-brand-indigo text-white rounded-[1.25rem] rounded-br-none shadow-lg' 
                             : 'bg-white/[0.04] border border-white/[0.05] text-gray-200 rounded-[1.25rem] rounded-bl-none'" 
                          class="px-5 py-3 text-[13px] max-w-[85%] break-words" x-text="msg.message"></div>

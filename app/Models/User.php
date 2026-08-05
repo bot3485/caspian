@@ -7,6 +7,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\Redis;
 use Carbon\Carbon;
+use Hashids\Hashids;
 
 class User extends Authenticatable
 {
@@ -113,5 +114,10 @@ public function getPrestigeBadgeAttribute(): array
     };
 }
 
+public function getHashidAttribute()
+{
+    $hashids = new Hashids(config('app.key'), 10);
+    return $hashids->encode($this->id);
+}
 
 }

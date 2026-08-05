@@ -102,13 +102,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::post('/search', 'startSearching')->name('chat.search');
             Route::post('/leave', 'leaveChat')->name('chat.leave');
             Route::post('/signal', 'sendSignal')->name('chat.signal');
-            Route::get('/user-info/{user}', 'getUserInfo')->name('chat.user-info');
+            Route::get('/user-info/{hashid}', 'getUserInfo')->name('chat.user-info');
             Route::get('/contacts', 'getContacts')->name('chat.contacts');
             Route::post('/contact/add', 'addContact')->name('chat.contact.add');
             Route::post('/contact/call', 'callContact')->name('chat.contact.call');
             Route::post('/message/send', 'sendMessage')->name('chat.message.send');
             Route::post('/message/typing', 'sendTypingSignal')->name('chat.message.typing');
-            Route::get('/history/{contactId}', 'getChatHistory')->name('chat.history.single');
+            Route::get('/history/{hashid}', 'getChatHistory')->name('chat.history.single');
             Route::get('/history-all', 'getInteractionHistory')->name('chat.history.all');
             Route::get('/blocked', 'getBlockedUsers')->name('chat.blocked');
             Route::post('/block', 'blockUser')->name('chat.block');

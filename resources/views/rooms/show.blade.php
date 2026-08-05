@@ -1,6 +1,6 @@
 <x-app-layout>
     <div class="h-[calc(100svh-80px)] w-full bg-[#020203] flex flex-col overflow-hidden text-white relative" 
-     x-data="groupRoomComponent('{{ $room->uuid }}', '{{ auth()->user()->hashid }}', '{{ auth()->user()->name }}')"
+x-data="groupRoomComponent('{{ $room->uuid }}', '{{ auth()->user()->hashid }}', '{{ auth()->user()->name }}', {{ auth()->id() }})"
      x-init="init()"
      @resize.window="windowWidth = window.innerWidth">
         

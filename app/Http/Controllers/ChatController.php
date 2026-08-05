@@ -54,19 +54,31 @@ public function index(Request $request)
         return empty($decoded) ? 0 : (int)$decoded[0];
     }
 
-    public function startSearching(Request $request): JsonResponse
+public function startSearching(Request $request): JsonResponse
     {
         $userId = Auth::id();
         $this->leaveChatAction->execute($userId);
+        
         Matchmaking::create([
             'user_id' => $userId, 
             'status' => MatchmakingStatus::Searching, 
             'updated_at' => now()
         ]);
+        
+        // Получаем числовой ID
         $partnerId = $this->findPartnerAction->execute($userId);
-        return response()->json(['status' => $partnerId ? 'matched' : 'searching', 'partnerId' => $partnerId]);
+        
+        // Маскируем в Hashid для фронтенда
+        $partnerHashid = null;
+        if ($partnerId) {
+            $partnerHashid = User::find($partnerId)->hashid;
+        }
+        
+        return response()->json([
+            'status' => $partnerId ? 'matched' : 'searching', 
+            'partnerId' => $partnerHashid // <--- Отправляем строку!
+        ]);
     }
-
 public function callContact(Request $request): JsonResponse
 {
     // 1. Валидация: теперь мы ожидаем строку (Hashid), а не число
@@ -181,50 +193,68 @@ public function callContact(Request $request): JsonResponse
 
 public function sendSignal(Request $request): JsonResponse
 {
+    // 1. Валидация входных данных
     $validated = $request->validate([
-        'partnerId' => 'required|string', 
-        'data' => 'required|array'
+        'partnerId' => 'required|string', // Ожидаем Hashid
+        'data'      => 'required|array'
     ]);
     
-    $senderId = (int)Auth::id();
-    $receiverRealId = $this->decodeId($request->partnerId);
+    $senderId = (int) Auth::id();
     $data = $validated['data'];
 
-    // 1. Быстрая проверка в Redis
-    $isAllowed = Redis::exists("allow_signal:{$senderId}:{$receiverRealId}");
-    
-    if (!$isAllowed) {
-        // 2. ФОЛБЭК: Проверяем в БД в ОБЕ стороны!
-        // Это важно, так как один юзер мог инициировать звонок, а другой — отправить первый сигнал
+    // 2. Декодирование Hashid получателя
+    $receiverRealId = $this->decodeId($request->partnerId);
+
+    // Если Hashid невалидный или равен 0 — сразу прерываем (ошибка протокола)
+    if (!$receiverRealId || $receiverRealId === $senderId) {
+        return response()->json(['error' => 'Invalid destination protocol'], 422);
+    }
+
+    // 3. ПРОВЕРКА РАЗРЕШЕНИЯ (Multi-layer)
+    $isAllowed = false;
+
+    // А. Быстрый чек в Redis (для рулетки и звонков друзьям)
+    if (Redis::exists("allow_signal:{$senderId}:{$receiverRealId}")) {
+        $isAllowed = true;
+    } 
+    // Б. Фолбэк: Проверка активного матча в БД (на случай перезагрузки Redis/Octane)
+    else {
         $isAllowed = Matchmaking::where(function($q) use ($senderId, $receiverRealId) {
                 $q->where('user_id', $senderId)->where('partner_id', $receiverRealId);
             })
             ->orWhere(function($q) use ($senderId, $receiverRealId) {
+                // Важно проверить в обе стороны!
                 $q->where('user_id', $receiverRealId)->where('partner_id', $senderId);
             })
             ->exists();
-        
-        // 3. Если в БД нашли — восстанавливаем ключ в Redis на лету
+
+        // Если нашли в БД — восстанавливаем ключ в Redis для скорости следующего пакета
         if ($isAllowed) {
             Redis::setex("allow_signal:{$senderId}:{$receiverRealId}", 3600, "1");
             Redis::setex("allow_signal:{$receiverRealId}:{$senderId}", 3600, "1");
         }
     }
 
-    // 4. Проверка для комнат (Spaces)
+    // В. Проверка для групповых комнат (Spaces)
+    // Если это сигнал внутри комнаты, разрешаем, если комната существует
     if (!$isAllowed && isset($data['roomUuid'])) {
         $isAllowed = Room::where('uuid', $data['roomUuid'])->exists();
     }
 
-    // Если всё равно нет — тогда 403
+    // Финальный вердикт безопасности
     if (!$isAllowed) {
-        \Log::warning("Signal Blocked: Sender {$senderId} to Receiver {$receiverRealId}. Logic check failed.");
-        return response()->json(['error' => 'Forbidden'], 403);
+        \Log::warning("Blocked Signal attempt: Sender {$senderId} -> Receiver {$receiverRealId}");
+        return response()->json(['error' => 'Forbidden: Connection not authorized'], 403);
     }
 
-    // Подменяем ID на хеш для фронтенда
-    $data['from'] = Auth::user()->hashid; 
-    
+    // 4. ПОДГОТОВКА ДАННЫХ ДЛЯ ФРОНТЕНДА
+    // Очень важно: фронт работает ТОЛЬКО с Hashids.
+    // Подменяем 'from' на строковый Hashid.
+    $data['from'] = (string) Auth::user()->hashid;
+
+    // 5. ТРАНСЛЯЦИЯ
+    // Отправляем событие на ЧИСЛОВОЙ приватный канал получателя
+    // (Receiver слушает PrivateChannel("user.5"))
     broadcast(new WebRTCSignalEvent($receiverRealId, $data));
 
     return response()->json(['status' => 'signal_sent']);

@@ -2,8 +2,8 @@
     document.addEventListener('alpine:init', () => {
         window.caspianInitData = {
             // Данные пользователя
-            myId: {{ auth()->id() }},           // ОСТАВЛЯЕМ ЧИСЛО для Echo (Channels)
-            myHashid: @js(auth()->user()->hashid), // ДОБАВЛЯЕМ ХЕШ для API
+            myId: {{ auth()->id() }},           // Число (для сокетов)
+            myHashid: "{{ auth()->user()->hashid }}", // Строка (для идентификации в WebRTC)
             myInterests: @js(auth()->user()->interests ?? []),
             currentLevel: {{ auth()->user()->level ?? 1 }},
             totalXp: {{ auth()->user()->xp ?? 0 }},

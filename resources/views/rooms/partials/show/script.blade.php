@@ -1,6 +1,8 @@
     <script>
-        function groupRoomComponent(roomUuid, myId, myName) {
+        function groupRoomComponent(roomUuid, myId, myName, myNumericId) {
             return {
+                myHashid: myId,
+                myNumericId: myNumericId, 
                 focusedId: null,
                 isMaximized: false, // НОВОЕ: Флаг для режима во весь экран
                 peers: [], 
@@ -57,9 +59,21 @@ getBoxStyle(id) {
                     }
                 },
 
-                toggleFocus(id) {
+toggleFocus(id) {
                     if (String(id).includes('empty')) return;
                     
+                    // --- ФИКС ЗВУКА ---
+                    // При клике на карточку браузер снимает блокировку Autoplay.
+                    // Находим элемент видео и принудительно включаем звук.
+                    if (id !== 'me') {
+                        const videoEl = document.getElementById('video-' + id);
+                        if (videoEl && videoEl.muted) {
+                            videoEl.muted = false;
+                            window.dispatchEvent(new CustomEvent('toast', {detail:{msg: '🔊 Звук включен'}}));
+                        }
+                    }
+                    // ------------------
+
                     if (this.focusedId === id) {
                         this.focusedId = null;
                         this.isMaximized = false; // Сбрасываем при закрытии
@@ -68,10 +82,20 @@ getBoxStyle(id) {
                         this.isMaximized = false; // Начинаем всегда с режима кинотеатра
                     }
                 },
-
                 // Остальная логика WebRTC (без изменений)
                 async init() {
                     const self = this;
+
+                    const unlockAllAudio = () => {
+                        self.peers.forEach(peer => {
+                            const videoEl = document.getElementById('video-' + peer.id);
+                            if (videoEl && videoEl.muted) {
+                                videoEl.muted = false;
+                            }
+                        });
+                    };
+                    window.addEventListener('click', unlockAllAudio, { passive: true });
+                    window.addEventListener('touchstart', unlockAllAudio, { passive: true });
                     await this.initMedia();
                     window.addEventListener('beforeunload', () => {
                         const url = `/rooms/${this.roomUuid}/sync-occupancy`;
@@ -86,8 +110,7 @@ channel.here(users => {
                         this.syncOccupancy(users.length);
                         
                         users.forEach(u => { 
-                            // Сравниваем как строки (Hashid)
-                            if (String(u.id) !== String(myId)) {
+                            if (String(u.id) !== String(this.myHashid)) {
                                 this.initiateConnection(u.id, u.name, true); 
                             }
                         });
@@ -103,10 +126,10 @@ channel.here(users => {
                         this.currentCount = Math.max(0, channel.subscription.members.count - 1);
                         this.syncOccupancy(this.currentCount);
                     });
-                    window.Echo.private(`user.${myId}`).listen('.WebRTCSignalEvent', (e) => {
-                        if (e.data.roomUuid === roomUuid) self.handleSignal(e.data);
-                    });
-                    setInterval(() => {
+                    window.Echo.private(`user.${this.myNumericId}`).listen('.WebRTCSignalEvent', (e) => {
+                                    if (e.data.roomUuid === roomUuid) self.handleSignal(e.data);
+                                });
+setInterval(() => {
                         if (!window._peerStreams) return;
                         this.peers.forEach(peer => {
                             const videoEl = document.getElementById('video-' + peer.id);
@@ -115,6 +138,9 @@ channel.here(users => {
                             if (videoEl && stream && videoEl.srcObject !== stream) {
                                 console.log("[Watchdog] Восстановление потока для:", peer.id);
                                 videoEl.srcObject = stream;
+                                // ДОБАВИТЬ ВОТ ЭТУ СТРОЧКУ:
+                                videoEl.muted = false;
+                                
                                 videoEl.play().catch(() => {
                                     videoEl.muted = true;
                                     videoEl.play();
@@ -201,7 +227,7 @@ async initiateConnection(partnerId, partnerName, isInitiator) {
         if (e.candidate) this.sendSignal(pId, { type: 'ice', candidate: e.candidate }); 
     };
     
-    pc.ontrack = e => { 
+pc.ontrack = e => { 
         const remoteStream = e.streams[0];
         if (!window._peerStreams) window._peerStreams = {};
         window._peerStreams[pId] = remoteStream;
@@ -209,12 +235,26 @@ async initiateConnection(partnerId, partnerName, isInitiator) {
         const tryAttach = (retries = 0) => {
             const videoEl = document.getElementById('video-' + pId);
             if (videoEl) {
-                if (videoEl.srcObject !== remoteStream) videoEl.srcObject = remoteStream;
-                videoEl.load();
-                videoEl.play().catch(() => {
-                    videoEl.muted = true; // Обязательно для автоплея в Chrome/Safari
-                    videoEl.play().catch(err => console.error("Final play attempt failed", err));
-                });
+                if (videoEl.srcObject !== remoteStream) {
+                    videoEl.srcObject = remoteStream;
+                }
+                
+                // Снимаем мут для немедленного воспроизведения звука
+                videoEl.muted = false;
+                
+                // ВАЖНО: Мы удалили videoEl.load(), так как он сбрасывает разрешение на автоплей!
+                
+                const playPromise = videoEl.play();
+                if (playPromise !== undefined) {
+                    playPromise.catch(() => {
+                        console.warn("[Rooms] Autoplay blocked for user", pId);
+                        // Запасной план сработает только если человек зашел по прямой ссылке
+                        // и еще ни разу не кликнул по странице
+                        videoEl.muted = true; 
+                        videoEl.play();
+                        window.dispatchEvent(new CustomEvent('toast', {detail:{msg: `Нажмите на экран, чтобы включить звук ${partnerName}`}}));
+                    });
+                }
             } else if (retries < 15) {
                 setTimeout(() => tryAttach(retries + 1), 300);
             }

@@ -691,17 +691,27 @@ this.pc.ontrack = (e) => {
     const videoEl = document.getElementById('remoteVideo') || this.$refs.remoteVideo;
     
     if (videoEl && remoteStream) {
-        // Принудительно обновляем srcObject
         if (videoEl.srcObject !== remoteStream) {
             videoEl.srcObject = remoteStream;
         }
 
-        // Пытаемся запустить видео
+        // Принудительно применяем текущее состояние из UI перед запуском
+        videoEl.muted = this.remoteMuted;
+
         videoEl.load(); 
         videoEl.play().catch(err => {
             console.warn("[WebRTC] Autoplay blocked, playing muted...");
+            
+            // 1. Мьютим плеер, чтобы видео всё-таки пошло
             videoEl.muted = true;
-            videoEl.play();
+            
+            // 2. СИНХРОНИЗИРУЕМ С ИНТЕРФЕЙСОМ!
+            this.remoteMuted = true; 
+            
+            videoEl.play().catch(e => console.error("Total playback failure", e));
+
+            // 3. Сообщаем пользователю, что нужно сделать
+            this.toast('Браузер заблокировал звук. Нажмите 🔕 на видео, чтобы включить!');
         });
     }
 };
@@ -752,16 +762,22 @@ this.pc.ontrack = (e) => {
         }
     },
 
-    isPolite() {
+isPolite() {
         if (!this.partnerId) return true;
-        return Number(this.myId) < Number(this.partnerId);
+        // Сравниваем Hashid как строки!
+        return String(this.myHashid) < String(this.partnerId);
     },
 
     async handleSignal(e) {
         const m = e.data;
         const self = this;
-        const fromHashid = String(m.from);
+        const fromId = String(m.from);
         
+        if (this.partnerId && String(this.partnerId) !== fromId) {
+            console.warn("Signal from stranger ignored");
+            return; 
+        }
+
         if (window.location.pathname.includes('/rooms/') && 
             ['offer', 'answer', 'ice'].includes(m.type)) {
             return; 
@@ -974,6 +990,11 @@ if (m.type === 'roulette-chat') {
         const partner = e.partnerData || e; 
         const newPartnerId = partner.id ? String(partner.id) : null;
         
+        if (String(this.myHashid) < String(this.partnerId)) {
+            console.log("I am initiator");
+            setTimeout(() => this.sendOffer(), 1000);
+    }
+
         if (!newPartnerId) {
             console.error("[Caspian] Match received but partner ID is missing!", e);
             return;
@@ -1225,26 +1246,33 @@ if (m.type === 'roulette-chat') {
         }
     },
 
-    async handleFriendRequest(senderId, action) {
-        try {
+handleFriendRequest(senderId, action) {
+    // Выбираем правильный роут в зависимости от действия
+    const url = action === 'accept' ? '/chat/contact/accept' : '/chat/contact/decline';
+
+    window.axios.post(url, { senderId: senderId })
+        .then(response => {
             if (action === 'accept') {
-                await window.axios.post('/chat/contact/accept', { senderId });
-                this.toast(this.__('identity_verified') + ' ✓');
+                // Мгновенно обновляем статус в интерфейсе, чтобы открылось поле ввода
+                if (this.activeFriend) {
+                    this.activeFriend.status = 'accepted';
+                }
+                // Находим друга в списке и тоже меняем статус
+                let friendInList = this.friendsList.find(f => String(f.id) === String(senderId));
+                if (friendInList) {
+                    friendInList.status = 'accepted';
+                }
+                // Убираем системное сообщение с кнопками
+                this.friendMessages = this.friendMessages.filter(m => m.message !== 'SYSTEM_FRIEND_REQUEST');
             } else {
-                await window.axios.post('/chat/contact/decline', { senderId });
-                this.toast(this.__('request_terminated'));
+                // Если отклонили - закрываем чат
+                this.activeFriend = null;
             }
-            
-            this.loadFriends();
-            this.loadHistory();
-            
-            if (this.activeFriend && Number(this.activeFriend.id) === Number(senderId)) {
-                this.openFriendChat(senderId);
-            }
-        } catch (e) {
-            console.error("Friend request error:", e);
-        }
-    },
+        })
+        .catch(error => {
+            console.error("Friend request handling error:", error);
+        });
+},
 
     handleIncomingMsg(e) {
         const m = e.messageData;

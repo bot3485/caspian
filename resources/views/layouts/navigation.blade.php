@@ -28,7 +28,6 @@
                          :class="ledsActive ? 'shadow-[0_0_15px_#6366f1]' : ''">
                         <img src="{{ asset('roulette.jpg') }}" class="w-full h-full object-cover">
                     </div>
-                    <!-- Скрываем текст на мобильных устройствах -->
                     <span class="hidden sm:block text-lg font-black tracking-tighter uppercase italic text-white">Caspian</span>
                 </a>
             </div>
@@ -36,7 +35,7 @@
             <!-- ПРАВАЯ ЧАСТЬ -->
             <div class="flex items-center gap-1.5 sm:gap-4 shrink-0">
                 
-                <!-- КИБЕР-РУБИЛЬНИК (Уменьшен для мобильных) -->
+                <!-- КИБЕР-РУБИЛЬНИК -->
                 <div class="flex items-center gap-1.5 sm:gap-3 px-2 py-1.5 sm:px-4 sm:py-2 bg-white/[0.03] border border-white/10 rounded-xl sm:rounded-2xl shrink-0">
                     <button @click="toggleLeds()" 
                             class="relative w-8 h-5 sm:w-10 sm:h-6 rounded-full transition-all duration-500 border shadow-inner"
@@ -48,7 +47,7 @@
                           :class="ledsActive ? 'text-brand-cyan animate-pulse' : 'text-gray-700'">LED</span>
                 </div>
 
-                <!-- Online Status (Компактный на мобильных) -->
+                <!-- Online Status -->
                 <div class="flex items-center gap-1.5 sm:gap-2 px-2 py-1 sm:px-3 sm:py-1.5 rounded-full bg-white/[0.02] border border-white/[0.05] shrink-0"
                     x-data="{ online: 0 }" 
                     x-init="window.Echo.join('online-status').here(u => online = u.length).joining(u => online++).leaving(u => online--)">
@@ -66,10 +65,7 @@
                     <button @click="langOpen = !langOpen" 
                             class="h-8 sm:h-10 px-1.5 sm:px-3 rounded-xl bg-transparent hover:bg-white/5 border border-transparent hover:border-white/10 flex items-center justify-center gap-1 sm:gap-1.5 transition-all duration-300 group">
                         <span class="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-gray-400 group-hover:text-white transition-colors">
-                            @if(App::getLocale() === 'en') EN
-                            @elseif(App::getLocale() === 'ru') RU
-                            @else TR
-                            @endif
+                            {{ strtoupper(App::getLocale()) }}
                         </span>
                         <svg class="w-2.5 h-2.5 sm:w-3 sm:h-3 text-gray-500 group-hover:text-white transition-all duration-300" :class="langOpen ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
@@ -85,7 +81,6 @@
                          x-transition:leave-end="opacity-0 translate-y-2 scale-95 blur-sm"
                          x-cloak
                          class="absolute right-0 mt-2 sm:mt-3 w-32 sm:w-36 bg-[#0a0a0a]/95 backdrop-blur-3xl border border-white/10 rounded-2xl p-1 sm:p-1.5 shadow-[0_30px_60px_rgba(0,0,0,0.7)] z-50">
-                        
                         <button @click="changeLanguage('en')" class="w-full flex items-center justify-between px-2.5 sm:px-3 py-2 sm:py-2.5 rounded-xl hover:bg-white/10 text-[8px] sm:text-[9px] font-black uppercase tracking-[0.2em] transition-all text-gray-400 hover:text-white">
                             <span>English</span> <span class="text-[10px] sm:text-[12px] opacity-70">🇺🇸</span>
                         </button>
@@ -98,43 +93,42 @@
                     </div>
                 </div>
 
-                <!-- Chat Toggle (Адаптирован) -->
+                <!-- КНОПКА МЕССЕНДЖЕРА С ПРОФЕССИОНАЛЬНЫМИ БЕЙДЖАМИ -->
                 <button @click="globalSidebarOpen = !globalSidebarOpen" 
-                    class="relative w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl flex items-center justify-center transition-all duration-500 group border shrink-0"
-                    :class="{
-                        'bg-brand-indigo/20 border-brand-indigo/40 shadow-[0_0_20px_rgba(99,102,241,0.3)]': hasUnreadFriends(),
-                        'bg-amber-500/10 border-amber-500/30 shadow-[0_0_15px_rgba(245,158,11,0.2)]': !hasUnreadFriends() && hasUnreadHistory(),
-                        'bg-white/[0.03] border-white/[0.08] hover:bg-white/10': !hasUnread()
-                    }">
+                        class="relative w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-500 group border shrink-0"
+                        :class="{
+                            'bg-brand-indigo/20 border-brand-indigo/40 shadow-[0_0_20px_rgba(99,102,241,0.3)]': hasNewFriendRequest,
+                            'bg-amber-500/10 border-amber-500/30 shadow-[0_0_15px_rgba(245,158,11,0.2)]': !hasNewFriendRequest && unreadMessagesCount > 0,
+                            'bg-white/[0.03] border-white/[0.08] hover:bg-white/10': !hasUnread()
+                        }">
                 
-                    <svg class="w-3.5 h-3.5 sm:w-4 sm:h-4 transition-all duration-500" 
-                        :class="hasUnread() ? 'text-white animate-pulse scale-110' : 'text-gray-400 group-hover:text-white'" 
+                    <svg class="w-4 h-4 transition-all duration-500" 
+                        :class="hasUnread() ? 'text-white scale-110' : 'text-gray-400 group-hover:text-white'" 
                         fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                     </svg>
 
-                    <template x-if="hasNewNotification">
-                        <div class="absolute -top-1.5 -right-1.5 z-10 flex items-center justify-center">
-                            <span class="animate-ping absolute inline-flex h-3 w-3 sm:h-4 sm:w-4 rounded-full bg-brand-indigo opacity-75"></span>
-                            <div class="relative bg-brand-indigo text-white w-4 h-4 sm:w-5 sm:h-5 rounded-full flex items-center justify-center shadow-[0_0_15px_rgba(99,102,241,1)] border sm:border-2 border-[#020202]">
-                                <svg class="w-2 h-2 sm:w-2.5 sm:h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                    <!-- БЕЙДЖ: ЗАПРОС В ДРУЗЬЯ (Синий плюс) -->
+                    <template x-if="hasNewFriendRequest">
+                        <div class="absolute -top-1.5 -right-1.5 z-10">
+                            <span class="animate-ping absolute inline-flex h-4 w-4 rounded-full bg-brand-indigo opacity-75"></span>
+                            <div class="relative bg-brand-indigo text-white w-5 h-5 rounded-full flex items-center justify-center shadow-lg border-2 border-[#020202]">
+                                <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="4">
+                                    <path d="M12 4v16m8-8H4"></path>
                                 </svg>
                             </div>
                         </div>
                     </template>
 
-                    <template x-if="hasUnread()">
-                        <span class="absolute -top-1 -right-1 flex h-2.5 w-2.5 sm:h-3 sm:w-3">
-                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75"
-                                :class="hasUnreadFriends() ? 'bg-brand-indigo' : 'bg-amber-500'"></span>
-                            <span class="relative inline-flex rounded-full h-2.5 w-2.5 sm:h-3 sm:w-3 border sm:border-2 border-[#020202]"
-                                :class="hasUnreadFriends() ? 'bg-brand-indigo' : 'bg-amber-500'"></span>
-                        </span>
+                    <!-- БЕЙДЖ: КОЛИЧЕСТВО СООБЩЕНИЙ (Оранжевый круг) -->
+                    <template x-if="unreadMessagesCount > 0 && !hasNewFriendRequest">
+                        <div class="absolute -top-1.5 -right-1.5 flex h-5 min-w-[20px] px-1 items-center justify-center bg-amber-500 text-black text-[9px] font-black rounded-full border-2 border-[#020202] shadow-lg shadow-amber-500/20">
+                            <span x-text="unreadMessagesCount > 99 ? '99+' : unreadMessagesCount"></span>
+                        </div>
                     </template>
                 </button>
 
-                <!-- User Dropdown (Убраны стрелочки на мобилках для чистоты) -->
+                <!-- User Dropdown -->
                 <div class="pl-1.5 sm:pl-4 ml-0.5 sm:ml-2 border-l border-white/[0.08] shrink-0">
                     <x-dropdown align="right" width="48">
                         <x-slot name="trigger">

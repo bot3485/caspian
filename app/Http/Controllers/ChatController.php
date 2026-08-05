@@ -377,23 +377,46 @@ public function getChatHistory(string $hashid): JsonResponse
 
 public function addContact(Request $request): JsonResponse 
 {
-    $request->validate(['contactId' => 'required|string']); // Валидация строки
-    $contactId = $this->decodeId($request->contactId); // Декодируем в число
+    $request->validate(['contactId' => 'required|string']);
+    $contactId = $this->decodeId($request->contactId);
     $userId = Auth::id();
 
-    if ($contactId === 0 || $userId === $contactId) return response()->json(['error' => 'Invalid ID'], 400);
+    if ($contactId === 0 || $userId === $contactId) return response()->json(['error' => 'Error'], 400);
 
-    // Проверка на блок
-    $isBlocked = DB::table('blocks')->where('blocker_id', $contactId)->where('blocked_id', $userId)->exists();
-    if ($isBlocked) return response()->json(['error' => 'Action restricted'], 403);
+    return DB::transaction(function() use ($userId, $contactId) {
+        // Проверяем, нет ли уже запроса от нас к нему
+        $existing = DB::table('contacts')
+            ->where('user_id', $userId)
+            ->where('contact_id', $contactId)
+            ->first();
 
-    $existing = DB::table('contacts')
-        ->where('user_id', $userId)
-        ->where('contact_id', $contactId)
-        ->first();
+        // Проверяем, нет ли встречного запроса (от него к нам)
+        $inverse = DB::table('contacts')
+            ->where('user_id', $contactId)
+            ->where('contact_id', $userId)
+            ->first();
 
-    if (!$existing) {
-        // Создаем заявку (статус pending)
+        if ($existing && $existing->status === 'accepted') {
+            return response()->json(['status' => 'already_friends']);
+        }
+
+        // Логика взаимного принятия:
+        if ($inverse && $inverse->status === 'pending') {
+            // Раз он уже просил, а мы нажали "добавить" — значит мы согласны!
+            DB::table('contacts')->where('id', $inverse->id)->update(['status' => 'accepted']);
+            DB::table('contacts')->updateOrInsert(
+                ['user_id' => $userId, 'contact_id' => $contactId],
+                ['status' => 'accepted', 'updated_at' => now()]
+            );
+            $this->sendSystemMessage($userId, $contactId, 'SYSTEM_FRIEND_ACCEPTED');
+            return response()->json(['status' => 'accepted', 'action' => 'mutual']);
+        }
+
+        if ($existing && $existing->status === 'pending') {
+            return response()->json(['status' => 'already_sent']);
+        }
+
+        // Обычный новый запрос
         DB::table('contacts')->insert([
             'user_id' => $userId, 
             'contact_id' => $contactId, 
@@ -401,55 +424,83 @@ public function addContact(Request $request): JsonResponse
             'created_at' => now(), 
             'updated_at' => now()
         ]);
+        
+        $this->sendSystemMessage($userId, $contactId, 'SYSTEM_FRIEND_REQUEST');
 
-        // Отправляем системное сообщение-уведомление в сокет
-        $msg = Message::create([
-            'sender_id' => $userId,
-            'receiver_id' => $contactId,
-            'message' => 'SYSTEM_FRIEND_REQUEST', // Специальный маркер для фронтенда
-        ]);
-        broadcast(new MessageSentEvent($msg->toArray()));
-
-        return response()->json(['action' => 'requested', 'status' => 'pending']);
-    }
-
-    return response()->json(['action' => 'exists', 'status' => $existing->status]);
+        return response()->json(['status' => 'pending']);
+    });
 }
+
+private function sendSystemMessage($senderId, $receiverId, $type) {
+    $msg = Message::create([
+        'sender_id' => $senderId,
+        'receiver_id' => $receiverId,
+        'message' => $type,
+    ]);
+    broadcast(new \App\Events\MessageSentEvent([
+        'id' => $msg->id,
+        'sender_id' => User::find($senderId)->hashid,
+        'receiver_id' => User::find($receiverId)->hashid,
+        'message' => $type,
+        'created_at' => now()->toIso8601String()
+    ]));
+}
+
 
 public function getContacts(): JsonResponse 
 { 
     $userId = Auth::id();
-    $contactRows = DB::table('contacts')->where('user_id', $userId)->orWhere('contact_id', $userId)->get();
-    $targetIds = $contactRows->map(fn($row) => $row->user_id == $userId ? $row->contact_id : $row->user_id)->unique();
     
-    // 2. Получаем данные пользователей, исключая заблокированных
-    $contacts = User::whereIn('id', $targetIds)
-        ->whereNotIn('id', function($q) use ($userId) {
-            $q->select('blocked_id')->from('blocks')->where('blocker_id', $userId);
-        })
-        ->get()
-        ->map(function($u) use ($userId, $contactRows) {
-            // Ищем строку отношений для этого конкретного юзера
-            // Важно: берем статус именно из той строки, где МЫ — участники
-            $row = DB::table('contacts')
-                ->where(fn($q) => $q->where('user_id', $userId)->where('contact_id', $u->id))
-                ->orWhere(fn($q) => $q->where('user_id', $u->id)->where('contact_id', $userId))
-                ->first();
+    // 1. Получаем все записи отношений (и где мы инициатор, и где мы получатель)
+    $contacts = DB::table('contacts')
+        ->where('user_id', $userId)
+        ->orWhere('contact_id', $userId)
+        ->get();
 
-            return [
-                'id' => $u->hashid, // МЕНЯЕМ НА HASHID
-                'name' => $u->name, 
-                'is_online' => $u->isOnline(), 
-                'last_seen_human' => $u->getLastSeenForHumans(),
-                'level' => $u->level,
-                'rank_name' => $u->rank_name,
-                'status' => $row ? $row->status : 'none'
-            ];
-        })
-        ->sortByDesc('is_online')
-        ->values();
+    // 2. Выделяем ID всех собеседников
+    $targetIds = $contacts->map(fn($row) => $row->user_id == $userId ? $row->contact_id : $row->user_id)->unique();
+    
+    // 3. Загружаем данные пользователей и агрегируем статистику
+    $users = User::whereIn('id', $targetIds)->get()->map(function($u) use ($userId, $contacts) {
+        // Ищем конкретную строку связи для этого пользователя
+        $row = $contacts->where('user_id', $u->id)->where('contact_id', $userId)->first() 
+               ?? $contacts->where('user_id', $userId)->where('contact_id', $u->id)->first();
 
-    return response()->json(['contacts' => $contacts]);
+        // ПРОФЕССИОНАЛЬНЫЙ ФИКС: Считаем точное количество непрочитанных
+        // Это нужно для отрисовки цифры (например, "5") над мессенджером
+        $unreadCount = Message::where('sender_id', $u->id)
+            ->where('receiver_id', $userId)
+            ->where('is_read', false)
+            ->count();
+
+        return [
+            'id' => $u->hashid,
+            'name' => $u->name, 
+            'is_online' => $u->isOnline(), 
+            'last_seen_human' => $u->getLastSeenForHumans(),
+            'status' => $row->status, // 'pending' или 'accepted'
+            
+            // Логика: запрос считается входящим, если contact_id — это МЫ и статус еще 'pending'
+            'is_incoming' => ($row->contact_id == $userId && $row->status === 'pending'), 
+            
+            // Числовой счетчик для бейджа
+            'unread_count' => $unreadCount,
+            'has_new_message' => $unreadCount > 0
+        ];
+    })
+    // Сортировка: Сначала новые запросы в друзья, затем те кто онлайн
+    ->sort(function($a, $b) {
+        if ($a['is_incoming'] !== $b['is_incoming']) {
+            return $b['is_incoming'] ? 1 : -1;
+        }
+        if ($a['is_online'] !== $b['is_online']) {
+            return $b['is_online'] ? 1 : -1;
+        }
+        return 0;
+    })
+    ->values(); 
+
+    return response()->json(['contacts' => $users]);
 }
 
 
@@ -605,29 +656,38 @@ public function getIcebreakerContent(int $index): \Illuminate\Http\JsonResponse
 
 public function acceptFriend(Request $request): JsonResponse
 {
-    $senderId = (int)$request->senderId; // Тот, кто прислал запрос
+    $request->validate(['senderId' => 'required|string']);
+    $senderId = $this->decodeId($request->senderId); // <-- ДЕКОДИРУЕМ HASHID
     $myId = Auth::id();
 
+    if ($senderId === 0) {
+        return response()->json(['error' => 'Invalid sender ID'], 422);
+    }
+
     DB::transaction(function() use ($senderId, $myId) {
-        // 1. Обновляем статус входящего запроса у себя (или создаем если не было)
         DB::table('contacts')->updateOrInsert(
             ['user_id' => $myId, 'contact_id' => $senderId],
             ['status' => 'accepted', 'updated_at' => now()]
         );
         
-        // 2. Обновляем статус запроса у того, кто просил дружбу
         DB::table('contacts')
             ->where('user_id', $senderId)
             ->where('contact_id', $myId)
             ->update(['status' => 'accepted', 'updated_at' => now()]);
 
-        // 3. Отправляем уведомление об успехе
-        $msg = \App\Models\Message::create([
+        $msg = Message::create([
             'sender_id' => $myId,
             'receiver_id' => $senderId,
             'message' => 'SYSTEM_FRIEND_ACCEPTED',
         ]);
-        broadcast(new \App\Events\MessageSentEvent($msg->toArray()));
+
+        broadcast(new \App\Events\MessageSentEvent([
+            'id' => $msg->id,
+            'sender_id' => Auth::user()->hashid,
+            'receiver_id' => User::find($senderId)->hashid,
+            'message' => 'SYSTEM_FRIEND_ACCEPTED',
+            'created_at' => now()->toIso8601String()
+        ]));
     });
 
     return response()->json(['status' => 'success']);
@@ -635,10 +695,11 @@ public function acceptFriend(Request $request): JsonResponse
 
 public function declineFriend(Request $request): JsonResponse
 {
-    $senderId = (int)$request->senderId;
+    $senderId = $this->decodeId($request->senderId); // Тот кто просил дружбу
     $myId = Auth::id();
 
-    // Просто удаляем заявку из таблицы contacts
+    // При отклонении мы просто удаляем запись. 
+    // Это позволяет человеку отправить запрос снова позже (как вы просили).
     DB::table('contacts')
         ->where('user_id', $senderId)
         ->where('contact_id', $myId)
@@ -649,10 +710,14 @@ public function declineFriend(Request $request): JsonResponse
 
 public function removeContact(Request $request): JsonResponse 
 {
-    $contactId = (int)$request->contactId;
+    $request->validate(['contactId' => 'required|string']);
+    $contactId = $this->decodeId($request->contactId); // <-- ДЕКОДИРУЕМ HASHID
     $userId = Auth::id();
 
-    // Удаляем связь в обе стороны, так как дружба была взаимной
+    if ($contactId === 0) {
+        return response()->json(['error' => 'Invalid contact ID'], 422);
+    }
+
     DB::table('contacts')
         ->where(function($q) use ($userId, $contactId) {
             $q->where('user_id', $userId)->where('contact_id', $contactId);
@@ -680,6 +745,27 @@ public function clearChat(Request $request): JsonResponse
     })->orWhere(function($q) use ($userId, $contactId) {
         $q->where('sender_id', $contactId)->where('receiver_id', $userId);
     })->delete();
+
+    return response()->json(['status' => 'success']);
+}
+
+public function markAsRead(Request $request): JsonResponse
+{
+    $request->validate(['contactId' => 'required|string']);
+    
+    // Декодируем Hashid в числовой ID
+    $contactId = $this->decodeId($request->contactId);
+    $userId = Auth::id();
+
+    if ($contactId === 0) {
+        return response()->json(['error' => 'Invalid contact ID'], 422);
+    }
+
+    // Обновляем статус всех входящих непрочитанных сообщений от этого пользователя
+    Message::where('sender_id', $contactId)
+        ->where('receiver_id', $userId)
+        ->where('is_read', false)
+        ->update(['is_read' => true]);
 
     return response()->json(['status' => 'success']);
 }

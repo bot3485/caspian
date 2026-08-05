@@ -81,13 +81,13 @@ getBoxStyle(id) {
                     });
                     const channel = window.Echo.join(`room.${roomUuid}`);
 
-                    channel.here(users => {
+channel.here(users => {
                         this.currentCount = users.length;
                         this.syncOccupancy(users.length);
-                        // Я зашел и вижу тех, кто уже в комнате. 
-                        // Я инициирую соединение со ВСЕМИ (isInitiator = true)
+                        
                         users.forEach(u => { 
-                            if (u.id !== myId) {
+                            // Сравниваем как строки (Hashid)
+                            if (String(u.id) !== String(myId)) {
                                 this.initiateConnection(u.id, u.name, true); 
                             }
                         });
@@ -113,11 +113,15 @@ getBoxStyle(id) {
                             const stream = window._peerStreams[peer.id];
                             
                             if (videoEl && stream && videoEl.srcObject !== stream) {
+                                console.log("[Watchdog] Восстановление потока для:", peer.id);
                                 videoEl.srcObject = stream;
-                                videoEl.play().catch(()=>{});
+                                videoEl.play().catch(() => {
+                                    videoEl.muted = true;
+                                    videoEl.play();
+                                });
                             }
                         });
-                    }, 1000);
+                    }, 2000);
                     setInterval(() => { if (this.currentCount >= 0) this.syncOccupancy(this.currentCount); }, 20000);
                 },
 
@@ -166,77 +170,60 @@ getBoxStyle(id) {
                 },
 
 async initiateConnection(partnerId, partnerName, isInitiator) {
-    if (this.peers.find(p => p.id === partnerId)) return;
+    // Приводим ID к строке для корректного поиска
+    const pId = String(partnerId);
+    if (this.peers.find(p => String(p.id) === pId)) return;
     
-    if (!this.localStream) {
-        let wait = 0;
-        while (!this.localStream && wait < 20) {
-            await new Promise(r => setTimeout(r, 200));
-            wait++;
-        }
+    // Ждем появления локального потока, если он еще инициализируется
+    let attempts = 0;
+    while (!this.localStream && attempts < 25) {
+        await new Promise(r => setTimeout(r, 200));
+        attempts++;
     }
     if (!this.localStream) return;
 
-    const self = this;
     const pc = new RTCPeerConnection(this.rtcConfig);
-    
     const peerObj = { 
-        id: partnerId, 
+        id: pId, 
         name: partnerName, 
         pc: pc, 
         iceQueue: [], 
         signalQueue: [], 
         isProcessingQueue: false, 
         connected: false,
-        makingOffer: false,
-        stream: null // НОВОЕ СВОЙСТВО
+        makingOffer: false
     };
     this.peers.push(peerObj);
     
     this.localStream.getTracks().forEach(t => pc.addTrack(t, this.localStream));
 
     pc.onicecandidate = e => { 
-        if (e.candidate) self.sendSignal(partnerId, { type: 'ice', candidate: e.candidate }); 
+        if (e.candidate) this.sendSignal(pId, { type: 'ice', candidate: e.candidate }); 
     };
     
-pc.ontrack = e => { 
+    pc.ontrack = e => { 
         const remoteStream = e.streams[0];
-        
-        // 1. Прячем поток от Alpine.js в глобальный объект
         if (!window._peerStreams) window._peerStreams = {};
-        window._peerStreams[partnerId] = remoteStream;
+        window._peerStreams[pId] = remoteStream;
 
-        const tryAttach = () => {
-            const videoEl = document.getElementById('video-' + partnerId);
+        const tryAttach = (retries = 0) => {
+            const videoEl = document.getElementById('video-' + pId);
             if (videoEl) {
-                if (videoEl.srcObject !== remoteStream) {
-                    videoEl.srcObject = remoteStream;
-                }
-                
-                // 2. Трюк из Chatroulette: играем без звука, затем включаем звук
-                setTimeout(() => {
-                    const playPromise = videoEl.play();
-                    if (playPromise !== undefined) {
-                        playPromise.catch(err => {
-                            if (err.name === 'AbortError') return; 
-                            videoEl.muted = true;
-                            videoEl.play().then(() => {
-                                setTimeout(() => { videoEl.muted = false; }, 100);
-                            }).catch(() => {});
-                        });
-                    }
-                }, 150);
-            } else {
-                // Если Alpine еще не отрендерил сетку, пробуем снова
-                setTimeout(tryAttach, 500);
+                if (videoEl.srcObject !== remoteStream) videoEl.srcObject = remoteStream;
+                videoEl.load();
+                videoEl.play().catch(() => {
+                    videoEl.muted = true; // Обязательно для автоплея в Chrome/Safari
+                    videoEl.play().catch(err => console.error("Final play attempt failed", err));
+                });
+            } else if (retries < 15) {
+                setTimeout(() => tryAttach(retries + 1), 300);
             }
         };
-
         tryAttach();
     };
     
     pc.oniceconnectionstatechange = () => {
-        const p = self.peers.find(x => x.id === partnerId);
+        const p = this.peers.find(x => String(x.id) === pId);
         if (p) p.connected = (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed');
     };
 
@@ -245,7 +232,7 @@ pc.ontrack = e => {
             peerObj.makingOffer = true;
             const offer = await pc.createOffer();
             await pc.setLocalDescription(offer);
-            this.sendSignal(partnerId, { type: 'offer', sdp: pc.localDescription.sdp });
+            this.sendSignal(pId, { type: 'offer', sdp: pc.localDescription.sdp });
         } catch (e) { console.error("Offer error", e); }
         finally { peerObj.makingOffer = false; }
     }
@@ -253,24 +240,24 @@ pc.ontrack = e => {
 
 async processSignalQueue(peer) {
     if (peer.isProcessingQueue || peer.signalQueue.length === 0) return;
-
     peer.isProcessingQueue = true;
+    
     const signal = peer.signalQueue.shift();
     const pc = peer.pc;
 
     try {
         if (signal.type === 'offer') {
-            // ЛОГИКА ИЗ ЧАТРУЛЕТКИ (Collision Negotiation)
+            // Perfect Negotiation: младший строковый ID уступает
             const offerCollision = (peer.makingOffer || pc.signalingState !== "stable");
-            const isPolite = Number(this.myId) < Number(peer.id); // Младший ID всегда уступает
-            
+            const isPolite = String(myId).toLowerCase() < String(peer.id).toLowerCase();
+
             if (offerCollision && !isPolite) {
-                console.log(`[WebRTC] Игнорируем оффер от ${peer.id} (Я - главный)`);
+                peer.isProcessingQueue = false;
+                this.processSignalQueue(peer);
                 return;
             }
 
             if (offerCollision && isPolite) {
-                console.log(`[WebRTC] Откат локального оффера для ${peer.id}`);
                 await pc.setLocalDescription({ type: "rollback" }).catch(() => {});
             }
 
@@ -284,20 +271,21 @@ async processSignalQueue(peer) {
                 await pc.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp: this.normalizeSdp(signal.sdp) }));
             }
         } else if (signal.type === 'ice' && signal.candidate) {
-            if (pc.remoteDescription) {
+            if (pc.remoteDescription && pc.remoteDescription.type) {
                 await pc.addIceCandidate(new RTCIceCandidate(signal.candidate)).catch(() => {});
             } else {
                 peer.iceQueue.push(signal.candidate);
             }
         }
 
-        if (pc.remoteDescription && peer.iceQueue.length > 0) {
+        // Применяем ICE из очереди после установки RemoteDescription
+        if (pc.remoteDescription && pc.remoteDescription.type && peer.iceQueue.length > 0) {
             while(peer.iceQueue.length) {
                 await pc.addIceCandidate(new RTCIceCandidate(peer.iceQueue.shift())).catch(()=>{});
             }
         }
     } catch (e) {
-        console.error("Critical Signal Error:", e);
+        console.error("WebRTC Error:", e);
     } finally {
         peer.isProcessingQueue = false;
         this.processSignalQueue(peer);
@@ -364,36 +352,22 @@ async processSignalQueue(peer) {
 
 async handleSignal(data) {
     const signal = data.type ? data : data.data; 
-    const fromId = Number(signal.from);
+    const fromId = String(signal.from);
 
-let signalId = signal.id;
+    // Защита от дублей пакетов
+    let signalId = signal.id || `${signal.type}_${fromId}_${signal.sdp ? signal.sdp.length : (signal.candidate ? signal.candidate.candidate : Date.now())}`;
+    if (!window._processedSignals) window._processedSignals = new Set();
+    if (window._processedSignals.has(signalId)) return;
+    window._processedSignals.add(signalId);
+    setTimeout(() => window._processedSignals.delete(signalId), 5000);
 
-if (!signalId) {
-    if (signal.type === 'ice' && signal.candidate) {
-        // Для ICE-кандидатов используем саму строку кандидата как уникальный ID
-        signalId = `ice_${fromId}_${signal.candidate.candidate}`;
-    } else {
-        // Для offer/answer используем длину SDP
-        signalId = `${signal.type}_${fromId}_${signal.sdp ? signal.sdp.length : 'none'}`;
-    }
-}
-
-if (!window._processedSignals) window._processedSignals = new Set();
-if (window._processedSignals.has(signalId)) return;
-
-window._processedSignals.add(signalId);
-// Для ICE кэш можно очищать быстрее, так как их много
-setTimeout(() => window._processedSignals.delete(signalId), signal.type === 'ice' ? 2000 : 10000);
-
-    // 2. Ищем пира или создаем его, если пришел Offer
-    let peer = this.peers.find(p => p.id === fromId);
+    let peer = this.peers.find(p => String(p.id) === fromId);
     
     if (!peer && signal.type === 'offer') {
         await this.initiateConnection(fromId, 'User ' + fromId, false);
-        peer = this.peers.find(p => p.id === fromId);
+        peer = this.peers.find(p => String(p.id) === fromId);
     }
 
-    // 3. Если пир существует, просто добавляем сигнал в его очередь и запускаем процессор
     if (peer) {
         peer.signalQueue.push(signal);
         this.processSignalQueue(peer);
@@ -401,7 +375,16 @@ setTimeout(() => window._processedSignals.delete(signalId), signal.type === 'ice
 },
 
                 normalizeSdp(sdp) { return sdp ? sdp.split('\n').map(l => l.trim()).filter(l => l.length > 0).join('\r\n') + '\r\n' : ''; },
-                sendSignal(to, payload) { window.axios.post('/chat/signal', { partnerId: to, data: { ...payload, from: myId, roomUuid: roomUuid } }); },
+sendSignal(to, payload) { 
+                window.axios.post('/chat/signal', { 
+                    partnerId: String(to), 
+                    data: { 
+                        ...payload, 
+                        from: String(myId), // Это наш hashid (изменен в Шаге 2)
+                        roomUuid: roomUuid 
+                    } 
+                }); 
+            },
                 removePeer(id) {
                     if (window._peerStreams) delete window._peerStreams[id]; // Очищаем поток
                     const p = this.peers.find(x => x.id === id);

@@ -1,8 +1,8 @@
 <x-app-layout>
     <div class="h-[calc(100svh-80px)] w-full bg-[#020203] flex flex-col overflow-hidden text-white relative" 
-         x-data="groupRoomComponent('{{ $room->uuid }}', {{ auth()->id() }}, '{{ auth()->user()->name }}')"
-         x-init="init()"
-         @resize.window="windowWidth = window.innerWidth">
+     x-data="groupRoomComponent('{{ $room->uuid }}', '{{ auth()->user()->hashid }}', '{{ auth()->user()->name }}')"
+     x-init="init()"
+     @resize.window="windowWidth = window.innerWidth">
         
         <!-- Background -->
         <div class="absolute inset-0 pointer-events-none">

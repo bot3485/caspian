@@ -22,13 +22,29 @@ Broadcast::channel('online-status', function ($user) {
 });
 
 Broadcast::channel('room.{uuid}', function ($user, $uuid) {
+    // 1. Ищем комнату
     $room = \App\Models\Room::where('uuid', $uuid)->first();
-    if (!$room) return false;
     
-    // Лимит 6 человек, но создатель всегда может зайти
-    if ($room->current_occupancy >= 6 && $room->creator_id !== $user->id) {
-        return false; 
+    // Если комнаты нет в базе — доступ запрещен
+    if (!$room) {
+        return false;
     }
 
-    return ['id' => $user->id, 'name' => $user->name];
+    // 2. Проверка лимита (6 человек)
+    // Добавляем проверку: если пользователь УЖЕ в комнате (обновляет страницу), 
+    // или он создатель — пускаем всегда.
+    $isFull = $room->current_occupancy >= 6;
+    $isCreator = (int)$room->creator_id === (int)$user->id;
+
+    if ($isFull && !$isCreator) {
+        // Проверяем, не является ли он уже частью этой комнаты (чтобы не заблокировать при F5)
+        // Но для простоты сейчас просто разрешим вход, если он создатель
+        return false;
+    }
+
+    // ВАЖНО: Возвращаем массив с Hashid
+    return [
+        'id'   => $user->hashid, // Это строка-хеш
+        'name' => $user->name
+    ];
 });

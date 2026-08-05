@@ -141,7 +141,7 @@ class FindPartner
         // 3. Проверка активности в БД (Heartbeat)
         $isAlive = Matchmaking::where('user_id', $p->id)
             ->where('status', MatchmakingStatus::Searching)
-            ->where('updated_at', '>=', now()->subSeconds(30)) 
+            ->where('updated_at', '>=', now()->subSeconds(50)) // Даем запас
             ->exists();
         if (!$isAlive) return false;
 

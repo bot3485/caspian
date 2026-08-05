@@ -84,15 +84,25 @@
             </button>
         </div>
         
-        <div class="flex-1 flex justify-center px-3 overflow-hidden transition-all duration-500" x-show="actionsOpen" x-transition:enter="transition delay-300 duration-500 opacity-0 scale-95" x-transition:leave="transition duration-200 opacity-0 scale-90">
+        <div class="flex-1 flex justify-center px-3 overflow-hidden transition-all duration-500" x-show="actionsOpen">
+            <!-- Режим ОБЫЧНОЙ РУЛЕТКИ -->
             <template x-if="callContext !== 'personal'">
                 <div class="w-full flex gap-3">
                     <button x-show="state === 'idle'" @click="startSearch()" class="btn-action-primary w-full py-4 rounded-full text-[11px] font-black uppercase tracking-widest">{{ __('chatroulette.Start_Connect') }}</button>
                     <button x-show="state === 'searching'" @click="stopCall()" class="w-full py-4 btn-glass btn-glass-danger rounded-full font-black text-[10px] uppercase tracking-widest">{{ __('chatroulette.Abort') }}</button>
                     <div x-show="state === 'connected'" class="flex items-center gap-3 w-full">
-                        <button @click="stopCall()" class="btn-glass px-6 py-4 rounded-full font-black text-[10px] uppercase tracking-widest hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/30">{{ __('chatroulette.Stop') }}</button>
+                        <button @click="stopCall()" class="btn-glass px-6 py-4 rounded-full font-black text-[10px] uppercase tracking-widest hover:bg-red-500/20 hover:text-red-400">{{ __('chatroulette.Stop') }}</button>
                         <button @click="startSearch()" class="btn-action-primary flex-1 py-4 rounded-full italic font-black text-[11px] uppercase tracking-widest">{{ __('chatroulette.Next') }} ➔</button>
                     </div>
+                </div>
+            </template>
+
+            <!-- НОВОЕ: Режим ЗВОНКА ДРУГУ -->
+            <template x-if="callContext === 'personal'">
+                <div class="w-full">
+                    <button @click="stopCall()" class="w-full py-4 bg-red-600 text-white rounded-full font-black text-[11px] uppercase tracking-widest shadow-[0_0_20px_rgba(220,38,38,0.4)]">
+                        {{ __('chatroulette.End_Call') }}
+                    </button>
                 </div>
             </template>
         </div>

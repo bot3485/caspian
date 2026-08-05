@@ -686,29 +686,25 @@ async initMedia() {
             }
         };
 
-        this.pc.ontrack = (e) => {
-            const remoteStream = e.streams[0];
-            const videoEl = document.getElementById('remoteVideo');
-            
-            if (videoEl && remoteStream) {
-                if (videoEl.srcObject !== remoteStream) {
-                    videoEl.srcObject = remoteStream;
-                }
+this.pc.ontrack = (e) => {
+    const remoteStream = e.streams[0];
+    const videoEl = document.getElementById('remoteVideo') || this.$refs.remoteVideo;
+    
+    if (videoEl && remoteStream) {
+        // Принудительно обновляем srcObject
+        if (videoEl.srcObject !== remoteStream) {
+            videoEl.srcObject = remoteStream;
+        }
 
-                setTimeout(() => {
-                    const playPromise = videoEl.play();
-                    if (playPromise !== undefined) {
-                        playPromise.catch(err => {
-                            if (err.name === 'AbortError') return; 
-                            videoEl.muted = true;
-                            videoEl.play().then(() => {
-                                setTimeout(() => { videoEl.muted = false; }, 100);
-                            }).catch(e => {});
-                        });
-                    }
-                }, 150);
-            }
-        };
+        // Пытаемся запустить видео
+        videoEl.load(); 
+        videoEl.play().catch(err => {
+            console.warn("[WebRTC] Autoplay blocked, playing muted...");
+            videoEl.muted = true;
+            videoEl.play();
+        });
+    }
+};
 
         this.pc.oniceconnectionstatechange = () => {
             const iceState = self.pc.iceConnectionState;
@@ -851,8 +847,10 @@ async initMedia() {
             }
 
             if (String(this.myHashid) < String(this.partnerId)) {
-                console.log("[WebRTC] I am Lead, sending offer...");
-                setTimeout(() => { this.sendOffer(); }, 500); 
+                console.log("[WebRTC] Я инициирую соединение (Lead)");
+                setTimeout(() => this.sendOffer(), 1000);
+            } else {
+                console.log("[WebRTC] Я жду Offer от партнера (Follower)");
             }
             return; 
         }
@@ -951,16 +949,15 @@ if (m.type === 'roulette-chat') {
                 this.isProcessingSignal = false;
 
             } else if (m.type === 'ice') {
-                // ICE обрабатываются ВСЕГДА, даже если isProcessingSignal === true
                 const candidate = new RTCIceCandidate(m.candidate);
                 
+                // ВАЖНО: Если PC еще не готов (нет RemoteDescription), кладем ICE в очередь
                 if (!this.pc || !this.pc.remoteDescription || !this.pc.remoteDescription.type) {
-                    // Если описание еще не готово — складываем в очередь
+                    if (!this.iceQueue) this.iceQueue = []; 
                     this.iceQueue.push(candidate);
                 } else {
-                    // Если готово — добавляем сразу
                     await this.pc.addIceCandidate(candidate).catch(e => {
-                        if (!this.ignoreOffer) console.warn("[WebRTC] ICE Error", e);
+                        console.warn("[WebRTC] ICE Error", e);
                     });
                 }
             }
@@ -1377,15 +1374,31 @@ if (m.type === 'roulette-chat') {
         });
     },
 
-    signal(data) { 
-        if (this.partnerId) {
-            return window.axios.post('/chat/signal', { partnerId: this.partnerId, data: { ...data, from: this.myId } }); 
+signal(data) { 
+        if (this.partnerId && this.state === 'connected') {
+            return window.axios.post('/chat/signal', { 
+                // Гарантируем, что отправляем строку (Hashid)
+                partnerId: String(this.partnerId), 
+                data: { 
+                    ...data, 
+                    // Отправляем свой Hashid, а не числовой ID
+                    from: this.myHashid 
+                } 
+            }).catch(err => {
+                if (err.response?.status === 422) {
+                    console.error("Validation Error details:", err.response.data.errors);
+                }
+            });
         }
         return Promise.resolve();
     },
 
     signalTo(toId, data) { 
-        return window.axios.post('/chat/signal', { partnerId: toId, data: { ...data, from: this.myId } }); 
+        if (!toId) return Promise.resolve();
+        return window.axios.post('/chat/signal', { 
+            partnerId: String(toId), 
+            data: { ...data, from: this.myHashid } 
+        }); 
     },
 
     normalizeSdp(sdp) { return typeof sdp === 'string' ? sdp.trim().split('\n').map(l => l.trim()).join('\r\n') + '\r\n' : sdp; },

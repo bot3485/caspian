@@ -148,6 +148,16 @@ public function callContact(Request $request): JsonResponse
     \Illuminate\Support\Facades\Redis::setex("allow_signal:{$receiverId}:{$senderId}", 3600, "1");
 
     // 8. СОСТОЯНИЕ В БД: Используем реальные Integer ID
+
+    DB::table('interactions')->updateOrInsert(
+        ['user_id' => $senderId, 'partner_id' => $receiverId], 
+        ['last_at' => now()]
+    );
+    DB::table('interactions')->updateOrInsert(
+        ['user_id' => $receiverId, 'partner_id' => $senderId], 
+        ['last_at' => now()]
+    );
+
     Matchmaking::updateOrCreate(
         ['user_id' => $senderId],
         [
@@ -223,7 +233,6 @@ public function sendSignal(Request $request): JsonResponse
                 $q->where('user_id', $senderId)->where('partner_id', $receiverRealId);
             })
             ->orWhere(function($q) use ($senderId, $receiverRealId) {
-                // Важно проверить в обе стороны!
                 $q->where('user_id', $receiverRealId)->where('partner_id', $senderId);
             })
             ->exists();
@@ -236,9 +245,27 @@ public function sendSignal(Request $request): JsonResponse
     }
 
     // В. Проверка для групповых комнат (Spaces)
-    // Если это сигнал внутри комнаты, разрешаем, если комната существует
     if (!$isAllowed && isset($data['roomUuid'])) {
         $isAllowed = Room::where('uuid', $data['roomUuid'])->exists();
+    }
+
+    // Г. ДОБАВЛЯЕМ ПРОВЕРКУ ДРУЗЕЙ (КОНТАКТОВ)
+if (!$isAllowed) {
+        $isAllowed = \DB::table('contacts')
+            ->where(function ($q) use ($senderId, $receiverRealId) {
+                $q->where('user_id', $senderId)->where('contact_id', $receiverRealId);
+            })
+            ->orWhere(function ($q) use ($senderId, $receiverRealId) {
+                $q->where('user_id', $receiverRealId)->where('contact_id', $senderId);
+            })
+            ->where('status', 'accepted')
+            ->exists();
+
+        // Если они подтвержденные друзья, кешируем разрешение в Redis
+        if ($isAllowed) {
+            Redis::setex("allow_signal:{$senderId}:{$receiverRealId}", 3600, "1");
+            Redis::setex("allow_signal:{$receiverRealId}:{$senderId}", 3600, "1");
+        }
     }
 
     // Финальный вердикт безопасности
@@ -314,6 +341,16 @@ public function sendMessage(Request $request): JsonResponse
         'receiver_id' => $realReceiverId, 
         'message' => $request->message
     ]);
+
+    // ДОБАВЛЯЕМ ФИКСАЦИЮ В ИСТОРИЮ ПРИ ОТПРАВКЕ СООБЩЕНИЯ
+    DB::table('interactions')->updateOrInsert(
+        ['user_id' => $senderId, 'partner_id' => $realReceiverId], 
+        ['last_at' => now()]
+    );
+    DB::table('interactions')->updateOrInsert(
+        ['user_id' => $realReceiverId, 'partner_id' => $senderId], 
+        ['last_at' => now()]
+    );
 
     // 5. Трансляция события через сокеты (Маскируем ID обратно в Hashids)
     // Это важно: получатель в JS будет искать сообщение по хешированному ID
@@ -522,57 +559,82 @@ public function getInteractionHistory(): JsonResponse
 {
     $userId = Auth::id();
 
-    $history = DB::table('interactions')
-        ->where('interactions.user_id', $userId)
-        // 1. Исключаем тех, кого мы заблокировали
-        ->whereNotIn('interactions.partner_id', function($q) use ($userId) {
-            $q->select('blocked_id')->from('blocks')->where('blocker_id', $userId);
-        })
-        // 2. Исключаем тех, кто УЖЕ является принятым другом (accepted)
-        ->whereNotIn('interactions.partner_id', function($q) use ($userId) {
-            $q->select('contact_id')->from('contacts')
-              ->where('user_id', $userId)
-              ->where('status', 'accepted');
-        })
-        ->join('users', 'interactions.partner_id', '=', 'users.id')
-        ->select(
-            'users.id', 
-            'users.name', 
-            'users.last_seen', 
-            'interactions.last_at'
-        )
-        ->orderByDesc('interactions.last_at')
-        ->limit(50)
+    // Собираем всех партнеров, с кем были пересечения в interactions в обе стороны,
+    // исключая тех, кто заблокирован
+    $partnerIds = DB::table('interactions')
+        ->where('user_id', $userId)
+        ->orWhere('partner_id', $userId)
         ->get()
-        ->map(function($record) use ($userId) {
-            $u = User::find($record->id);
-            
-            $isBlocked = DB::table('blocks')
-                ->where('blocker_id', $userId)
-                ->where('blocked_id', $record->id)
-                ->exists();
+        ->map(function($row) use ($userId) {
+            return $row->user_id == $userId ? $row->partner_id : $row->user_id;
+        })
+        ->unique();
 
-            // Проверяем статус в контактах (может быть null или pending)
-            $contactEntry = DB::table('contacts')
-                ->where('user_id', $userId)
-                ->where('contact_id', $record->id)
-                ->first();
+    $history = collect();
 
-            return [
-                'id' => $u->hashid, // МЕНЯЕМ НА HASHID
-                'name' => $record->name,
-                'is_online' => $u ? $u->isOnline() : false,
-                'last_seen_human' => $u ? $u->getLastSeenForHumans() : 'Давно',
-                'last_met_diff' => \Carbon\Carbon::parse($record->last_at)->diffForHumans(),
-                'is_blocked' => $isBlocked,
-                // Флаг отправленного запроса (true если в базе есть запись, но мы знаем что она не accepted)
-                'is_pending' => $contactEntry && $contactEntry->status === 'pending',
-                'level' => $u->level ?? 1,
-                'rank_name' => $u->rank_name ?? 'Newbie'
-            ];
-        });
+    foreach ($partnerIds as $partnerId) {
+        // 1. Проверяем черный список
+        $isBlocked = DB::table('blocks')
+            ->where(fn($q) => $q->where('blocker_id', $userId)->where('blocked_id', $partnerId))
+            ->orWhere(fn($q) => $q->where('blocker_id', $partnerId)->where('blocked_id', $userId))
+            ->exists();
 
-    return response()->json(['history' => $history]);
+        if ($isBlocked) continue;
+
+        // 2. Проверяем, является ли пользователь ПРИНЯТЫМ другом
+        $isAcceptedFriend = DB::table('contacts')
+            ->where(function($q) use ($userId, $partnerId) {
+                $q->where('user_id', $userId)->where('contact_id', $partnerId);
+            })
+            ->orWhere(function($q) use ($userId, $partnerId) {
+                $q->where('user_id', $partnerId)->where('contact_id', $userId);
+            })
+            ->where('status', 'accepted')
+            ->exists();
+
+        // Если это уже друг, в истории звонков рулетки он не нужен (он есть в контактах)
+        if ($isAcceptedFriend) continue;
+
+        $u = User::find($partnerId);
+        if (!$u) continue;
+
+        // Берем время последнего взаимодействия
+        $lastInteraction = DB::table('interactions')
+            ->where(function($q) use ($userId, $partnerId) {
+                $q->where('user_id', $userId)->where('partner_id', $partnerId);
+            })
+            ->orWhere(function($q) use ($userId, $partnerId) {
+                $q->where('user_id', $partnerId)->where('partner_id', $userId);
+            })
+            ->orderByDesc('last_at')
+            ->first();
+
+        $contactEntry = DB::table('contacts')
+            ->where('user_id', $userId)
+            ->where('contact_id', $partnerId)
+            ->first();
+
+        $history->push([
+            'id' => $u->hashid,
+            'name' => $u->name,
+            'is_online' => $u->isOnline(),
+            'last_seen_human' => $u->getLastSeenForHumans(),
+            'last_met_diff' => $lastInteraction ? \Carbon\Carbon::parse($lastInteraction->last_at)->diffForHumans() : 'Just now',
+            'last_at_raw' => $lastInteraction ? $lastInteraction->last_at : now(),
+            'is_blocked' => false,
+            'is_pending' => $contactEntry && $contactEntry->status === 'pending',
+            'level' => $u->level ?? 1,
+            'rank_name' => $u->rank_name ?? 'Newbie'
+        ]);
+    }
+
+    // Сортируем по времени последнего общения (свежие сверху)
+    $sortedHistory = $history->sortByDesc('last_at_raw')->values()->map(function($item) {
+        unset($item['last_at_raw']); // убираем системное поле
+        return $item;
+    });
+
+    return response()->json(['history' => $sortedHistory]);
 }
 
     public function getBlockedUsers(): JsonResponse
@@ -711,7 +773,7 @@ public function declineFriend(Request $request): JsonResponse
 public function removeContact(Request $request): JsonResponse 
 {
     $request->validate(['contactId' => 'required|string']);
-    $contactId = $this->decodeId($request->contactId); // <-- ДЕКОДИРУЕМ HASHID
+    $contactId = $this->decodeId($request->contactId);
     $userId = Auth::id();
 
     if ($contactId === 0) {
@@ -726,6 +788,12 @@ public function removeContact(Request $request): JsonResponse
             $q->where('user_id', $contactId)->where('contact_id', $userId);
         })
         ->delete();
+
+    // Отправляем сигнал собеседнику, что связь разорвана
+    broadcast(new \App\Events\WebRTCSignalEvent($contactId, [
+        'type' => 'contact-removed',
+        'contactId' => Auth::user()->hashid
+    ]));
 
     return response()->json([
         'success' => true,

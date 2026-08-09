@@ -13,8 +13,7 @@
         background: rgba(255, 255, 255, 0.02);
         border: 1px solid rgba(255, 255, 255, 0.06);
         border-radius: 1.5rem;
-        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-        backdrop-filter: blur(10px);
+        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);  
     }
     .btn-glass:hover {
         background: rgba(255, 255, 255, 0.06);
@@ -47,9 +46,9 @@
 
     /* === 3. LED ИНТЕГРАЦИЯ (Срабатывает только при body.leds-on) === */
     @keyframes elegant-led-flow {
-        0% { background-position: 0% 50%; }
-        50% { background-position: 100% 50%; }
-        100% { background-position: 0% 50%; }
+        0% { filter: hue-rotate(0deg) brightness(1); }
+        50% { filter: hue-rotate(30deg) brightness(1.2); }
+        100% { filter: hue-rotate(0deg) brightness(1); }
     }
 
     .led-container-fx {
@@ -222,9 +221,9 @@
         inset: 0;
         border-radius: inherit;
         padding: 2px; /* Это ширина светящейся линии */
-        background: linear-gradient(135deg, rgba(99,102,241,0.9), rgba(6,182,212,0.6), rgba(236,72,153,0.6), rgba(99,102,241,0.9));
-        background-size: 200% 200%;
-        animation: elegant-led-flow 4s ease infinite;
+        bbackground: linear-gradient(135deg, rgba(99,102,241,0.9), rgba(6,182,212,0.6), rgba(236,72,153,0.6), rgba(99,102,241,0.9));
+        background-size: 100% 100%; /* Возвращаем к 100% */
+        animation: elegant-led-flow 4s linear infinite; /* Новая легкая анимация */
         
         /* Mask скрывает заливку внутри, оставляя только "border" равный padding */
         -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);

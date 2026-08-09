@@ -43,9 +43,10 @@
   );
   animation: led-rotate 4s linear infinite;
   z-index: 0;
-  opacity: 0; /* Выключено */
+  opacity: 0; 
   transition: opacity 0.8s ease;
-  pointer-events: none; /* Защита от перекрытия кликов */
+  pointer-events: none;
+  will-change: transform, opacity;
 }
 
 /* 4. Включаем свет, если на body есть класс .leds-on */

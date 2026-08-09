@@ -43,7 +43,7 @@ Schedule::call(function () {
             });
 
     // 2. Очистка зависших матчей в рулетке
-    $staleMatches = Matchmaking::where('updated_at', '<', now()->subSeconds(30))->get();
+    $staleMatches = Matchmaking::where('updated_at', '<', now()->subSeconds(45))->get();
 
     foreach ($staleMatches as $match) {
         if ($match->partner_id) {

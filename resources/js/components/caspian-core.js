@@ -1,9 +1,28 @@
 export default (initData) => ({
     // --- ПЕРЕМЕННЫЕ ИЗ PHP ---
     myId: initData.myId,
+    myHashid: initData.myHashid,
     myInterests: initData.myInterests,
     iceServers: initData.iceServers,
     translations: initData.translations,
+    hasNewFriendRequest: false,
+    unreadMessagesCount: 0,
+    statsInterval: null,
+    heartbeatInterval: null,
+    videoTagInterval: null,
+    watchdogTimer: null,
+    typingTimer: null,
+    iceTimer: null,
+    blitzTimer: null,
+
+    // --- СЛУЖЕБНЫЕ ФЛАГИ И ОЧЕРЕДИ (Предотвращают ReferenceError и баги прокси) ---
+    isProcessingSignal: false,
+    makingOffer: false,
+    wasDisconnected: false,
+    iceQueue: [],
+    friendRequestSent: false,
+    processedEvents: null,
+    lastTypingSent: 0,
 
     // --- UI & TABS ---
     globalSidebarOpen: false, 
@@ -32,7 +51,7 @@ export default (initData) => ({
     timerExpanded: false,
     isProcessingContact: false,
 
-    // --- МАССИВЫ (Исправляет ошибку .some() is not a function) ---
+    // --- МАССИВЫ ---
     friendsList: [],
     historyList: [],
     blockedList: [],
@@ -42,7 +61,7 @@ export default (initData) => ({
     audioDevices: [],
     commonInterests: [],
 
-    // --- ФЛАГИ И НАСТРОЙКИ (Исправляет ReferenceError) ---
+    // --- ФЛАГИ И НАСТРОЙКИ ---
     isBlitzActive: false,
     blitzCooldown: 0,
     isRemoteBlurred: false,
@@ -73,12 +92,16 @@ export default (initData) => ({
     // --- WEBRTC ---
     pc: null, 
     localStream: null,
-    partnerCamEnabled: true, // НОВОЕ: Знает ли собеседник, что мы включили камеру
-    partnerMicEnabled: true, // НОВОЕ: Знает ли собеседник, что мы включили микрофон
+    partnerCamEnabled: true, 
+    partnerMicEnabled: true, 
     partnerFilters: { beauty: false, cinema: false },
-    rtcConfig: { iceServers: initData.iceServers, bundlePolicy: "balanced", iceCandidatePoolSize: 10 },
+    rtcConfig: { 
+        iceServers: initData.iceServers, 
+        bundlePolicy: "balanced", 
+        iceCandidatePoolSize: 10,
+    },
 
-    // --- ЛОГИКА ТАРГЕТИНГА ---
+// --- ЛОГИКА ТАРГЕТИНГА ---
     targetCountry: initData.targetCountry,
     targetGender: initData.targetGender,
     targetAgeMin: initData.targetAgeMin,
@@ -87,7 +110,7 @@ export default (initData) => ({
     icebreakerQuestion: '',
     icebreakerTimer: null,
     icebreakerCooldown: 0,
-    iceTimer: null, 
+    iceTimer: null,
 
     countryNames: {
         'global': '🌍 ' + initData.translations.all,
@@ -114,7 +137,6 @@ export default (initData) => ({
         }
     },
 
-    // 2. Логика заглушения собеседника
     toggleRemoteAudio() {
         const video = document.getElementById('remoteVideo');
         if (!video) return;
@@ -129,7 +151,6 @@ export default (initData) => ({
         }
     },
 
-    // 3. Логика Скриншота (Canvas)
     takeSnapshot() {
         const video = document.getElementById('remoteVideo');
         if (!video || video.readyState < 2 || this.state !== 'connected') {
@@ -143,25 +164,20 @@ export default (initData) => ({
             canvas.height = video.videoHeight;
             const ctx = canvas.getContext('2d');
             
-            // Если включен Ч/Б фильтр, применяем его и на скриншот
             if (this.partnerFilters?.cinema || this.cinemaFilter) {
                 ctx.filter = 'grayscale(100%) contrast(125%)';
             }
             
-            // Рисуем текущий кадр
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
             
-            // Скачиваем
             const link = document.createElement('a');
             link.download = `Caspian_Snap_${new Date().getTime()}.jpeg`;
             link.href = canvas.toDataURL('image/jpeg', 0.9);
             link.click();
             
-            // Тактильная и визуальная отдача
             this.vibrate(50);
             this.toast('📸 Снимок сохранен!');
             
-            // Эффект белой вспышки на экране (опционально)
             const flash = document.createElement('div');
             flash.className = 'fixed inset-0 bg-white z-[9999] pointer-events-none transition-opacity duration-300 opacity-100';
             document.body.appendChild(flash);
@@ -206,7 +222,7 @@ export default (initData) => ({
         
         try {
             await window.axios.post('/chat/contact/remove', { contactId });
-            this.loadFriends();
+            this.loadContacts();
             
             if (this.activeFriend && Number(this.activeFriend.id) === Number(contactId)) {
                 this.activeFriend = null;
@@ -399,41 +415,41 @@ export default (initData) => ({
 
     async changeVideoDevice() {
         try {
-            if (this.localStream) {
-                this.localStream.getTracks().forEach(t => t.stop());
-            }
-
             const constraints = {
-                video: { deviceId: { ideal: this.selectedVideoId }, width: { ideal: 1280 }, height: { ideal: 720 } },
-                audio: { deviceId: { ideal: this.selectedAudioId } }
+                video: { deviceId: { exact: this.selectedVideoId }, width: { ideal: 1280 }, height: { ideal: 720 } },
+                audio: false 
             };
             const newStream = await navigator.mediaDevices.getUserMedia(constraints);
+            const newVideoTrack = newStream.getVideoTracks()[0];
 
             if (this.localStream) {
-                this.localStream.getTracks().forEach(track => track.stop());
+                const oldVideoTrack = this.localStream.getVideoTracks()[0];
+                if (oldVideoTrack) {
+                    oldVideoTrack.stop();
+                    this.localStream.removeTrack(oldVideoTrack);
+                }
+                this.localStream.addTrack(newVideoTrack);
+            } else {
+                this.localStream = newStream;
             }
 
-            this.localStream = newStream;
-            if (this.$refs.localVideo) {
-                this.$refs.localVideo.srcObject = newStream;
-                await this.$refs.localVideo.play();
+            const videoEl = this.$refs.localVideo || document.getElementById('localVideo');
+            if (videoEl) {
+                videoEl.srcObject = this.localStream;
+                await videoEl.play().catch(() => {});
             }
 
             if (this.pc) {
-                const videoTrack = newStream.getVideoTracks()[0];
-                const audioTrack = newStream.getAudioTracks()[0];
-                
                 const videoSender = this.pc.getSenders().find(s => s.track?.kind === 'video');
-                const audioSender = this.pc.getSenders().find(s => s.track?.kind === 'audio');
-
-                if (videoSender) await videoSender.replaceTrack(videoTrack);
-                if (audioSender) await audioSender.replaceTrack(audioTrack);
+                if (videoSender) {
+                    await videoSender.replaceTrack(newVideoTrack);
+                }
             }
 
             this.toast(this.__('hardware_synced'));
             this.deviceModalOpen = false;
         } catch (e) {
-            console.error(e);
+            console.error("Video device change error:", e);
             this.toast(this.__('device_error'));
         }
     },
@@ -446,19 +462,52 @@ export default (initData) => ({
     },
 
     async changeAudioDevice() {
-        this.changeVideoDevice(); 
+        try {
+            const constraints = {
+                video: false, 
+                audio: { deviceId: { exact: this.selectedAudioId } }
+            };
+            const newStream = await navigator.mediaDevices.getUserMedia(constraints);
+            const newAudioTrack = newStream.getAudioTracks()[0];
+
+            if (this.localStream) {
+                const oldAudioTrack = this.localStream.getAudioTracks()[0];
+                if (oldAudioTrack) {
+                    oldAudioTrack.stop();
+                    this.localStream.removeTrack(oldAudioTrack);
+                }
+                this.localStream.addTrack(newAudioTrack);
+                newAudioTrack.enabled = this.micEnabled;
+            } else {
+                this.localStream = newStream;
+            }
+
+            if (this.pc) {
+                const audioSender = this.pc.getSenders().find(s => s.track?.kind === 'audio');
+                if (audioSender) {
+                    await audioSender.replaceTrack(newAudioTrack);
+                }
+            }
+
+            this.toast(this.__('hardware_synced'));
+            this.deviceModalOpen = false;
+        } catch (e) {
+            console.error("Audio device change error:", e);
+            this.toast(this.__('device_error'));
+        }
     },
 
     async init() {
-        const self = this; 
+        this.refreshBadges();
 
-        this.$watch('globalSidebarOpen', value => {
+        this.$watch('globalSidebarOpen', (value) => {
             if (value) {
                 this.hasNewNotification = false;
             }
         });
+        
         const onceUnlock = () => {
-            self.unlockAudio();
+            this.unlockAudio();
             window.removeEventListener('touchstart', onceUnlock);
             window.removeEventListener('mousedown', onceUnlock);
         };
@@ -472,9 +521,9 @@ export default (initData) => ({
 
         window.Echo.private(`user.${this.myId}`)
             .listen('.MatchFoundEvent', (e) => {
-                if (self.callContext === 'personal') return;
-                self.vibrate(20); 
-                self.handleMatch(e);
+                if (this.callContext === 'personal') return;
+                this.vibrate(20); 
+                this.handleMatch(e);
             })
             .listen('.XpGainedEvent', (e) => {
                 if (e.currentLevel > this.currentLevel) {
@@ -485,28 +534,55 @@ export default (initData) => ({
                 }
                 this.totalXp = e.totalXp;
             })
-            .listen('.WebRTCSignalEvent', (e) => self.handleSignal(e))
-            .listen('.MessageSentEvent', (e) => self.handleIncomingMsg(e))
-            .listen('.UserTypingEvent', (e) => self.handleTyping(e));
+            .listen('.WebRTCSignalEvent', (e) => this.handleSignal(e))
+            .listen('.MessageSentEvent', (e) => this.handleIncomingMsg(e))
+            .listen('.UserTypingEvent', (e) => this.handleTyping(e));
 
         window.addEventListener('contact-removed', (e) => {
-            if (Number(this.partnerId) === Number(e.detail.contactId)) {
+            if (String(this.partnerId) === String(e.detail.contactId)) {
                 this.isFriend = false;
             }
         });
 
         if (window.location.pathname === '/chat') {
             this.$nextTick(async () => {
-                await self.initMedia();
+                await this.initMedia();
                 const urlParams = new URLSearchParams(window.location.search);
-                if (urlParams.has('accept_call')) self.setupPersonalCall(parseInt(urlParams.get('accept_call')), true);
-                else if (urlParams.has('call_to')) self.setupPersonalCall(parseInt(urlParams.get('call_to')), false);
-                setInterval(() => { this.refreshVideoTags(); }, 2000);
+                const callWith = urlParams.get('call_with');
+                const isAccepted = urlParams.get('accepted') === '1';
+                if (urlParams.has('accept_call')) this.setupPersonalCall(urlParams.get('accept_call'), true);
+                else if (urlParams.has('call_to')) this.setupPersonalCall(urlParams.get('call_to'), false);
+                if (callWith) {
+                            setTimeout(() => {
+                                this.setupPersonalCall(callWith, isAccepted);
+                            }, 1000); // Даем Echo 1 секунду на старт
+                        }
+                if (this.videoTagInterval) clearInterval(this.videoTagInterval);
+                this.videoTagInterval = setInterval(() => { this.refreshVideoTags(); }, 2000);
             });
         }
-        this.loadFriends(); this.loadHistory(); this.loadBlocked();
+        
+        this.loadContacts(); 
+        this.loadHistory(); 
+        this.loadBlocked();
         this.startStats();
         this.startHeartbeat();
+    },
+
+    refreshGlobalUnread() {
+        this.loadContacts().then(() => {
+            this.hasNewFriendRequest = this.friendsList.some(f => f.status === 'pending' && f.is_incoming);
+            
+            this.unreadMessagesCount = this.friendsList
+                .filter(f => f.status === 'accepted')
+                .reduce((sum, f) => sum + (f.unread_count || 0), 0);
+        });
+    },
+
+    refreshBadges() {
+        this.loadContacts().then(() => {
+            this.hasNewFriendRequest = this.friendsList.some(f => f.is_incoming && f.status === 'pending');
+        });
     },
 
     formatDateTime(msg) {
@@ -541,29 +617,39 @@ export default (initData) => ({
 
     async initMedia() {
         if (this.localStream) {
-            if (this.$refs.localVideo) this.$refs.localVideo.srcObject = this.localStream;
+            const videoEl = this.$refs.localVideo || document.getElementById('localVideo');
+            if (videoEl && videoEl.srcObject !== this.localStream) {
+                videoEl.srcObject = this.localStream;
+            }
             return;
         }
+
         try {
             this.localStream = await navigator.mediaDevices.getUserMedia({ 
-                video: { width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { max: 30 } }, 
+                video: { 
+                    width: { ideal: 640 }, 
+                    height: { ideal: 480 }, 
+                    frameRate: { max: 30 } 
+                }, 
                 audio: true 
             });
-            if (this.$refs.localVideo) {
-                this.$refs.localVideo.srcObject = this.localStream;
-                this.$refs.localVideo.play().catch(e => console.log("Auto-play blocked", e));
+
+            const videoEl = this.$refs.localVideo || document.getElementById('localVideo');
+
+            if (videoEl) {
+                videoEl.srcObject = this.localStream;
+                
+                setTimeout(() => {
+                    videoEl.play().catch(e => {
+                        if (e.name !== 'AbortError') {
+                            console.warn("Autoplay interaction required or blocked:", e);
+                        }
+                    });
+                }, 200);
             }
         } catch (e) { 
+            console.error("Camera access error:", e);
             this.toast(this.__('camera_denied')); 
-        }
-        if (this.$refs.localVideo) {
-            this.$refs.localVideo.srcObject = this.localStream;
-            
-            try {
-                await this.$refs.localVideo.play();
-            } catch (e) {
-                console.log("iOS Autoplay prevented, waiting for user click");
-            }
         }
     },
 
@@ -571,18 +657,19 @@ export default (initData) => ({
         if (this.state !== 'connected') return;
         this.layoutFocus = (this.layoutFocus === target) ? 'split' : target;
     },
+    
     toggleMic() { 
-            this.micEnabled = !this.micEnabled; 
-            if(this.localStream) this.localStream.getAudioTracks()[0].enabled = this.micEnabled; 
-            this.syncMediaState(); // Отправляем статус
-        },
+        this.micEnabled = !this.micEnabled; 
+        if(this.localStream) this.localStream.getAudioTracks()[0].enabled = this.micEnabled; 
+        this.syncMediaState(); 
+    },
+    
     toggleCam() { 
         this.camEnabled = !this.camEnabled; 
         if(this.localStream) this.localStream.getVideoTracks()[0].enabled = this.camEnabled; 
-        this.syncMediaState(); // Отправляем статус
+        this.syncMediaState(); 
     },
 
-    // Метод отправки нашего статуса партнеру
     syncMediaState() {
         if (this.state === 'connected') {
             this.signal({ 
@@ -592,6 +679,7 @@ export default (initData) => ({
             });
         }
     },
+    
     toggleBeauty() {
         this.beautyFilter = !this.beautyFilter;
         this.syncFilters();
@@ -626,21 +714,21 @@ export default (initData) => ({
     initPC() {
         this.startVideoWatchdog();
         if (this.pc) this.pc.close();
-        const self = this;
+        
         this.iceQueue = [];
         this.pc = new RTCPeerConnection(this.rtcConfig);
 
-        this.pc.onnegotiationneeded = async () => {
-            try {
-                console.log("[WebRTC] Negotiation needed...");
-                await self.sendOffer();
-            } catch (err) {
-                console.error("[WebRTC] Negotiation Error:", err);
-            }
-        };
+        // this.pc.onnegotiationneeded = async () => {
+        //     try {
+        //         console.log("[WebRTC] Negotiation needed...");
+        //         await this.sendOffer();
+        //     } catch (err) {
+        //         console.error("[WebRTC] Negotiation Error:", err);
+        //     }
+        // };
 
         this.pc.onicecandidate = (e) => { 
-            if (e.candidate) self.signal({ type: 'ice', candidate: e.candidate }); 
+            if (e.candidate) this.signal({ type: 'ice', candidate: e.candidate }); 
         };
 
         this.pc.onconnectionstatechange = () => {
@@ -653,8 +741,8 @@ export default (initData) => ({
                     const remoteVid = document.getElementById('remoteVideo') || this.$refs.remoteVideo;
                     if (remoteVid && remoteVid.readyState < 2) {
                         console.warn("[WebRTC] Video stuck at black screen. Nudging with ICE Restart...");
-                        if (self.isPolite()) {
-                            self.sendOffer({ iceRestart: true });
+                        if (this.isPolite()) {
+                            this.sendOffer({ iceRestart: true });
                         }
                     }
                 }, 2000);
@@ -665,31 +753,25 @@ export default (initData) => ({
         };
 
         this.pc.ontrack = (e) => {
-            const remoteStream = e.streams[0];
-            const videoEl = document.getElementById('remoteVideo');
+            const remoteStream = e.streams[0] || new MediaStream([e.track]);
+            const videoEl = document.getElementById('remoteVideo') || this.$refs.remoteVideo;
             
             if (videoEl && remoteStream) {
                 if (videoEl.srcObject !== remoteStream) {
                     videoEl.srcObject = remoteStream;
                 }
 
-                setTimeout(() => {
-                    const playPromise = videoEl.play();
-                    if (playPromise !== undefined) {
-                        playPromise.catch(err => {
-                            if (err.name === 'AbortError') return; 
-                            videoEl.muted = true;
-                            videoEl.play().then(() => {
-                                setTimeout(() => { videoEl.muted = false; }, 100);
-                            }).catch(e => {});
-                        });
-                    }
-                }, 150);
+                this.remoteMuted = false;
+                videoEl.muted = false;
+
+                videoEl.play().catch(err => {
+                    console.error("[WebRTC] Ошибка воспроизведения со звуком:", err);
+                });
             }
         };
 
         this.pc.oniceconnectionstatechange = () => {
-            const iceState = self.pc.iceConnectionState;
+            const iceState = this.pc.iceConnectionState;
             console.log("[WebRTC] ICE State Changed:", iceState);
 
             if (['disconnected', 'failed'].includes(iceState)) {
@@ -698,10 +780,10 @@ export default (initData) => ({
                 console.log("[WebRTC] Network path lost. Starting recovery timer...");
                 
                 setTimeout(() => {
-                    const currentState = self.pc.iceConnectionState;
+                    const currentState = this.pc.iceConnectionState;
                     if (['disconnected', 'failed'].includes(currentState)) {
                         console.log("[WebRTC] Proactive ICE Restart initiated after dropout.");
-                        self.sendOffer({ iceRestart: true });
+                        this.sendOffer({ iceRestart: true });
                     }
                 }, 3000);
             } 
@@ -709,7 +791,7 @@ export default (initData) => ({
                 this.partnerState = 'active';
 
                 this.$nextTick(() => {
-                    const remoteVid = self.$refs.remoteVideo || document.getElementById('remoteVideo');
+                    const remoteVid = this.$refs.remoteVideo || document.getElementById('remoteVideo');
                     if (remoteVid) {
                         if (this.wasDisconnected && remoteVid.srcObject) {
                             const stream = remoteVid.srcObject;
@@ -718,7 +800,7 @@ export default (initData) => ({
                             this.wasDisconnected = false;
                         }
 
-                        remoteVid.play().catch(err => {
+                        remoteVid.play().catch(() => {
                             remoteVid.muted = true; 
                             remoteVid.play();
                         });
@@ -736,13 +818,19 @@ export default (initData) => ({
 
     isPolite() {
         if (!this.partnerId) return true;
-        return Number(this.myId) < Number(this.partnerId);
+        // Тот, кто отправляет оффер (myHashid > partnerId), является "невежливым" (impolite), 
+        // а тот, кто ждет (myHashid < partnerId), является "вежливым" (polite) и должен уступить при коллизии.
+        return String(this.myHashid) < String(this.partnerId);
     },
-
     async handleSignal(e) {
         const m = e.data;
-        const self = this;
+        const fromId = String(m.from);
         
+        if (this.partnerId && String(this.partnerId) !== String(fromId)) {
+            console.warn("Signal from stranger ignored");
+            return; 
+        }
+
         if (window.location.pathname.includes('/rooms/') && 
             ['offer', 'answer', 'ice'].includes(m.type)) {
             return; 
@@ -751,6 +839,22 @@ export default (initData) => ({
         if (m.type === 'media-state') {
             this.partnerCamEnabled = m.cam;
             this.partnerMicEnabled = m.mic;
+            return;
+        }
+
+        if (m.type === 'contact-removed') {
+            // Удаляем пользователя из локального списка друзей
+            this.friendsList = this.friendsList.filter(f => String(f.id) !== String(m.contactId));
+            
+            // Если чат с ним был открыт прямо сейчас — закрываем его и перекидываем в историю
+            if (this.activeFriend && String(this.activeFriend.id) === String(m.contactId)) {
+                this.activeFriend = null;
+                this.tab = 'history'; 
+                this.toast('Connection protocol terminated by user.');
+            } else {
+                this.toast('A user has removed you from contacts.');
+            }
+            this.refreshGlobalUnread();
             return;
         }
 
@@ -814,22 +918,35 @@ export default (initData) => ({
         
         if (m.type === 'call-accepted') { 
             console.log("[WebRTC] Partner is ready. Initiating handshake...");
-            this.state = 'connected'; 
-            this.startCallTimer();
-            if (!this.pc) this.initPC(); 
+           this.state = 'connected';
+        this.tab = 'chat';
+        
+        this.initPC();
 
-            if (this.localStream) {
+        // СТРОГОЕ ПРАВИЛО: Оффер создает ТОЛЬКО один из участников. 
+        // Используем комбинацию сравнения ID и случайной задержки, чтобы гарантированно не было пересечений.
+        const myStr = String(this.myHashid);
+        const partnerStr = String(this.partnerId);
+
+        if (myStr !== partnerStr) {
+            // Если мой ID "меньше", я жду оффер. Если "больше" — я отправляю оффер.
+            if (myStr > partnerStr) {
+                setTimeout(() => {
+                    // Дополнительная проверка: отправляем оффер только если состояние все еще 'connected' и нет активного оффера
+                    if (this.state === 'connected' && this.pc && this.pc.signalingState === 'stable') {
+                        this.sendOffer();
+                    }
+                }, 800);
+            }
+        }
+
+        if (this.localStream) {
                 const senders = this.pc.getSenders();
                 this.localStream.getTracks().forEach(track => {
                     if (!senders.some(s => s.track && s.track.kind === track.kind)) {
                         this.pc.addTrack(track, this.localStream);
                     }
                 });
-            }
-
-            if (Number(this.myId) < Number(this.partnerId)) {
-                console.log("[WebRTC] I am the leader, sending offer...");
-                setTimeout(() => { this.sendOffer(); }, 500); 
             }
             return; 
         }
@@ -857,13 +974,28 @@ export default (initData) => ({
             return;
         }
 
-        if (this.isProcessingSignal) return;
-        
+        let signalId = m.id;
+        if (!signalId) {
+            if (m.type === 'ice' && m.candidate) {
+                signalId = `ice_${m.from}_${m.candidate.candidate}`;
+            } else if (m.type === 'offer' || m.type === 'answer') {
+                signalId = `${m.type}_${m.from}_${m.sdp ? m.sdp.length : 'none'}`;
+            } else {
+                signalId = `${m.type}_${m.from}_${Date.now()}`;
+            }
+        }
+
+        if (!window._processedSignals) window._processedSignals = new Set();
+        if (window._processedSignals.has(signalId)) return;
+        window._processedSignals.add(signalId);
+        setTimeout(() => window._processedSignals.delete(signalId), m.type === 'ice' ? 2000 : 10000);
+
         try {
             if (m.type === 'offer') {
+                if (this.isProcessingSignal) return; 
                 this.isProcessingSignal = true;
                 
-                const offerCollision = (this.makingOffer || this.pc.signalingState !== 'stable');
+                const offerCollision = (this.makingOffer || (this.pc && this.pc.signalingState !== 'stable'));
                 this.ignoreOffer = !this.isPolite() && offerCollision;
                 
                 if (this.ignoreOffer) {
@@ -890,28 +1022,33 @@ export default (initData) => ({
                 const answer = await this.pc.createAnswer();
                 await this.pc.setLocalDescription(answer);
                 this.signal({ type: 'answer', sdp: this.pc.localDescription.sdp }); 
+                
                 while(this.iceQueue.length) {
-                    await this.pc.addIceCandidate(this.iceQueue.shift()).catch(e => {});
+                    await this.pc.addIceCandidate(this.iceQueue.shift()).catch(() => {});
                 }
                 this.isProcessingSignal = false;
 
             } else if (m.type === 'answer') {
+                if (this.isProcessingSignal) return; 
                 this.isProcessingSignal = true;
+                
                 if (this.pc.signalingState === 'have-local-offer') {
                     await this.pc.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp: this.normalizeSdp(m.sdp) }));
                     while(this.iceQueue.length) {
-                        await this.pc.addIceCandidate(this.iceQueue.shift()).catch(e => {});
+                        await this.pc.addIceCandidate(this.iceQueue.shift()).catch(() => {});
                     }
                 }
                 this.isProcessingSignal = false;
 
             } else if (m.type === 'ice') {
                 const candidate = new RTCIceCandidate(m.candidate);
+                
                 if (!this.pc || !this.pc.remoteDescription || !this.pc.remoteDescription.type) {
+                    if (!this.iceQueue) this.iceQueue = []; 
                     this.iceQueue.push(candidate);
                 } else {
                     await this.pc.addIceCandidate(candidate).catch(e => {
-                        if (!this.ignoreOffer) console.warn("[WebRTC] ICE Error", e);
+                        console.warn("[WebRTC] ICE Error", e);
                     });
                 }
             }
@@ -919,16 +1056,15 @@ export default (initData) => ({
             console.error("[WebRTC] Signal Handling Critical Error:", err);
             this.isProcessingSignal = false;
         }
-
     },
 
     async handleMatch(e) {
         if (this.callContext === 'personal') return;
         this.isPartnerProfileOpen = false;
         this.uiShowPartnerCard = false;
-        const partner = e.partnerData || e || {};
-        const newPartnerId = partner.id ? Number(partner.id) : null;
-        
+        const partner = e.partnerData || e; 
+        const newPartnerId = partner.id ? String(partner.id) : null;
+
         if (!newPartnerId) {
             console.error("[Caspian] Match received but partner ID is missing!", e);
             return;
@@ -960,7 +1096,7 @@ export default (initData) => ({
             vpn: partner.vpn,
         };
         
-        this.isFriend = this.friendsList.some(f => Number(f.id) === this.partnerId);
+        this.isFriend = this.friendsList.some(f => String(f.id) === this.partnerId);
 
         let common = this.partnerData.common_interests;
         
@@ -982,25 +1118,33 @@ export default (initData) => ({
         
         this.initPC();
 
-        if (this.myId < this.partnerId) {
-            setTimeout(() => this.sendOffer(), 1200);
+        if (String(this.myHashid) > String(this.partnerId)) {
+            setTimeout(() => this.sendOffer(), 1000);
         }
 
         this.startCallTimer();
     },
 
     async setupPersonalCall(id, isAccepted) {
+        // 1. Сразу переводим состояние, чтобы Alpine.js начал отрисовывать блоки <video> в DOM
         this.callContext = 'personal';
-        this.partnerId = id;
+        this.partnerId = String(id);
         this.state = 'connecting';
         this.micEnabled = true; 
         this.camEnabled = true; 
 
-        window.history.replaceState({}, '', '/chat');
+        // Очищаем URL от параметров звонка, чтобы они не висели
+        if (window.location.search.includes('call_with')) {
+            window.history.replaceState({}, '', '/chat');
+        }
+
+        // 2. Ждем один цикл Alpine.js, чтобы элементы <video x-ref="..."> гарантированно появились в DOM
+        await this.$nextTick();
 
         try {
             if (!this.pc) this.initPC();
 
+            // 3. Запускаем медиа (теперь $refs.localVideo уже существует)
             await this.initMedia();
 
             if (this.pc && this.localStream) {
@@ -1015,11 +1159,12 @@ export default (initData) => ({
             const res = await window.axios.get(`/chat/user-info/${id}`);
             this.partnerData = res.data;
 
+            // 4. Даем сокетам Echo 1.5 секунды на восстановление соединения после редиректа перед отправкой сигналов
+            await new Promise(resolve => setTimeout(resolve, 1500));
+
             if (isAccepted) {
                 this.state = 'connected';
-                setTimeout(() => {
-                    this.signal({ type: 'call-accepted' });
-                }, 500);
+                this.signal({ type: 'call-accepted' });
             } else {
                 const r = await window.axios.post('/chat/contact/call', { contactId: id });
 
@@ -1029,6 +1174,7 @@ export default (initData) => ({
                     return;
                 }
 
+                this.state = 'connected'; // Сразу переводим в connected для отображения видео
                 this.toast(this.__('calling') + '...');
             }
         } catch (e) {
@@ -1042,7 +1188,7 @@ export default (initData) => ({
         .then(() => {
             this.toast(this.__('unblocked'));
             this.loadBlocked(); 
-            this.loadFriends(); 
+            this.loadContacts(); 
             this.loadHistory(); 
         });
     },
@@ -1104,10 +1250,13 @@ export default (initData) => ({
         this.ringtone.currentTime = 0;
     },
 
-    acceptCall() {
+acceptCall() {
         this.stopRingtone(); 
-        const fromId = this.incomingCall.fromId;
-        window.location.href = `/chat?accept_call=${fromId}`;
+        const callerId = this.incomingCall.fromId;
+        this.incomingCall = null;
+        
+        // Перенаправляем на чат с автоматическим стартом звонка
+        window.location.href = `/chat?call_with=${callerId}&accepted=1`;
     },
 
     rejectCall() {
@@ -1119,8 +1268,13 @@ export default (initData) => ({
     stopCall(notify = true) {
         if (notify && this.partnerId) this.signal({ type: 'hang-up' });
         this.stopRingtone();
+        const shouldRefreshHistory = this.callContext === 'roulette' && this.partnerId;
         this.reset();
-        window.axios.post('/chat/leave');
+        window.axios.post('/chat/leave').then(() => {
+            if (shouldRefreshHistory) {
+                this.loadHistory();
+            }
+        });
         this.toast(this.__('call_ended'));
     },
 
@@ -1129,6 +1283,11 @@ export default (initData) => ({
         this.stopCallTimer();
         this.isPartnerProfileOpen = false;
         this.uiShowPartnerCard = false;
+
+        if (this.typingTimer) { clearTimeout(this.typingTimer); this.typingTimer = null; }
+        if (this.statsInterval) { clearInterval(this.statsInterval); this.statsInterval = null; }
+        if (this.heartbeatInterval) { clearInterval(this.heartbeatInterval); this.heartbeatInterval = null; }
+        if (this.videoTagInterval) { clearInterval(this.videoTagInterval); this.videoTagInterval = null; }
         if (this.pc) { this.pc.close(); this.pc = null; }
         if (this.$refs.remoteVideo) {
             this.$refs.remoteVideo.pause();
@@ -1151,107 +1310,158 @@ export default (initData) => ({
     },
 
     async toggleContact() {
-        if (!this.partnerId) return;
+        // Блокируем двойные клики
+        if (this.isProcessingContact || !this.partnerData) return;
+
+        // Анти-спам: проверяем локальный статус "В ожидании"
+        if (this.partnerData.is_pending) {
+            this.toast('Protocol already pending. Please wait for approval.');
+            return;
+        }
+
+        this.isProcessingContact = true;
 
         try {
             if (this.isFriend) {
-                const res = await window.axios.post('/chat/contact/remove', { contactId: this.partnerId });
-
-                if (res.data.success || res.data.action === 'removed') {
-                    this.isFriend = false;
-                    this.toast(this.__('contact_removed') + ' 🗑️');
+                const confirmed = confirm(this.t('remove_friend_sure'));
+                if (!confirmed) {
+                    this.isProcessingContact = false;
+                    return;
                 }
+                
+                await window.axios.post('/chat/contact/remove', { contactId: this.partnerData.id });
+                this.isFriend = false;
+                this.partnerData.is_pending = false; 
+                this.toast(this.t('contact_unlinked'));
+                
             } else {
-                const res = await window.axios.post('/chat/contact/add', { contactId: this.partnerId });
-
-                if (res.data.action === 'requested') {
-                    this.isFriend = false; 
-                    this.toast(this.__('request_encrypted') + ' 📡');
-                } else if (res.data.action === 'added') {
+                const res = await window.axios.post('/chat/contact/add', { contactId: this.partnerData.id });
+                
+                if (res.data.status === 'already_sent') {
+                    this.partnerData.is_pending = true;
+                    this.toast('Protocol already pending.');
+                } else if (res.data.status === 'accepted') {
                     this.isFriend = true;
-                    this.toast(this.__('contact_added') + ' 🤝');
-                } else if (res.data.action === 'exists') {
-                    this.isFriend = true; 
-                    this.toast(this.__('protocol_active'));
+                    this.toast('Protocol established!');
+                } else {
+                    // Запрос успешно ушел
+                    this.partnerData.is_pending = true; // Лочим кнопку
+                    this.friendRequestSent = true; 
+                    this.toast('Handshake Transmitted');
                 }
             }
         } catch (e) {
-            console.error('Toggle contact error:', e);
+            console.error(e);
+            this.toast('Transmission failed. Retry.');
+        } finally {
+            this.isProcessingContact = false;
         }
     },
 
-    async handleFriendRequest(senderId, action) {
+    handleFriendRequest(senderId, action) {
+        const url = action === 'accept' ? '/chat/contact/accept' : '/chat/contact/decline';
+
+        window.axios.post(url, { senderId: senderId })
+            .then(() => {
+                if (action === 'accept') {
+                    if (this.activeFriend) {
+                        this.activeFriend.status = 'accepted';
+                    }
+                    let friendInList = this.friendsList.find(f => String(f.id) === String(senderId));
+                    if (friendInList) {
+                        friendInList.status = 'accepted';
+                    }
+                    this.friendMessages = this.friendMessages.filter(m => m.message !== 'SYSTEM_FRIEND_REQUEST');
+                } else {
+                    this.activeFriend = null;
+                }
+            })
+            .catch(error => {
+                console.error("Friend request handling error:", error);
+            });
+    },
+
+    async requestFriendFromChat() {
+        // Защита от спам-кликов и повторных отправок
+        if (this.isProcessingContact || !this.activeFriend || this.activeFriend.status === 'pending') return;
+        
+        this.isProcessingContact = true;
+        
         try {
-            if (action === 'accept') {
-                await window.axios.post('/chat/contact/accept', { senderId });
-                this.toast(this.__('identity_verified') + ' ✓');
+            const res = await window.axios.post('/chat/contact/add', { contactId: this.activeFriend.id });
+            
+            if (res.data.status === 'already_sent') {
+                this.activeFriend.status = 'pending';
+                this.toast('Protocol already pending.');
+            } else if (res.data.status === 'accepted') {
+                // Если запрос был взаимным (собеседник тоже отправил его ранее)
+                this.activeFriend.status = 'accepted';
+                this.toast('Protocol established!');
             } else {
-                await window.axios.post('/chat/contact/decline', { senderId });
-                this.toast(this.__('request_terminated'));
+                // Успешная отправка нового запроса
+                this.activeFriend.status = 'pending';
+                this.toast('Handshake Transmitted');
             }
             
-            this.loadFriends();
-            this.loadHistory();
-            
-            if (this.activeFriend && Number(this.activeFriend.id) === Number(senderId)) {
-                this.openFriendChat(senderId);
-            }
+            this.refreshGlobalUnread();
         } catch (e) {
-            console.error("Friend request error:", e);
+            console.error("Failed to add friend from chat:", e);
+            this.toast('Transmission failed. Retry.');
+        } finally {
+            this.isProcessingContact = false;
         }
     },
 
-    handleIncomingMsg(e) {
-        const m = e.messageData;
+    handleFriendRequest(senderId, action) {
+        // Предотвращаем спам кликами по кнопкам "Принять/Отклонить"
+        if (this.isProcessingContact) return;
+        this.isProcessingContact = true;
         
-        if (this.processedEvents && this.processedEvents.has('msg_' + m.id)) return;
-        
-        if (!this.globalSidebarOpen) {
-            this.hasNewNotification = true;
-            this.vibrate(30); 
-        }
-        if(!this.processedEvents) this.processedEvents = new Set();
-        this.processedEvents.add('msg_' + m.id);
-        
-        if (m.message === 'SYSTEM_FRIEND_REQUEST' || m.message === 'SYSTEM_FRIEND_ACCEPTED') {
-            this.loadFriends();
-            this.loadHistory();
-            return;
-        }
+        const url = action === 'accept' ? '/chat/contact/accept' : '/chat/contact/decline';
 
-        if (this.audioUnlocked) this.msgSound.play().catch(()=>{});
-
-        const senderIdNum = Number(m.sender_id || (this.activeFriend ? this.activeFriend.id : 0));
-        if (!senderIdNum) return;
-
-        if (this.activeFriend && Number(this.activeFriend.id) === senderIdNum) { 
-            this.friendMessages.push(m); 
-            this.scrollFriendChat(); 
-            return;
-        }
-
-        const friend = this.friendsList.find(f => Number(f.id) === senderIdNum);
-
-        if (friend) {
-            friend.has_new_message = true; 
-            friend.unread_count = (friend.unread_count || 0) + 1;
-            
-            this.friendsList = [
-                friend,
-                ...this.friendsList.filter(f => Number(f.id) !== senderIdNum)
-            ];
-        } else {
-            this.loadFriends();
-            this.loadHistory();
-
-            this.toast(`Incoming Secure Connection Request`);
-        }
+        window.axios.post(url, { senderId: senderId })
+            .then(() => {
+                if (action === 'accept') {
+                    // Реактивно обновляем активный чат, если он открыт
+                    if (this.activeFriend && String(this.activeFriend.id) === String(senderId)) {
+                        this.activeFriend.status = 'accepted';
+                        this.friendMessages = this.friendMessages.filter(m => m.message !== 'SYSTEM_FRIEND_REQUEST');
+                    }
+                    
+                    // Реактивно обновляем контакт в списке
+                    let friendInList = this.friendsList.find(f => String(f.id) === String(senderId));
+                    if (friendInList) {
+                        friendInList.status = 'accepted';
+                        friendInList.is_incoming = false;
+                    }
+                    this.toast('Protocol Accepted! 🤝');
+                } else {
+                    // Логика отклонения
+                    if (this.activeFriend && String(this.activeFriend.id) === String(senderId)) {
+                        this.activeFriend = null; // Закрываем чат
+                        this.tab = 'history';     // Перекидываем в историю
+                    }
+                    // Убираем из списка входящих
+                    this.friendsList = this.friendsList.filter(f => String(f.id) !== String(senderId));
+                    this.toast('Protocol Declined.');
+                }
+                
+                this.refreshGlobalUnread(); // Пересчитываем бейджи уведомлений
+            })
+            .catch(error => {
+                console.error("Friend request handling error:", error);
+                this.toast('Action failed. Connection issue.');
+            })
+            .finally(() => {
+                this.isProcessingContact = false;
+            });
     },
 
     handleTyping(e) {
-        if (e.senderId === this.partnerId || (this.activeFriend && e.senderId === this.activeFriend.id)) {
+        const senderId = String(e.senderId || e.fromId || '');
+        if (senderId === this.partnerId || (this.activeFriend && senderId === this.activeFriend.id)) {
             this.isPartnerTyping = true;
-            this.typingPartnerName = (this.partnerId === e.senderId) ? (this.partnerData?.name || 'Partner') : this.activeFriend.name;
+            this.typingPartnerName = (this.partnerId === senderId) ? (this.partnerData?.name || 'Partner') : this.activeFriend.name;
             
             if (this.typingTimer) clearTimeout(this.typingTimer);
             
@@ -1328,19 +1538,52 @@ export default (initData) => ({
     },
 
     signal(data) { 
-        if (this.partnerId) {
-            return window.axios.post('/chat/signal', { partnerId: this.partnerId, data: { ...data, from: this.myId } }); 
+        if (this.partnerId && this.state === 'connected') {
+            return window.axios.post('/chat/signal', { 
+                partnerId: String(this.partnerId), 
+                data: { 
+                    ...data, 
+                    from: this.myHashid 
+                } 
+            }).catch(err => {
+                if (err.response?.status === 422) {
+                    console.error("Validation Error details:", err.response.data.errors);
+                }
+            });
         }
         return Promise.resolve();
     },
 
     signalTo(toId, data) { 
-        return window.axios.post('/chat/signal', { partnerId: toId, data: { ...data, from: this.myId } }); 
+        if (!toId) return Promise.resolve();
+        return window.axios.post('/chat/signal', { 
+            partnerId: String(toId), 
+            data: { ...data, from: this.myHashid } 
+        }); 
     },
 
-    normalizeSdp(sdp) { return typeof sdp === 'string' ? sdp.trim().split('\n').map(l => l.trim()).join('\r\n') + '\r\n' : sdp; },
-    startHeartbeat() { setInterval(() => window.axios.post('/ping'), 15000); },
-    startStats() { setInterval(async () => { if (this.pc?.iceConnectionState === 'connected') { const s = await this.pc.getStats(); s.forEach(r => { if (r.type === 'candidate-pair' && r.state === 'succeeded') this.ping = Math.round(r.currentRoundTripTime * 1000); }); } }, 3000); },
+    normalizeSdp(sdp) { 
+        return typeof sdp === 'string' ? sdp.trim().split('\n').map(l => l.trim()).join('\r\n') + '\r\n' : sdp; 
+    },
+    
+    startHeartbeat() { 
+        if (this.heartbeatInterval) clearInterval(this.heartbeatInterval);
+        this.heartbeatInterval = setInterval(() => window.axios.post('/ping'), 15000); 
+    },
+    
+    startStats() { 
+        if (this.statsInterval) clearInterval(this.statsInterval);
+        this.statsInterval = setInterval(async () => { 
+            if (this.pc?.iceConnectionState === 'connected') { 
+                const s = await this.pc.getStats(); 
+                s.forEach(r => { 
+                    if (r.type === 'candidate-pair' && r.state === 'succeeded') { 
+                        this.ping = Math.round(r.currentRoundTripTime * 1000); 
+                    } 
+                }); 
+            } 
+        }, 3000); 
+    },
     
     handleVisibilityChange() {
         if (!this.partnerId) return;
@@ -1392,32 +1635,53 @@ export default (initData) => ({
         await window.axios.post('/chat/search'); 
     },
 
-    loadFriends() {
-        window.axios.get('/chat/contacts').then(r => {
-            this.friendsList = r.data.contacts.sort((a, b) => {
-                if (a.is_online !== b.is_online) {
-                    return b.is_online ? 1 : -1;
-                }
-                return 0;
-            });
+    loadContacts() {
+        return window.axios.get('/chat/contacts').then(r => {
+            this.friendsList = r.data.contacts;
+            this.hasNewFriendRequest = this.friendsList.some(f => f.is_incoming && f.status === 'pending');
+            this.unreadMessagesCount = this.friendsList.reduce((sum, f) => sum + (f.unread_count || 0), 0);
         });
     },
 
-    loadHistory() { window.axios.get('/chat/history-all').then(r => this.historyList = r.data.history); },
-    loadBlocked() { window.axios.get('/chat/blocked').then(r => this.blockedList = r.data.blocked); },
-    scrollChat() { this.$nextTick(() => { if(this.$refs.chatBox) this.$refs.chatBox.scrollTop = this.$refs.chatBox.scrollHeight; }); },
-    scrollFriendChat() { this.$nextTick(() => { if(this.$refs.friendChatBox) this.$refs.friendChatBox.scrollTop = this.$refs.friendChatBox.scrollHeight; }); },
+    async loadHistory() {
+        try {
+            // Проверьте, какой у вас точный URL в Laravel маршрутах для getInteractionHistory
+            const res = await window.axios.get('/chat/history-all'); 
+            this.historyList = res.data.history;
+        } catch (e) {
+            console.error("Error loading history:", e);
+        }
+    },
+    
+    loadBlocked() { 
+        window.axios.get('/chat/blocked').then(r => this.blockedList = r.data.blocked); 
+    },
+    
+    scrollChat() { 
+        this.$nextTick(() => { if(this.$refs.chatBox) this.$refs.chatBox.scrollTop = this.$refs.chatBox.scrollHeight; }); 
+    },
+    
+    scrollFriendChat() { 
+        this.$nextTick(() => { if(this.$refs.friendChatBox) this.$refs.friendChatBox.scrollTop = this.$refs.friendChatBox.scrollHeight; }); 
+    },
     
     hasUnread() {
-        return this.hasUnreadFriends() || this.hasUnreadHistory();
+        return this.hasNewFriendRequest || 
+               this.unreadMessagesCount > 0 || // Исправлено
+               this.friendsList.some(f => f.has_new_message) ||
+               this.historyList.some(h => h.unread_count > 0);
     },
 
     hasUnreadFriends() {
-        return this.friendsList.some(f => f.unread_count > 0);
+        return this.hasNewFriendRequest || this.friendsList.some(f => f.status === 'pending' && f.is_incoming);
     },
 
     hasUnreadHistory() {
         return this.historyList.some(h => h.unread_count > 0);
+    },
+    
+    hasUnreadMessages() {
+        return this.unreadMessagesCount > 0 || this.friendsList.some(f => f.has_new_message && f.status === 'accepted');
     },
     
     openFriendChat(friendId) {
@@ -1425,19 +1689,24 @@ export default (initData) => ({
             console.error("Caspian DEBUG: Ошибка - передан пустой ID!");
             return;
         }
+        
+        const id = String(friendId);
 
-        const idNum = Number(friendId);
+        let friend = this.friendsList.find(f => String(f.id) === id);
+        let historyItem = this.historyList.find(x => String(x.id) === id);
+        
+        let target = friend || historyItem;
+        let isFriend = !!friend && friend.status === 'accepted';
 
-        let target = this.friendsList.find(x => Number(x.id) === idNum);
-        let isFriend = !!target;
-
-        if (!target) {
-            target = this.historyList.find(x => Number(x.id) === idNum);
+        if (friend && friend.unread_count > 0) {
+            this.unreadMessagesCount -= friend.unread_count;
+            friend.unread_count = 0;
+            window.axios.post('/chat/mark-as-read', { contactId: friendId });
         }
 
         this.activeFriend = target 
             ? { ...target } 
-            : { id: idNum, name: 'User #' + idNum, status: 'none', is_online: false };
+            : { id: id, name: 'User #' + id, status: 'none', is_online: false };
 
         this.tab = isFriend ? 'friends' : 'history';
 
@@ -1447,7 +1716,7 @@ export default (initData) => ({
         }
 
         this.friendMessages = []; 
-        window.axios.get(`/chat/history/${idNum}`)
+        window.axios.get(`/chat/history/${id}`)
             .then(res => { 
                 this.friendMessages = Array.isArray(res.data.messages) ? res.data.messages : []; 
                 this.scrollFriendChat(); 
@@ -1502,16 +1771,38 @@ export default (initData) => ({
         this.friendMessages.push(res.data.message); 
         this.scrollFriendChat(); 
     },
+    
+    sendTyping() {
+        if (!this.activeFriend) return;
+        
+        let now = Date.now();
+        if (this.lastTypingSent && now - this.lastTypingSent < 2000) return;
+        this.lastTypingSent = now;
 
-    sendTypingSignal() { const rid = this.activeFriend ? this.activeFriend.id : this.partnerId; if (rid) window.axios.post('/chat/message/typing', { receiver_id: rid }); },
-    callFriend(f) { if (!f.is_online) return; window.location.href = '/chat?call_to=' + f.id; },
+        window.axios.post('/chat/message/typing', { 
+            receiver_id: this.activeFriend.id 
+        });
+    },
+    
+    sendTypingSignal() { 
+        const rid = this.activeFriend ? this.activeFriend.id : this.partnerId; 
+        if (rid) window.axios.post('/chat/message/typing', { receiver_id: rid }); 
+    },
+    
+    callFriend(f) { 
+        if (!f.is_online) {
+            this.toast('User is offline');
+            return; 
+        }
+        
+        // Делаем полноценный редирект на /chat с параметром вызова для звонящего (accepted=0)
+        window.location.href = `/chat?call_with=${f.id}&accepted=0`;
+    },
 
-    // Вспомогательный метод для вызова тоста
     toast(message) {
         window.dispatchEvent(new CustomEvent('toast', { detail: { msg: message } }));
     },
     
-    // Вспомогательный метод для тактильной отдачи (оставлен плейсхолдер для совместимости)
     vibrate(pattern) {
         if (navigator.vibrate) navigator.vibrate(pattern);
     },

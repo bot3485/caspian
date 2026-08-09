@@ -3,12 +3,6 @@
 use Illuminate\Support\Facades\Broadcast;
 use App\Models\Room;
 
-
-
-Broadcast::channel('user.{id}', function ($user, $id) {
-    return (int) $user->id === (int) $id;
-});
-
 Broadcast::channel('App.Models.User.{id}', function ($user, $id) {
     return (int) $user->id === (int) $id;
 });
@@ -21,14 +15,19 @@ Broadcast::channel('online-status', function ($user) {
     ];
 });
 
+// Канал для личных сигналов (WebRTC, сообщения)
+Broadcast::channel('user.{id}', function ($user, $id) {
+    return (int) $user->id === (int) $id;
+});
+
+// Канал для комнат (Presence)
 Broadcast::channel('room.{uuid}', function ($user, $uuid) {
     $room = \App\Models\Room::where('uuid', $uuid)->first();
     if (!$room) return false;
-    
-    // Лимит 6 человек, но создатель всегда может зайти
-    if ($room->current_occupancy >= 6 && $room->creator_id !== $user->id) {
-        return false; 
-    }
 
-    return ['id' => $user->id, 'name' => $user->name];
+    // ВАЖНО: 'id' должен быть СТРОКОЙ (Hashid)
+    return [
+        'id' => (string) $user->hashid, 
+        'name' => $user->name
+    ];
 });

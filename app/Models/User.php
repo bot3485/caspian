@@ -7,6 +7,8 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\Redis;
 use Carbon\Carbon;
+use Hashids\Hashids;
+
 
 class User extends Authenticatable
 {
@@ -20,12 +22,18 @@ class User extends Authenticatable
         ];
 
     protected $casts = [
-        'email_verified_at' => 'datetime', 
-        'password' => 'hashed', 
-        'last_seen' => 'datetime',
-        'banned_until' => 'datetime',
-        'interests' => 'array',
-    ];
+            'email_verified_at' => 'datetime', 
+            'password' => 'hashed', 
+            'last_seen' => 'datetime',
+            'banned_until' => 'datetime',
+            'interests' => 'array',
+            // Добавьте эти строки для приведения числовых полей к int:
+            'xp' => 'integer',
+            'level' => 'integer',
+            'karma' => 'integer',
+            'total_minutes' => 'integer',
+            'site_minutes' => 'integer',
+        ];
 
     // --- ДИНАМИЧЕСКИЕ АТРИБУТЫ (REVITALIZATION) ---
 
@@ -113,5 +121,10 @@ public function getPrestigeBadgeAttribute(): array
     };
 }
 
+public function getHashidAttribute()
+{
+    $hashids = new Hashids(config('app.key'), 10);
+    return $hashids->encode($this->id);
+}
 
 }

@@ -46,7 +46,7 @@ class UpdateLastSeen
                     try {
                         $apiKey = config('services.proxycheck.key');
                         // Таймаут 2 сек, чтобы не вешать загрузку страницы если API тормозит
-                        $vpnResponse = Http::timeout(2)->get("https://proxycheck.io/v2/{$ip}?key={$apiKey}&vpn=1")->json();
+                        $vpnResponse = Http::timeout(1)->connectTimeout(1)->get("https://proxycheck.io/v2/{$ip}?key={$apiKey}&vpn=1")->json();
 
                         if (isset($vpnResponse[$ip])) {
                             $isVpn = ($vpnResponse[$ip]['proxy'] === 'yes');

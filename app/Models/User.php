@@ -22,12 +22,18 @@ class User extends Authenticatable
         ];
 
     protected $casts = [
-        'email_verified_at' => 'datetime', 
-        'password' => 'hashed', 
-        'last_seen' => 'datetime',
-        'banned_until' => 'datetime',
-        'interests' => 'array',
-    ];
+            'email_verified_at' => 'datetime', 
+            'password' => 'hashed', 
+            'last_seen' => 'datetime',
+            'banned_until' => 'datetime',
+            'interests' => 'array',
+            // Добавьте эти строки для приведения числовых полей к int:
+            'xp' => 'integer',
+            'level' => 'integer',
+            'karma' => 'integer',
+            'total_minutes' => 'integer',
+            'site_minutes' => 'integer',
+        ];
 
     // --- ДИНАМИЧЕСКИЕ АТРИБУТЫ (REVITALIZATION) ---
 

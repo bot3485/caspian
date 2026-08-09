@@ -675,14 +675,20 @@ public function unblockUser(Request $request): JsonResponse
 
 public function leaderboard(): \Illuminate\View\View
 {
-    // Кэшируем результат на 10 минут
-    $topUsers = \Illuminate\Support\Facades\Cache::remember('leaderboard_top_50', 600, function () {
-        return User::whereNull('banned_until')
-            ->orWhere('banned_until', '<', now())
+    // Сохраняем в кэш чистый JSON-текст
+    $json = \Illuminate\Support\Facades\Cache::remember('leaderboard_top_50_v8', 600, function () {
+        return User::where(function ($query) {
+                $query->whereNull('banned_until')
+                      ->orWhere('banned_until', '<', now());
+            })
             ->orderBy('xp', 'desc')
             ->take(50)
-            ->get();
+            ->get()
+            ->toJson();
     });
+
+    // Превращаем JSON обратно в коллекцию стандартных объектов (stdClass)
+    $topUsers = collect(json_decode($json));
 
     return view('leaderboard', compact('topUsers'));
 }
